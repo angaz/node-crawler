@@ -24,6 +24,7 @@ var (
 			&crawlerDBFlag,
 			&apiDBFlag,
 			&dropNodesTimeFlag,
+			&apiListenAddrFlag,
 		},
 	}
 	crawlerDBFlag = cli.StringFlag{
@@ -40,6 +41,11 @@ var (
 		Name:  "drop-time",
 		Usage: "Time to drop crawled nodes without any updates",
 		Value: 24 * time.Hour,
+	}
+	apiListenAddrFlag = cli.StringFlag{
+		Name:  "addr",
+		Usage: "Listening address",
+		Value: "0.0.0.0:10000",
 	}
 )
 
@@ -72,7 +78,8 @@ func startAPI(ctx *cli.Context) error {
 	go dropDeamon(&wg, nodeDB, ctx.Duration(dropNodesTimeFlag.Name))
 
 	// Start the API deamon
-	apiDeamon := api.New(nodeDB)
+	apiAddress := ctx.String(apiListenAddrFlag.Name)
+	apiDeamon := api.New(apiAddress, nodeDB)
 	go apiDeamon.HandleRequests(&wg)
 	wg.Wait()
 
