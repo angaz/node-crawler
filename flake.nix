@@ -4,17 +4,29 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     devshell.url = "github:numtide/devshell";
-    flake-utils.url = "github:numtide/flake-utils";
+    flake-parts.url = "github:hercules-ci/flake-parts";
   };
 
-  outputs = { self, nixpkgs, devshell, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [ devshell.overlays.default ];
+  outputs = inputs@{ self, nixpkgs, devshell, flake-parts }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [
+        devshell.flakeModule
+        flake-parts.flakeModules.easyOverlay
+      ];
+
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
+
+      perSystem = { config, pkgs, final, ... }: {
+        overlayAttrs = {
+          inherit (config.packages) nodeCrawler;
+          inherit (config.packages) nodeCrawlerFrontend;
         };
-      in rec {
+
         packages = {
           nodeCrawler = pkgs.buildGoModule rec {
             pname = "crawler";
@@ -49,80 +61,119 @@
             '';
           };
         };
+
+        devshells.default = {
+          packages = with pkgs; [
+            go
+            golangci-lint
+            nodejs
+            sqlite
+          ];
+        };
+      };
+
+      flake = rec {
         nixosModules.default = nixosModules.nodeCrawler;
-        nixosModules.nodeCrawler = { config, lib, pkgs }:
+        nixosModules.nodeCrawler = { config, lib, pkgs, ... }:
         with lib;
         let
           cfg = config.services.nodeCrawler;
           apiAddress = "${cfg.api.address}:${toString cfg.api.port}";
-          crawlerDBPath = "${cfg.stateDir}/${cfg.crawlerDatabaseName}";
-          apiDBPath = "${cfg.stateDir}/${cfg.apiDatabaseName}";
         in
         {
           options.services.nodeCrawler = {
-            enable = mkEnableOption (mdDoc self.flake.description);
+            enable = mkEnableOption (self.flake.description);
 
             hostName = mkOption {
               type = types.str;
               default = "localhost";
-              description = mdDoc "Hostname to serve Node Crawler on.";
+              description = "Hostname to serve Node Crawler on.";
+            };
+
+            nginx = mkOption {
+              type = types.attrs;
+              default = { };
+              example = literalExpression ''
+                {
+                  forceSSL = true;
+                  enableACME = true;
+                }
+              '';
+              description = "Extra configuration for the vhost. Useful for adding SSL settings.";
             };
 
             stateDir = mkOption {
               type = types.path;
-              default = "/var/lib/node_crawler";
-              description = mdDoc "The directory containing the Node Crawler databases.";
+              default = /var/lib/node_crawler;
+              description = "Directory where the databases will exist.";
             };
 
             crawlerDatabaseName = mkOption {
               type = types.str;
               default = "crawler.db";
-              description = mkDoc "Name of the file within the `stateDir` for storing the data for the crawler.";
+              description = "Name of the file within the `stateDir` for storing the data for the crawler.";
             };
 
             apiDatabaseName = mkOption {
               type = types.str;
               default = "api.db";
-              description = mkDoc "Name of the file within the `stateDir` for storing the data for the API.";
+              description = "Name of the file within the `stateDir` for storing the data for the API.";
             };
 
             user = mkOption {
               type = types.str;
               default = "nodecrawler";
-              description = mdDoc "User account under which Node Crawler runs.";
+              description = "User account under which Node Crawler runs.";
             };
 
             group = mkOption {
               type = types.str;
               default = "nodecrawler";
-              description = mdDoc "Group account under which Node Crawler runs.";
+              description = "Group account under which Node Crawler runs.";
+            };
+
+            dynamicUser = mkOption {
+              type = types.bool;
+              default = true;
+              description = ''
+                Runs the Node Crawler as a SystemD DynamicUser.
+                It means SystenD will allocate the user at runtime, and enables
+                some other security features.
+                If you are not sure what this means, it's safe to leave it default.
+              '';
             };
 
             api = {
               enable = mkOption {
                 default = true;
                 type = types.bool;
-                description = mkDoc "Enables the Node Crawler API server.";
+                description = "Enables the Node Crawler API server.";
               };
 
               address = mkOption {
                 type = types.str;
                 default = "127.0.0.1";
-                description = mkDoc "Listen address for the API server.";
+                description = "Listen address for the API server.";
               };
 
               port = mkOption {
-                type = types.ints.unsigned;
+                type = types.port;
                 default = 10000;
-                description = mkDoc "Listen port for the API server.";
+                description = "Listen port for the API server.";
               };
             };
 
             crawler = {
+              enable = mkOption {
+                default = true;
+                type = types.bool;
+                description = "Enables the Node Crawler API server.";
+              };
+
               geoipdb = mkOption {
                 type = types.path;
-                default = config.service.geoipupdate.settings.DatabaseDirectory + "/GeoLite2-Country.mmdb";
-                description = mkDoc ''
+                default = config.services.geoipupdate.settings.DatabaseDirectory + "/GeoLite2-Country.mmdb";
+                description = ''
                   Location of the GeoIP database.
 
                   If the default is used, the `geoipupdate` service files.
@@ -144,40 +195,32 @@
           };
 
           config = mkIf cfg.enable {
-            users.users = optionalAttrs (cfg.user == "nodecrawler") {
-              nodecrawler = {
-                group = cfg.group;
-                uid = config.ids.uids.nodecrawler;
-              };
-            };
-
-            users.groups = optionalAttrs (cfg.group == "nodecrawler") {
-              nodecrawler.gid = config.ids.gids.nodecrawler;
-            };
-
             systemd.services = {
               node-crawler-crawler = {
                 description = "Node Cralwer, the Ethereum Node Crawler.";
                 wantedBy = [ "multi-user.target" ];
                 after = [ "network.target" ];
 
-                script =
-                let
-                  args = [
-                    "--crawler-db=${crawlerDBPath}"
-                    "--geoipdb=${cfg.crawler.geoipdb}"
-                  ]
-                  ++ optional (cfg.crawler.network == "goerli") "--goerli"
-                  ++ optional (cfg.crawler.network == "sepolia") "--sepolia";
-                in
-                ''
-                  ${pkgs.nodeCrawler}/bin/crawler crawl ${concatstringsSep " " args}
-                '';
-
                 serviceConfig = {
+                  ExecStart =
+                  let
+                    args = [
+                      "--crawler-db=${cfg.crawlerDatabaseName}"
+                      "--geoipdb=${cfg.crawler.geoipdb}"
+                    ]
+                    ++ optional (cfg.crawler.network == "goerli") "--goerli"
+                    ++ optional (cfg.crawler.network == "sepolia") "--sepolia";
+                  in
+                  "${pkgs.nodeCrawler}/bin/crawler crawl ${concatStringsSep " " args}";
+
                   WorkingDirectory = cfg.stateDir;
+                  StateDirectory = optional (cfg.stateDir == /var/lib/node_crawler) "node_crawler";
+
+                  DynamicUser = cfg.dynamicUser;
                   Group = cfg.group;
                   User = cfg.user;
+
+                  Restart = "on-failure";
                 };
               };
               node-crawler-api = {
@@ -186,22 +229,25 @@
                 after = [ "network.target" ]
                   ++ optional cfg.crawler.enable "node-crawler-crawler.service";
 
-                script =
-                let
-                  args = [
-                    "--addr=${apiAddress}"
-                    "--crawler-db=${crawlerDBPath}"
-                    "--api-db=${apiDBPath}"
-                  ];
-                in
-                ''
-                  ${pkgs.nodeCrawler}/bin/crawler api ${concatstringsSep " " args}
-                '';
-
                 serviceConfig = {
+                  ExecStart =
+                  let
+                    args = [
+                      "--addr=${apiAddress}"
+                      "--crawler-db=${cfg.crawlerDatabaseName}"
+                      "--api-db=${cfg.apiDatabaseName}"
+                    ];
+                  in
+                  "${pkgs.nodeCrawler}/bin/crawler api ${concatStringsSep " " args}";
+
                   WorkingDirectory = cfg.stateDir;
+                  StateDirectory = optional (cfg.stateDir == /var/lib/node_crawler) "node_crawler";
+
+                  DynamicUser = cfg.dynamicUser;
                   Group = cfg.group;
                   User = cfg.user;
+
+                  Restart = "on-failure";
                 };
               };
             };
@@ -209,29 +255,25 @@
             services.nginx = {
               enable = true;
               upstreams.nodeCrawlerApi.servers."${apiAddress}" = { };
-              virtualHosts."${cfg.hostName}" = {
-                root = mkForce "${pkgs.nodeCrawlerFrontend}/share/frontend";
-                locations = {
-                  "/" = {
-                    index = "index.html";
-                    tryFiles = "$uri $uri/ /index.html";
+              virtualHosts."${cfg.hostName}" = mkMerge [
+                cfg.nginx
+                {
+                  root = mkForce "${pkgs.nodeCrawlerFrontend}/share/frontend";
+                  locations = {
+                    "/" = {
+                      index = "index.html";
+                      tryFiles = "$uri $uri/ /index.html";
+                    };
+                    "/v1/" = {
+                      proxyPass = "http://nodeCrawlerApi/v1/";
+                    };
                   };
-                  "/v1/" = {
-                    proxyPass = "http://nodeCrawlerApi/v1/";
-                  };
-                };
-              };
+                }
+              ];
             };
           };
         };
-        devShell = pkgs.devshell.mkShell {
-          packages = with pkgs; [
-            go
-            golangci-lint
-            nodejs
-            sqlite
-          ];
-        };
-      });
+      };
+  };
 }
 
