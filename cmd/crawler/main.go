@@ -42,6 +42,7 @@ func init() {
 	// Add subcommands.
 	app.Commands = []*cli.Command{
 		apiCommand,
+		clientInfoCommand,
 		crawlerCommand,
 	}
 }
