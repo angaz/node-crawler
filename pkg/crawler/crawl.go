@@ -184,7 +184,7 @@ func (c *crawler) getClientInfoLoop() {
 		var tooManyPeers bool
 		var scoreInc int
 
-		info, err := getClientInfo(c.genesis, c.networkID, c.nodeURL, n)
+		info, err := GetClientInfo(c.genesis, c.networkID, c.nodeURL, n)
 		if err != nil {
 			log.Warn("GetClientInfo failed", "error", err, "nodeID", n.ID())
 			if strings.Contains(err.Error(), "too many peers") {

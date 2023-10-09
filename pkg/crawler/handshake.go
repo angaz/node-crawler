@@ -26,7 +26,12 @@ var (
 	lastStatusUpdate time.Time
 )
 
-func getClientInfo(genesis *core.Genesis, networkID uint64, nodeURL string, n *enode.Node) (*common.ClientInfo, error) {
+func GetClientInfo(
+	genesis *core.Genesis,
+	networkID uint64,
+	nodeURL string,
+	n *enode.Node,
+) (*common.ClientInfo, error) {
 	var info common.ClientInfo
 
 	conn, sk, err := dial(n)
@@ -40,10 +45,10 @@ func getClientInfo(genesis *core.Genesis, networkID uint64, nodeURL string, n *e
 	}
 
 	if err = writeHello(conn, sk); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("writeHello failed: %w", err)
 	}
 	if err = readHello(conn, &info); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("readHello failed: %w", err)
 	}
 
 	// If node provides no eth version, we can skip it.
@@ -55,7 +60,13 @@ func getClientInfo(genesis *core.Genesis, networkID uint64, nodeURL string, n *e
 		return nil, fmt.Errorf("cannot set conn deadline: %w", err)
 	}
 
-	s := getStatus(genesis.Config, uint32(conn.negotiatedProtoVersion), genesis.ToBlock(), networkID, nodeURL)
+	s := getStatus(
+		genesis.Config,
+		uint32(conn.negotiatedProtoVersion),
+		genesis.ToBlock(),
+		networkID,
+		nodeURL,
+	)
 	if err = conn.Write(s); err != nil {
 		return nil, err
 	}

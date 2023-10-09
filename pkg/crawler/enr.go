@@ -29,8 +29,8 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// parseNode parses a node record and verifies its signature.
-func parseNode(source string) (*enode.Node, error) {
+// ParseNode parses a node record and verifies its signature.
+func ParseNode(source string) (*enode.Node, error) {
 	if strings.HasPrefix(source, "enode://") {
 		return enode.ParseV4(source)
 	}

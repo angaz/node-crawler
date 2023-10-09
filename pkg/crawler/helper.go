@@ -57,7 +57,7 @@ func (c Crawler) parseBootnodes() ([]*enode.Node, error) {
 	nodes := make([]*enode.Node, len(bootnodes))
 	var err error
 	for i, record := range bootnodes {
-		nodes[i], err = parseNode(record)
+		nodes[i], err = ParseNode(record)
 		if err != nil {
 			return nil, fmt.Errorf("invalid bootstrap node: %v", err)
 		}

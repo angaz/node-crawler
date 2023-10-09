@@ -165,6 +165,8 @@ type Conn struct {
 // Read reads an eth66 packet from the connection.
 func (c *Conn) Read() Message {
 	code, rawData, _, err := c.Conn.Read()
+	fmt.Println("Conn.Read\nCode:", code, "RawData:", rawData, "Err:", err)
+
 	if err != nil {
 		return errorf("could not read from connection: %v", err)
 	}
@@ -255,7 +257,8 @@ func (c *Conn) Write(msg Message) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.Conn.Write(uint64(msg.Code()), payload)
+	n, err := c.Conn.Write(uint64(msg.Code()), payload)
+	fmt.Println("wrote:", n, "len:", len(payload))
 	return err
 }
 
