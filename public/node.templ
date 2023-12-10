@@ -549,6 +549,11 @@ templ NodeList(reqURL URL, nodes database.NodeList) {
 					}
 				</tbody>
 			</table>
+
+			if len(nodes.List) == 0 {
+				<span>The set of filters resulted in 0 rows. Try selecting "All" for the network and synced filters</span>
+			}
+
 			<div style="display:flex; flex-direction:row; justify-content:flex-end; align-items:center; gap:2em;">
 				<a
  					href={ reqURL.WithIntParam("page", nodes.PageNumber-1).SafeURL() }
