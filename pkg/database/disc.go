@@ -42,6 +42,7 @@ func (d *DB) UpsertNode(node *enode.Node) error {
 				node_record = best_record(node_record, excluded.node_record),
 				ip_address = excluded.ip_address,
 				last_found = unixepoch()
+			WHERE last_found < unixepoch('now', '-1 hour')  -- Only update once an hour
 		`,
 		node.ID().Bytes(),
 		common.PubkeyBytes(node.Pubkey()),
