@@ -306,7 +306,7 @@
 
               nextCrawlFail = mkOption {
                 type = types.str;
-                default = "48h";
+                default = "36h";
                 description = "Next crawl value if the crawl was unsuccessful.";
               };
 
@@ -316,10 +316,15 @@
                 description = "Next crawl value if the node was not an eth node.";
               };
 
-              nodeListenPort = mkOption {
+              listenPortStart = mkOption {
                 type = types.port;
                 default = 30303;
-                description = "Port number for the node listen address.";
+                description = "Port number to start on for the list of listeners.";
+              };
+              listenerCount = mkOption {
+                type = types.int;
+                default = 16;
+                description = "Number of listeners.";
               };
             };
           };
@@ -328,8 +333,8 @@
             networking.firewall = mkIf cfg.crawler.openFirewall (
               let
                 portsFn = l: i:
-                  if i == 16 then l
-                  else portsFn (l ++ [(cfg.crawler.nodeListenPort + i)]) (i + 1);
+                  if i == cfg.crawler.listenerCount then l
+                  else portsFn (l ++ [(cfg.crawler.listenPortStart + i)]) (i + 1);
                 ports = portsFn [] 0;
               in
               {
@@ -351,7 +356,7 @@
                       "--crawler-db=${cfg.crawlerDatabaseName}"
                       "--crawler-snapshot=${cfg.crawlerSnapshotFilename}"
                       "--geoipdb=${cfg.crawler.geoipdb}"
-                      "--listen-start-port=${toString cfg.crawler.nodeListenPort}"
+                      "--listen-start-port=${toString cfg.crawler.listenPortStart}"
                       "--metrics-addr=${cfg.crawler.metricsAddress}"
                       "--next-crawl-fail=${cfg.crawler.nextCrawlFail}"
                       "--next-crawl-not-eth=${cfg.crawler.nextCrawlNotEth}"
