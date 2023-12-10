@@ -60,14 +60,16 @@ func (l *Listener) Close() {
 
 func (l *Listener) StartDaemon() {
 	for i, nodeKey := range l.nodeKeys {
+		port := l.listenPortStart + uint16(i)
 		l.wg.Add(1)
 		go l.startListener(
 			nodeKey,
 			fmt.Sprintf(
 				"[%s]:%d",
 				l.listenHost,
-				l.listenPortStart+uint16(i),
+				port,
 			),
+			port,
 		)
 	}
 
@@ -90,10 +92,10 @@ func (l *Listener) updaterLoop() {
 	}
 }
 
-func (l *Listener) startListener(nodeKey *ecdsa.PrivateKey, listenAddr string) {
+func (l *Listener) startListener(nodeKey *ecdsa.PrivateKey, listenAddr string, port uint16) {
 	defer l.wg.Done()
 
-	disc, err := disc.New(l.db, listenAddr, nodeKey)
+	disc, err := disc.New(l.db, nodeKey, listenAddr, port)
 	if err != nil {
 		log.Error("new discovery failed", "err", err, "addr", listenAddr)
 

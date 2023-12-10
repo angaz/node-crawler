@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/ethereum/node-crawler/pkg/metrics"
@@ -32,8 +33,9 @@ type Discovery struct {
 
 func New(
 	db *database.DB,
-	listenAddr string,
 	privateKey *ecdsa.PrivateKey,
+	listenAddr string,
+	port uint16,
 ) (*Discovery, error) {
 	d := &Discovery{
 		db:         db,
@@ -67,6 +69,7 @@ func New(
 
 	d.nodeDB = nodeDB
 	d.localnode = enode.NewLocalNode(nodeDB, d.privateKey)
+	d.localnode.Set(enr.TCP(port))
 
 	return d, nil
 }
