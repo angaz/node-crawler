@@ -56,8 +56,6 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	before := time.Now().Truncate(30 * time.Minute).Add(30 * time.Minute)
 	after := before.AddDate(0, 0, -days)
 
-	n := time.Now()
-
 	allStats, err := a.db.GetStats(r.Context(), after, before, networkID, synced)
 	if err != nil {
 		log.Error("GetStats failed", "err", err)
@@ -67,8 +65,6 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-
-	log.Info("db done", "duration", time.Since(n))
 
 	allStats = allStats.Filter(
 		func(_ int, s database.Stats) bool {
@@ -129,8 +125,6 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 			return s.Client.Name == clientName
 		},
 	)
-
-	log.Info("filter", "duration", time.Since(n))
 
 	reqURL := public.URLFromReq(r)
 
@@ -212,8 +206,6 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		),
 	)
 
-	log.Info("group", "duration", time.Since(n))
-
 	statsPage := public.Stats(
 		reqURL,
 		networkID,
@@ -224,8 +216,6 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		last,
 		len(allStats) == 0,
 	)
-
-	log.Info("page", "duration", time.Since(n))
 
 	index := public.Index(reqURL, statsPage, networkID, synced)
 
