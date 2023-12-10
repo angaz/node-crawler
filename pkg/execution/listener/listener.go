@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
-	"github.com/ethereum/node-crawler/pkg/disc"
+	"github.com/ethereum/node-crawler/pkg/execution/disc"
 	"github.com/ethereum/node-crawler/pkg/execution/p2p"
 	"github.com/ethereum/node-crawler/pkg/metrics"
 )
