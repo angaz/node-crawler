@@ -133,6 +133,8 @@ func (l *Listener) startListener(nodeKey *ecdsa.PrivateKey, listenAddr string) {
 			break
 		}
 
+		metrics.AcceptedConnections.WithLabelValues(listenAddr).Inc()
+
 		go l.crawlPeer(nodeKey, conn)
 	}
 }

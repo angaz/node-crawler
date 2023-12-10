@@ -118,6 +118,16 @@ var (
 			Help:      "Unix timestamp when the service started",
 		},
 	)
+	AcceptedConnections = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "accepted_connections_total",
+			Help:      "Number of accepted connections.",
+		},
+		[]string{
+			"addr",
+		},
+	)
 )
 
 func init() {
