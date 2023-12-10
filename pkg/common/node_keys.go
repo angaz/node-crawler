@@ -10,13 +10,23 @@ import (
 	"os"
 	"slices"
 
+	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type keypair struct {
+type privateKey struct {
 	privEcdsa *ecdsa.PrivateKey
+	nodeID    []byte
 	priv      []byte
-	pub       []byte
+}
+
+func nodeAddr(pubkey *ecdsa.PublicKey) []byte {
+	buf := make([]byte, 64)
+
+	ethmath.ReadBits(pubkey.X, buf[:32])
+	ethmath.ReadBits(pubkey.Y, buf[32:])
+
+	return crypto.Keccak256(buf)
 }
 
 func genPrefix(numKeys int) (int, byte) {
@@ -38,7 +48,7 @@ func WriteNodeKeys(numKeys int, filename string) ([]*ecdsa.PrivateKey, error) {
 	nBits, prefix := genPrefix(numKeys)
 
 	found := 0
-	keys := make([]*keypair, numKeys)
+	keys := make([]*privateKey, numKeys)
 
 	for found != numKeys {
 		privkey, err := crypto.GenerateKey()
@@ -46,23 +56,23 @@ func WriteNodeKeys(numKeys int, filename string) ([]*ecdsa.PrivateKey, error) {
 			return nil, fmt.Errorf("generate key: %w", err)
 		}
 
-		pubkeyBytes := crypto.FromECDSAPub(&privkey.PublicKey)[1:]
-		firstByte := pubkeyBytes[0]
+		nodeID := nodeAddr(&privkey.PublicKey)
+		firstByte := nodeID[0]
 
-		idx := slices.IndexFunc(keys, func(pair *keypair) bool {
+		idx := slices.IndexFunc(keys, func(pair *privateKey) bool {
 			if pair == nil {
 				return false
 			}
 
-			return (pair.pub[0] & prefix) == (firstByte & prefix)
+			return (pair.nodeID[0] & prefix) == (firstByte & prefix)
 		})
 
 		// Not found in array, add the value
 		if idx == -1 {
-			keys[(firstByte&prefix)>>(8-nBits)] = &keypair{
+			keys[(firstByte&prefix)>>(8-nBits)] = &privateKey{
 				privEcdsa: privkey,
+				nodeID:    nodeID,
 				priv:      crypto.FromECDSA(privkey),
-				pub:       pubkeyBytes,
 			}
 
 			found++
@@ -83,7 +93,7 @@ func WriteNodeKeys(numKeys int, filename string) ([]*ecdsa.PrivateKey, error) {
 		keysFile = file
 	}
 
-	_, err := fmt.Fprintln(keysFile, "# Private Key                                                     # Public Key")
+	_, err := fmt.Fprintln(keysFile, "# Private Key                                                     # Node ID")
 	if err != nil {
 		return nil, fmt.Errorf("write header: %w", err)
 	}
@@ -91,7 +101,7 @@ func WriteNodeKeys(numKeys int, filename string) ([]*ecdsa.PrivateKey, error) {
 	outKeys := make([]*ecdsa.PrivateKey, 0, numKeys)
 
 	for _, pair := range keys {
-		_, err := fmt.Fprintf(keysFile, "%x  # %x\n", pair.priv, pair.pub)
+		_, err := fmt.Fprintf(keysFile, "%x  # %x\n", pair.priv, pair.nodeID)
 		if err != nil {
 			return nil, fmt.Errorf("write pair: %w", err)
 		}
