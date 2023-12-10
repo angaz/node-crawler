@@ -27,7 +27,7 @@ func (db *DB) clean() {
 	// defer cancel()
 
 	db.blocksCleaner(ctx)
-	// db.historyCleaner(ctx)
+	db.historyCleaner(ctx)
 }
 
 func (db *DB) blocksCleaner(ctx context.Context) {
@@ -53,6 +53,9 @@ func (db *DB) blocksCleaner(ctx context.Context) {
 	}
 }
 
+// Delete history of the accepted connections older than 14 days.
+// There is a large volume of accepted connections, so this will fill up the
+// database significantly.
 func (db *DB) historyCleaner(ctx context.Context) {
 	db.wLock.Lock()
 	defer db.wLock.Unlock()
@@ -63,7 +66,9 @@ func (db *DB) historyCleaner(ctx context.Context) {
 
 	_, err = db.db.ExecContext(ctx, `
 		DELETE FROM crawl_history
-		WHERE crawled_at < unixepoch('now', '-14 days')
+		WHERE
+			crawled_at < unixepoch('now', '-14 days')
+			AND direction = 'accept'
 	`)
 	if err != nil {
 		log.Error("history cleaner failed", "err", err)
