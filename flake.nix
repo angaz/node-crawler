@@ -286,13 +286,6 @@
                 '';
               };
 
-              network = mkOption {
-                type = types.str;
-                default = "mainnet";
-                example = "holesky";
-                description = "Name of the network to crawl. Defaults to Mainnet.";
-              };
-
               openFirewall = mkOption {
                 type = types.bool;
                 default = true;
@@ -338,10 +331,18 @@
           };
 
           config = mkIf cfg.enable {
-            networking.firewall = mkIf cfg.crawler.openFirewall {
-              allowedUDPPorts = [ cfg.crawler.nodeListenPort ];
-              allowedTCPPorts = [ cfg.crawler.nodeListenPort ];
-            };
+            networking.firewall = mkIf cfg.crawler.openFirewall (
+              let
+                portsFn = l: i:
+                  if i == 16 then l
+                  else portsFn (l ++ [(cfg.crawler.nodeListenPort + i)]) (i + 1);
+                ports = portsFn [] 0;
+              in
+              {
+                allowedUDPPorts = ports;
+                allowedTCPPorts = ports;
+              }
+            );
 
             systemd.services = {
               node-crawler-crawler = mkIf cfg.crawler.enable {
@@ -353,22 +354,19 @@
                   ExecStart =
                   let
                     args = [
-                      "--snapshot-dir=${cfg.snapshotDirname}"
-                      "--crawler-snapshot=${cfg.crawlerSnapshotFilename}"
-                      "--stats-snapshot=${cfg.statsSnapshotFilename}"
                       "--crawler-db=${cfg.crawlerDatabaseName}"
-                      "--stats-db=${cfg.statsDatabaseName}"
+                      "--crawler-snapshot=${cfg.crawlerSnapshotFilename}"
                       "--geoipdb=${cfg.crawler.geoipdb}"
+                      "--listen-start-port=${toString cfg.crawler.nodeListenPort}"
                       "--metrics-addr=${cfg.crawler.metricsAddress}"
                       "--next-crawl-fail=${cfg.crawler.nextCrawlFail}"
                       "--next-crawl-not-eth=${cfg.crawler.nextCrawlNotEth}"
                       "--next-crawl-success=${cfg.crawler.nextCrawlSuccess}"
-                      "--node-addr=0.0.0.0:${toString cfg.crawler.nodeListenPort}"
+                      "--snapshot-dir=${cfg.snapshotDirname}"
+                      "--stats-db=${cfg.statsDatabaseName}"
+                      "--stats-snapshot=${cfg.statsSnapshotFilename}"
                       "--workers=${toString cfg.crawler.workers}"
-                    ]
-                    ++ optional (cfg.crawler.network == "goerli") "--goerli"
-                    ++ optional (cfg.crawler.network == "holesky") "--holesky"
-                    ++ optional (cfg.crawler.network == "sepolia") "--sepolia";
+                    ];
                   in
                   "${pkgs.nodeCrawler}/bin/crawler --pprof=${if cfg.crawler.pprof then "true" else "false"} crawl ${concatStringsSep " " args}";
 
@@ -393,11 +391,11 @@
                   let
                     args = [
                       "--api-addr=${apiAddress}"
-                      "--snapshot-dir=${cfg.snapshotDirname}"
                       "--crawler-db=${cfg.crawlerDatabaseName}"
-                      "--stats-db=${cfg.statsDatabaseName}"
                       "--enode=${cfg.api.enode}"
                       "--metrics-addr=${cfg.api.metricsAddress}"
+                      "--snapshot-dir=${cfg.snapshotDirname}"
+                      "--stats-db=${cfg.statsDatabaseName}"
                     ];
                   in
                   "${pkgs.nodeCrawler}/bin/crawler --pprof=${if cfg.api.pprof then "true" else "false"} api ${concatStringsSep " " args}";

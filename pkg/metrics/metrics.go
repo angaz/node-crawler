@@ -37,11 +37,15 @@ var (
 			"disc_version",
 		},
 	)
-	NodeUpdateBacklog = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: namespace,
-		Name:      "node_update_backlog",
-		Help:      "Number of nodes to be updated in the backlog",
-	})
+	nodeUpdateBacklog = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "node_update_backlog",
+			Help:      "Number of nodes to be updated in the backlog",
+		}, []string{
+			"system",
+		},
+	)
 	nodeUpdateCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
@@ -141,4 +145,8 @@ func NodeUpdateInc(direction string, err string) {
 		"status":    boolToStatus(err == ""),
 		"error":     err,
 	}).Inc()
+}
+
+func NodeUpdateBacklog(system string, value int) {
+	nodeUpdateBacklog.WithLabelValues(system).Set(float64(value))
 }

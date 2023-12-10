@@ -34,7 +34,8 @@ var app = &cli.App{
 	Commands: []*cli.Command{
 		apiCommand,
 		crawlerCommand,
-		printEnodeCommand,
+		genkeysCommand,
+		printEnodesCommand,
 	},
 }
 

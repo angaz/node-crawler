@@ -27,8 +27,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/node-crawler/pkg/disc"
 	"github.com/ethereum/node-crawler/pkg/execution/crawler"
+	"github.com/ethereum/node-crawler/pkg/execution/listener"
 
 	"github.com/urfave/cli/v2"
 )
@@ -44,18 +44,19 @@ var (
 			&bootnodesFlag,
 			&busyTimeoutFlag,
 			&crawlerDBFlag,
-			&snapshotDirFlag,
 			&crawlerSnapshotFlag,
 			&geoipdbFlag,
 			&listenAddrFlag,
+			&listenStartPortFlag,
 			&metricsAddressFlag,
 			&nextCrawlFailFlag,
 			&nextCrawlNotEthFlag,
 			&nextCrawlSuccessFlag,
 			&nodeFileFlag,
-			&nodeKeyFileFlag,
+			&nodeKeysFileFlag,
 			&nodeURLFlag,
 			&nodedbFlag,
+			&snapshotDirFlag,
 			&statsCopyFrequencyFlag,
 			&statsDBFlag,
 			&statsSnapshotFlag,
@@ -110,28 +111,22 @@ func crawlNodesV2(cCtx *cli.Context) error {
 	go db.CleanerDaemon(15 * time.Minute)
 	go db.CopyStatsDaemon(statsCopyFrequencyFlag.Get(cCtx))
 
-	nodeKey, err := readNodeKey(cCtx)
+	nodeKeys, err := readNodeKeys(cCtx)
 	if err != nil {
 		return fmt.Errorf("node key failed: %w", err)
 	}
 
-	disc, err := disc.New(db, listenAddrFlag.Get(cCtx), nodeKey)
-	if err != nil {
-		return fmt.Errorf("create disc failed: %w", err)
-	}
-	defer disc.Close()
-
-	err = disc.StartDaemon()
-	if err != nil {
-		return fmt.Errorf("start disc daemon failed: %w", err)
-	}
-
-	crawler, err := crawler.NewCrawler(
+	listener := listener.New(
 		db,
-		disc.DiscV4(),
-		disc.DiscV5(),
-		nodeKey,
+		nodeKeys,
 		listenAddrFlag.Get(cCtx),
+		uint16(listenStartPortFlag.Get(cCtx)),
+	)
+	go listener.StartDaemon()
+
+	crawler, err := crawler.New(
+		db,
+		nodeKeys,
 		workersFlag.Get(cCtx),
 	)
 	if err != nil {
@@ -149,7 +144,10 @@ func crawlNodesV2(cCtx *cli.Context) error {
 	http.Handle("/metrics", promhttp.Handler())
 	http.ListenAndServe(metricsAddr, nil)
 
-	disc.Wait()
+	listener.Close()
+	crawler.Close()
+
+	listener.Wait()
 	crawler.Wait()
 
 	return nil

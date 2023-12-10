@@ -1,9 +1,10 @@
-package crawler
+package p2p
 
 import (
 	"crypto/ecdsa"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -19,6 +20,7 @@ var (
 
 func Accept(pk *ecdsa.PrivateKey, fd net.Conn) (*ecdsa.PublicKey, *Conn, error) {
 	conn := new(Conn)
+	conn.ourKey = pk
 
 	conn.Conn = rlpx.NewConn(fd, nil)
 
@@ -34,9 +36,10 @@ func Accept(pk *ecdsa.PrivateKey, fd net.Conn) (*ecdsa.PublicKey, *Conn, error) 
 	return pubKey, conn, nil
 }
 
-// Dial attempts to Dial the given node and perform a handshake,
+// Dial attempts to Dial the given node and perform a handshake.
 func Dial(pk *ecdsa.PrivateKey, n *enode.Node, timeout time.Duration) (*Conn, error) {
 	var conn Conn
+	conn.ourKey = pk
 
 	fd, err := net.DialTimeout("tcp", fmt.Sprintf("[%s]:%d", n.IP(), n.TCP()), timeout)
 	if err != nil {
@@ -57,8 +60,8 @@ func Dial(pk *ecdsa.PrivateKey, n *enode.Node, timeout time.Duration) (*Conn, er
 	return &conn, nil
 }
 
-func writeHello(conn *Conn, priv *ecdsa.PrivateKey) error {
-	pub0 := crypto.FromECDSAPub(&priv.PublicKey)[1:]
+func (conn *Conn) writeHello() error {
+	pub0 := crypto.FromECDSAPub(&conn.ourKey.PublicKey)[1:]
 
 	h := &Hello{
 		Name:    clientName,
@@ -78,4 +81,31 @@ func writeHello(conn *Conn, priv *ecdsa.PrivateKey) error {
 	conn.ourHighestSnapProtoVersion = 1
 
 	return conn.Write(h)
+}
+
+func TranslateError(err error) (bool, string) {
+	switch errStr := err.Error(); {
+	case strings.Contains(errStr, "i/o timeout"):
+		return true, "i/o timeout"
+	case strings.Contains(errStr, "connection reset by peer"):
+		return true, "connection reset by peer"
+	case strings.Contains(errStr, "EOF"):
+		return true, "EOF"
+	case strings.Contains(errStr, "no route to host"):
+		return true, "no route to host"
+	case strings.Contains(errStr, "connection refused"):
+		return true, "connection refused"
+	case strings.Contains(errStr, "network is unreachable"):
+		return true, "network is unreachable"
+	case strings.Contains(errStr, "invalid message"):
+		return true, "invalid message"
+	case strings.Contains(errStr, "invalid public key"):
+		return true, "invalid public key"
+	case strings.Contains(errStr, "corrupt input"):
+		return true, "corrupt input"
+	case strings.Contains(errStr, "could not rlp decode message"):
+		return true, "rlp decode"
+	default:
+		return false, errStr
+	}
 }

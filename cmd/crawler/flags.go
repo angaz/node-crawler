@@ -71,9 +71,14 @@ var (
 		Usage: "geoip2 database location",
 	}
 	listenAddrFlag = cli.StringFlag{
-		Name:  "node-addr",
+		Name:  "listen-addr",
 		Usage: "Listening address",
-		Value: "0.0.0.0:30303",
+		Value: "0.0.0.0",
+	}
+	listenStartPortFlag = cli.IntFlag{
+		Name:  "listen-start-port",
+		Usage: "Port to start listeners on",
+		Value: 30303,
 	}
 	nodedbFlag = cli.StringFlag{
 		Name:  "nodedb",
@@ -83,10 +88,10 @@ var (
 		Name:  "nodefile",
 		Usage: "Path to a node file containing nodes to be crawled",
 	}
-	nodeKeyFileFlag = cli.StringFlag{
-		Name:  "nodekey",
-		Usage: "P2P node key file",
-		Value: "node.key",
+	nodeKeysFileFlag = cli.StringFlag{
+		Name:  "nodekeys",
+		Usage: "Filename of the P2P node keys",
+		Value: "node.keys",
 	}
 	nodeURLFlag = cli.StringFlag{
 		Name:  "nodeURL",

@@ -2,22 +2,24 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/urfave/cli/v2"
 )
 
 var (
 	//nolint:exhaustruct
-	printEnodeCommand = &cli.Command{
-		Name:      "print-enode",
-		Usage:     "Print the enode given the node key file",
-		ArgsUsage: "KEY_FILE HOST PORT",
-		Action:    printEnodeCmd,
+	printEnodesCommand = &cli.Command{
+		Name:      "print-enodes",
+		Usage:     "Print the enodes from the given node keys file",
+		ArgsUsage: "KEYS_FILE HOST START_PORT",
+		Action:    printEnodesAction,
 	}
 )
 
-func printEnodeCmd(cCtx *cli.Context) error {
+func printEnodesAction(cCtx *cli.Context) error {
 	args := cCtx.Args()
 
 	if args.Len() != 3 {
@@ -26,19 +28,25 @@ func printEnodeCmd(cCtx *cli.Context) error {
 
 	nodeFile := args.Get(0)
 	hostname := args.Get(1)
-	port := args.Get(2)
 
-	nodeKey, err := crypto.LoadECDSA(nodeFile)
+	startPort, err := strconv.Atoi(args.Get(2))
 	if err != nil {
-		return fmt.Errorf("error reading node key file: %w", err)
+		return fmt.Errorf("Parsing start port failed: %w", err)
 	}
 
-	fmt.Printf(
-		"enode://%x@%s:%s\n",
-		crypto.FromECDSAPub(&nodeKey.PublicKey)[1:],
-		hostname,
-		port,
-	)
+	nodeKeys, err := common.ReadNodeKeys(nodeFile)
+	if err != nil {
+		return fmt.Errorf("Reading node keys file failed: %w", err)
+	}
+
+	for i, nodeKey := range nodeKeys {
+		fmt.Printf(
+			"enode://%x@%s:%d\n",
+			crypto.FromECDSAPub(&nodeKey.PublicKey)[1:],
+			hostname,
+			startPort+i,
+		)
+	}
 
 	return nil
 }

@@ -3,14 +3,12 @@ package main
 import (
 	"crypto/ecdsa"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/angaz/sqlu"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/oschwald/geoip2-golang"
 	"github.com/urfave/cli/v2"
@@ -88,39 +86,27 @@ func openDBReader(cCtx *cli.Context) (*database.DB, error) {
 	return db, nil
 }
 
-func readNodeKey(cCtx *cli.Context) (*ecdsa.PrivateKey, error) {
-	nodeKey, err := crypto.GenerateKey()
-	if err != nil {
-		return nil, fmt.Errorf("generating node key failed: %w", err)
-	}
+func readNodeKeys(cCtx *cli.Context) ([]*ecdsa.PrivateKey, error) {
+	nodeKeysFileName := nodeKeysFileFlag.Get(cCtx)
 
-	nodeKeyFileName := nodeKeyFileFlag.Get(cCtx)
-
-	nodeKeyFile, err := os.ReadFile(nodeKeyFileName)
+	_, err := os.Stat(nodeKeysFileName)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			nodeKeyString := hex.EncodeToString(crypto.FromECDSA(nodeKey))
-
-			err = os.WriteFile(nodeKeyFileName, []byte(nodeKeyString), 0o600)
+			keys, err := common.WriteNodeKeys(16, nodeKeysFileName)
 			if err != nil {
-				return nil, fmt.Errorf("writing new node file failed: %w", err)
+				return nil, fmt.Errorf("Writing node keys file failed: %w", err)
 			}
 
-			return nodeKey, nil
+			return keys, nil
 		}
 
-		return nil, fmt.Errorf("reading node key file failed: %w", err)
+		return nil, fmt.Errorf("Reading node keys file failed: %w", err)
 	}
 
-	nodeKeyBytes, err := hex.DecodeString(strings.TrimSpace(string(nodeKeyFile)))
+	keys, err := common.ReadNodeKeys(nodeKeysFileName)
 	if err != nil {
-		return nil, fmt.Errorf("hex decoding node key failed: %w", err)
+		return nil, fmt.Errorf("Read node keys file failed: %w", err)
 	}
 
-	nodeKey, err = crypto.ToECDSA(nodeKeyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("ecdsa parsing of node key failed: %w", err)
-	}
-
-	return nodeKey, nil
+	return keys, nil
 }

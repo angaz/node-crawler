@@ -15,7 +15,7 @@
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 //nolint:exhaustruct
-package crawler
+package p2p
 
 import (
 	"crypto/ecdsa"
