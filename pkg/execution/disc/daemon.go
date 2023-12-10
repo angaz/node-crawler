@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
@@ -134,6 +135,8 @@ func (d *Discovery) discLoop(iter enode.Iterator, discVersion string, ch chan<- 
 		ch <- iter.Node()
 
 		metrics.DiscUpdateCount.WithLabelValues(discVersion).Inc()
+
+		time.Sleep(250 * time.Microsecond)
 	}
 }
 
