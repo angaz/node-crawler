@@ -152,3 +152,18 @@ func ReadNodeKeys(filename string) ([]*ecdsa.PrivateKey, error) {
 
 	return keys, nil
 }
+
+func KeysToEnodes(privkeys []*ecdsa.PrivateKey, enodeAddr string, startPort int) []string {
+	enodes := make([]string, len(privkeys))
+
+	for i, key := range privkeys {
+		enodes[i] = fmt.Sprintf(
+			"enode://%x@%s:%d",
+			crypto.FromECDSAPub(&key.PublicKey)[1:],
+			enodeAddr,
+			startPort+i,
+		)
+	}
+
+	return enodes
+}

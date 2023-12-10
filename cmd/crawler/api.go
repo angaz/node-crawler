@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/node-crawler/pkg/api"
+	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
 )
@@ -23,8 +24,10 @@ var apiCommand = &cli.Command{
 		&busyTimeoutFlag,
 		&crawlerDBFlag,
 		&dropNodesTimeFlag,
-		&enodeFlag,
+		&enodeAddrFlag,
+		&listenStartPortFlag,
 		&metricsAddressFlag,
+		&nodeKeysFileFlag,
 		&snapshotDirFlag,
 		&statsDBFlag,
 		&statsUpdateFrequencyFlag,
@@ -41,11 +44,16 @@ func runAPI(cCtx *cli.Context) error {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 
+	enodes, err := readEnodes(cCtx)
+	if err != nil {
+		return fmt.Errorf("Read enodes failed: %w", err)
+	}
+
 	// Start the API deamon
 	api := api.New(
 		db,
 		statsUpdateFrequencyFlag.Get(cCtx),
-		enodeFlag.Get(cCtx),
+		enodes,
 		snapshotDirFlag.Get(cCtx),
 	)
 	go api.StartServer(
@@ -62,4 +70,19 @@ func runAPI(cCtx *cli.Context) error {
 	wg.Wait()
 
 	return nil
+}
+
+func readEnodes(cCtx *cli.Context) ([]string, error) {
+	keys, err := common.ReadNodeKeys(nodeKeysFileFlag.Get(cCtx))
+	if err != nil {
+		return nil, fmt.Errorf("read node keys: %w", err)
+	}
+
+	enodes := common.KeysToEnodes(
+		keys,
+		enodeAddrFlag.Get(cCtx),
+		listenStartPortFlag.Get(cCtx),
+	)
+
+	return enodes, nil
 }

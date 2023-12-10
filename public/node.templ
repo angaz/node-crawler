@@ -230,7 +230,7 @@ templ SnapshotsList(files []fs.FileInfo) {
 	</div>
 }
 
-templ HelpPage(enode string) {
+templ HelpPage(enodes []string, enode string) {
 	<style>
 		:target {
 			color: #111;
@@ -284,6 +284,16 @@ templ HelpPage(enode string) {
 
 				<h3 id="#add-your-node">Add your node</h3>
 				<p>If your node is not found, it can be easily added.</p>
+
+				<p>The crawler runs multiple nodes. You can select one to use at random:</p>
+
+				<code>
+					<pre>
+						for _, e := range enodes {
+							{ e + "\n" }
+						}
+					</pre>
+				</code>
 
 				<h4 id="add-your-node-rpc">RPC (All Clients)</h4>
 				<p>

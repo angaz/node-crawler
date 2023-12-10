@@ -12,7 +12,7 @@ import (
 type API struct {
 	db                   *database.DB
 	statsUpdateFrequency time.Duration
-	enode                string
+	enodes               []string
 	snapshotDir          string
 
 	stats      database.AllStats
@@ -23,21 +23,19 @@ type API struct {
 func New(
 	db *database.DB,
 	statsUpdateFrequency time.Duration,
-	enode string,
+	enodes []string,
 	snapshotDir string,
 ) *API {
 	api := &API{
 		db:                   db,
 		statsUpdateFrequency: statsUpdateFrequency,
-		enode:                enode,
+		enodes:               enodes,
 		snapshotDir:          snapshotDir,
 
 		stats:      database.AllStats{},
 		statsLock:  sync.RWMutex{},
 		statsCache: map[string]CachedPage{},
 	}
-
-	// go api.statsUpdaterDaemon()
 
 	return api
 }

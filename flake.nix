@@ -244,17 +244,11 @@
                 description = "Address on which the metrics server listens. This is NOT added to the firewall.";
               };
 
-              enodePubkey = mkOption {
+              enodeAddr = mkOption {
                 type = types.str;
                 default = "";
-                description = "Public key of the crawler. Use the CLI to get it: `crawler print-enode node.key host port`";
-                example = "0401edb73871c1ce0ebc2203bbc12c7b3b3a2d57fc72533f...";
-              };
-
-              enode = mkOption {
-                type = types.str;
-                default = "enode://${cfg.api.enodePubkey}@${cfg.hostName}:${toString cfg.crawler.nodeListenPort}";
-                description = "Enode of the crawler. Used in the /help page to show how to connect to the node.";
+                description = "Address to use for displaying the enodes on the help page";
+                example = "127.0.0.1";
               };
             };
 
@@ -392,7 +386,7 @@
                     args = [
                       "--api-addr=${apiAddress}"
                       "--crawler-db=${cfg.crawlerDatabaseName}"
-                      "--enode=${cfg.api.enode}"
+                      "--enode-addr=${cfg.api.enodeAddr}"
                       "--metrics-addr=${cfg.api.metricsAddress}"
                       "--snapshot-dir=${cfg.snapshotDirname}"
                       "--stats-db=${cfg.statsDatabaseName}"
