@@ -326,7 +326,7 @@ func handleLen3(parts []string) (*Client, error) {
 		}, nil
 	}
 
-	if name == "geth" {
+	if name == "geth" || name == "bor" {
 		version, err := parseVersion(parts[1])
 		if err != nil {
 			os, arch, _ := parseOSArch(parts[1])
