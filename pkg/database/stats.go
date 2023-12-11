@@ -40,7 +40,12 @@ func (db *DB) CopyStats() error {
 				unixepoch() timestamp,
 				crawled.client_name,
 				crawled.client_user_data,
-				crawled.client_version,
+				-- If reth, add build data
+				CASE
+					WHEN crawled.client_name = 'reth' AND instr(crawled.client_build, '-') != 0
+					THEN crawled.client_version || '-' || substr(crawled.client_build, 0, instr(crawled.client_build, '-'))
+					ELSE crawled.client_version
+				END client_version,
 				crawled.client_os,
 				crawled.client_arch,
 				crawled.network_id,
@@ -92,13 +97,13 @@ func (db *DB) CopyStats() error {
 			GROUP BY
 				crawled.client_name,
 				crawled.client_user_data,
-				crawled.client_version,
+				client_version,
 				crawled.client_os,
 				crawled.client_arch,
 				crawled.network_id,
 				crawled.fork_id,
 				crawled.next_fork_id,
-				crawled.country,
+				country,
 				synced,
 				dial_success
 		`,
