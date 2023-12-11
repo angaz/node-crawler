@@ -45,21 +45,6 @@ type CachedPage struct {
 	ValidUntil time.Time
 }
 
-func (a *API) replaceStats(newStats database.AllStats) {
-	a.statsLock.Lock()
-	defer a.statsLock.Unlock()
-
-	a.stats = newStats
-	a.statsCache = map[string]CachedPage{}
-}
-
-func (a *API) getStats() database.AllStats {
-	a.statsLock.RLock()
-	defer a.statsLock.RUnlock()
-
-	return a.stats
-}
-
 func (a *API) getCache(params string) ([]byte, bool) {
 	a.statsLock.RLock()
 	defer a.statsLock.RUnlock()
