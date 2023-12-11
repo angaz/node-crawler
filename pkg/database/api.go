@@ -483,6 +483,7 @@ func (db *DB) GetStats(
 	before time.Time,
 	networkID int64,
 	synced int,
+	clientName string,
 ) (AllStats, error) {
 	var err error
 
@@ -517,6 +518,10 @@ func (db *DB) GetStats(
 					?4 = -1
 					OR synced = ?4
 				)
+				AND (
+					?5 = ''
+					OR client_name = ?5
+				)
 			ORDER BY
 				timestamp ASC
 		`,
@@ -524,6 +529,7 @@ func (db *DB) GetStats(
 		before.Unix(),
 		networkID,
 		synced,
+		clientName,
 	)
 	if err != nil {
 		return AllStats{}, fmt.Errorf("query failed: %w", err)

@@ -56,7 +56,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	before := time.Now().Truncate(30 * time.Minute).Add(30 * time.Minute)
 	after := before.AddDate(0, 0, -days)
 
-	allStats, err := a.db.GetStats(r.Context(), after, before, networkID, synced)
+	allStats, err := a.db.GetStats(r.Context(), after, before, networkID, synced, clientName)
 	if err != nil {
 		log.Error("GetStats failed", "err", err)
 
