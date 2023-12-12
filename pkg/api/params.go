@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 func parseAllYesNoParam(
@@ -51,6 +52,18 @@ func parseErrorParam(w http.ResponseWriter, str string) (int, bool) {
 
 func parseNextForkParam(w http.ResponseWriter, str string) (int, bool) {
 	return parseAllYesNoParam(w, str, "next-fork", -1)
+}
+
+func parseTimeParam(w http.ResponseWriter, param string, str string) (time.Time, bool) {
+	t, err := time.Parse(time.RFC3339, str)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "bad %s value: %s. Must be RFC3339 format.\n", param, str)
+
+		return time.Unix(0, 0), false
+	}
+
+	return t, true
 }
 
 func parsePageNum(w http.ResponseWriter, pageNumStr string) (int, bool) {

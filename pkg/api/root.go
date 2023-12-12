@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,7 +14,24 @@ import (
 	"github.com/ethereum/node-crawler/public"
 )
 
-func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
+type statsParams struct {
+	clientName string
+	networkID  int64
+	nextFork   int
+	synced     int
+}
+
+func (p statsParams) cacheKey() string {
+	return fmt.Sprintf(
+		"%s,%d,%d,%d",
+		p.clientName,
+		p.networkID,
+		p.synced,
+		p.nextFork,
+	)
+}
+
+func parseStatsParams(w http.ResponseWriter, r *http.Request) *statsParams {
 	query := r.URL.Query()
 	networkIDStr := query.Get("network")
 	syncedStr := query.Get("synced")
@@ -21,67 +40,61 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	networkID, found := parseNetworkID(w, networkIDStr)
 	if !found {
-		return
+		return nil
 	}
 
 	synced, found := parseSyncedParam(w, syncedStr)
 	if !found {
-		return
+		return nil
 	}
 
 	nextFork, found := parseNextForkParam(w, nextForkStr)
 	if !found {
-		return
+		return nil
 	}
 
-	params := fmt.Sprintf("%s,%d,%d,%d", clientName, networkID, synced, nextFork)
-
-	b, found := a.getCache(params)
-	if found {
-		_, _ = w.Write(b)
-
-		return
+	return &statsParams{
+		clientName: clientName,
+		networkID:  networkID,
+		nextFork:   nextFork,
+		synced:     synced,
 	}
+}
 
-	fork, forkFound := database.Forks[networkID]
+func (a *API) getFilterStats(
+	ctx context.Context,
+	params *statsParams,
+	before time.Time,
+	after time.Time,
+) (database.AllStats, error) {
+	fork, forkFound := database.Forks[params.networkID]
 
-	days := 3
-
-	// All network ids has so much data, so we're prioritizing speed over days
-	// of data.
-	if networkID == -1 || synced == -1 {
-		days = 1
-	}
-
-	before := time.Now().Truncate(30 * time.Minute).Add(30 * time.Minute)
-	after := before.AddDate(0, 0, -days)
-
-	allStats, err := a.db.GetStats(r.Context(), after, before, networkID, synced, clientName)
+	allStats, err := a.db.GetStats(
+		ctx,
+		after,
+		before,
+		params.networkID,
+		params.synced,
+		params.clientName,
+	)
 	if err != nil {
 		log.Error("GetStats failed", "err", err)
 
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprint(w, "Internal Server Error")
-
-		return
+		return nil, fmt.Errorf("internal server error")
 	}
 
 	allStats = allStats.Filter(
 		func(_ int, s database.Stats) bool {
-			return synced == -1 ||
-				(synced == 1 && s.Synced) ||
-				(synced == 0 && !s.Synced)
+			return params.synced == -1 ||
+				(params.synced == 1 && s.Synced) ||
+				(params.synced == 0 && !s.Synced)
 		},
 		func(_ int, s database.Stats) bool {
-			if networkID == -1 {
+			if params.networkID == -1 {
 				return true
 			}
 
-			if s.NetworkID == nil || s.ForkID == nil {
-				return false
-			}
-
-			if *s.NetworkID != networkID {
+			if s.NetworkID != params.networkID {
 				return false
 			}
 
@@ -91,11 +104,11 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// If the fork is known, the fork ID should be in the set.
-			_, found = fork.Hash[*s.ForkID]
+			_, found := fork.Hash[s.ForkID]
 			return found
 		},
 		func(_ int, s database.Stats) bool {
-			if nextFork == -1 {
+			if params.nextFork == -1 {
 				return true
 			}
 
@@ -115,23 +128,118 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 			isReady := *s.NextForkID == *fork.NextFork
 
-			return isReady == (nextFork == 1)
+			return isReady == (params.nextFork == 1)
 		},
 		func(_ int, s database.Stats) bool {
-			if clientName == "" {
+			if params.clientName == "" {
 				return true
 			}
 
-			return s.Client.Name == clientName
+			return s.Client.Name == params.clientName
 		},
 	)
+
+	return allStats, nil
+}
+
+type statsResp struct {
+	Stats database.AllStats `json:"stats"`
+}
+
+func (a *API) handleAPIStats(w http.ResponseWriter, r *http.Request) {
+	params := parseStatsParams(w, r)
+	if params == nil {
+		return
+	}
+
+	var before, after time.Time
+	var ok bool
+
+	query := r.URL.Query()
+
+	if !query.Has("before") && !query.Has("after") {
+		before = time.Now()
+		after = before.Add(-30 * time.Minute)
+	} else {
+		before, ok = parseTimeParam(w, "before", query.Get("before"))
+		if !ok {
+			return
+		}
+
+		after, ok = parseTimeParam(w, "after", query.Get("after"))
+		if !ok {
+			return
+		}
+	}
+
+	if after.After(before) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "before shoud be after the after param")
+
+		return
+	}
+
+	if after.Sub(before) > 12*time.Hour {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "time range more than 12 hours. Please limit your query to this range.")
+
+		return
+	}
+
+	allStats, err := a.getFilterStats(r.Context(), params, before, after)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintln(w, "Internal Server Error")
+
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	encoder := json.NewEncoder(w)
+	encoder.Encode(statsResp{
+		Stats: allStats,
+	})
+}
+
+func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
+	params := parseStatsParams(w, r)
+	if params == nil {
+		return
+	}
+
+	b, found := a.getCache(params.cacheKey())
+	if found {
+		_, _ = w.Write(b)
+
+		return
+	}
+
+	days := 3
+
+	// All network ids has so much data, so we're prioritizing speed over days
+	// of data.
+	if params.networkID == -1 || params.synced == -1 {
+		days = 1
+	}
+
+	before := time.Now().Truncate(30 * time.Minute).Add(30 * time.Minute)
+	after := before.AddDate(0, 0, -days)
+
+	allStats, err := a.getFilterStats(r.Context(), params, before, after)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintln(w, "Internal Server Error")
+
+		return
+	}
 
 	reqURL := public.URLFromReq(r)
 
 	graphs := make([]templ.Component, 0, 2)
 	last := make([]templ.Component, 0, 4)
 
-	if clientName == "" {
+	if params.clientName == "" {
 		clientNames := allStats.GroupClientName()
 
 		graphs = append(
@@ -208,16 +316,16 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	statsPage := public.Stats(
 		reqURL,
-		networkID,
-		synced,
-		nextFork,
-		clientName,
+		params.networkID,
+		params.synced,
+		params.nextFork,
+		params.clientName,
 		graphs,
 		last,
 		len(allStats) == 0,
 	)
 
-	index := public.Index(reqURL, statsPage, networkID, synced)
+	index := public.Index(reqURL, statsPage, params.networkID, params.synced)
 
 	sb := new(strings.Builder)
 	_ = index.Render(r.Context(), sb)
@@ -228,5 +336,5 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	// Cache the result until 1 minute after the end timestamp.
 	// The new stats should have been generated by then.
-	a.setCache(params, []byte(out), before.Add(5*time.Minute))
+	a.setCache(params.cacheKey(), []byte(out), before.Add(5*time.Minute))
 }

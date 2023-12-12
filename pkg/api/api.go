@@ -77,6 +77,7 @@ func (a *API) StartServer(wg *sync.WaitGroup, address string) {
 	router := http.NewServeMux()
 
 	router.HandleFunc("/", a.handleRoot)
+	router.HandleFunc("/api/stats/", a.handleAPIStats)
 	router.HandleFunc("/favicon.ico", handleFavicon)
 	router.HandleFunc("/help/", a.handleHelp)
 	router.HandleFunc("/history/", a.handleHistoryList)

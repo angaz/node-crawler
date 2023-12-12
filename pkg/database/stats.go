@@ -2,6 +2,9 @@ package database
 
 import (
 	_ "embed"
+	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -94,6 +97,9 @@ func (db *DB) CopyStats() error {
 			)
 			WHERE
 				disc.last_found > unixepoch('now', '-48 hours')
+				AND crawled.network_id IS NOT NULL
+				AND crawled.fork_id IS NOT NULL
+				AND crawled.country IS NOT NULL
 			GROUP BY
 				crawled.client_name,
 				crawled.client_user_data,
@@ -103,7 +109,7 @@ func (db *DB) CopyStats() error {
 				crawled.network_id,
 				crawled.fork_id,
 				crawled.next_fork_id,
-				country,
+				crawled.country,
 				synced,
 				dial_success
 		`,
@@ -118,21 +124,68 @@ func (db *DB) CopyStats() error {
 type Stats struct {
 	Timestamp   time.Time
 	Client      Client
-	NetworkID   *int64
-	ForkID      *uint32
+	NetworkID   int64
+	ForkID      uint32
 	NextForkID  *uint64
-	Country     *string
+	Country     string
 	Synced      bool
 	DialSuccess bool
 	Total       int64
 }
 
-func (s Stats) CountryStr() string {
-	if s.Country == nil {
-		return Unknown
+type statsJSON struct {
+	Timestamp     time.Time `json:"timestamp"`
+	ClientName    string    `json:"client_name"`
+	ClientVersion string    `json:"client_version"`
+	ClientOS      string    `json:"client_os"`
+	ClientArch    string    `json:"client_arch"`
+	NetworkID     int64     `json:"network_id"`
+	ForkID        string    `json:"fork_id"`
+	NextForkID    *string   `json:"next_fork_id"`
+	Country       string    `json:"country"`
+	Synced        bool      `json:"synced"`
+	DialSuccess   bool      `json:"dial_success"`
+	Total         int64     `json:"total"`
+}
+
+func (s Stats) MarshalJSON() ([]byte, error) {
+	sj := statsJSON{
+		Timestamp:     s.Timestamp.UTC(),
+		ClientName:    s.Client.Name,
+		ClientVersion: s.Client.Version,
+		ClientOS:      s.Client.OS,
+		ClientArch:    s.Client.Arch,
+		NetworkID:     s.NetworkID,
+		ForkID:        s.ForkIDStr(),
+		NextForkID:    s.NextForkIDStr(),
+		Country:       s.Country,
+		Synced:        s.Synced,
+		DialSuccess:   s.DialSuccess,
+		Total:         s.Total,
 	}
 
-	return *s.Country
+	return json.Marshal(sj)
+}
+
+func (s Stats) CountryStr() string {
+	return s.Country
+}
+
+func (s Stats) ForkIDStr() string {
+	return Uint32ToForkID(s.ForkID).Hex()
+}
+
+func (s Stats) NextForkIDStr() *string {
+	if s.NextForkID == nil {
+		return nil
+	}
+
+	var id [8]byte
+	binary.BigEndian.PutUint64(id[:], *s.NextForkID)
+
+	hexStr := hex.EncodeToString(id[:])
+
+	return &hexStr
 }
 
 type AllStats []Stats
