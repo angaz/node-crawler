@@ -496,6 +496,7 @@ func (db *DB) GetStats(
 			SELECT
 				timestamp,
 				client_name,
+				client_user_data,
 				client_version,
 				client_os,
 				client_arch,
@@ -540,12 +541,13 @@ func (db *DB) GetStats(
 
 	for rows.Next() {
 		var stats Stats
-		var clientName, clientVersion, clientOS, clientArch *string
+		var clientName, clientUserData, clientVersion, clientOS, clientArch *string
 		var timestamp int64
 
 		err := rows.Scan(
 			&timestamp,
 			&clientName,
+			&clientUserData,
 			&clientVersion,
 			&clientOS,
 			&clientArch,
@@ -565,7 +567,7 @@ func (db *DB) GetStats(
 
 		stats.Client = newClient(
 			clientName,
-			nil,
+			clientUserData,
 			clientVersion,
 			nil,
 			clientOS,

@@ -134,34 +134,41 @@ type Stats struct {
 }
 
 type statsJSON struct {
-	Timestamp     time.Time `json:"timestamp"`
-	ClientName    string    `json:"client_name"`
-	ClientVersion string    `json:"client_version"`
-	ClientOS      string    `json:"client_os"`
-	ClientArch    string    `json:"client_arch"`
-	NetworkID     int64     `json:"network_id"`
-	ForkID        string    `json:"fork_id"`
-	NextForkID    *string   `json:"next_fork_id"`
-	Country       string    `json:"country"`
-	Synced        bool      `json:"synced"`
-	DialSuccess   bool      `json:"dial_success"`
-	Total         int64     `json:"total"`
+	Timestamp      time.Time `json:"timestamp"`
+	ClientName     string    `json:"client_name"`
+	ClientUserData *string   `json:"client_user_data"`
+	ClientVersion  string    `json:"client_version"`
+	ClientOS       string    `json:"client_os"`
+	ClientArch     string    `json:"client_arch"`
+	NetworkID      int64     `json:"network_id"`
+	ForkID         string    `json:"fork_id"`
+	NextForkID     *string   `json:"next_fork_id"`
+	Country        string    `json:"country"`
+	Synced         bool      `json:"synced"`
+	DialSuccess    bool      `json:"dial_success"`
+	Total          int64     `json:"total"`
 }
 
 func (s Stats) MarshalJSON() ([]byte, error) {
+	var userData *string
+	if s.Client.UserData != Unknown {
+		userData = &s.Client.UserData
+	}
+
 	sj := statsJSON{
-		Timestamp:     s.Timestamp.UTC(),
-		ClientName:    s.Client.Name,
-		ClientVersion: s.Client.Version,
-		ClientOS:      s.Client.OS,
-		ClientArch:    s.Client.Arch,
-		NetworkID:     s.NetworkID,
-		ForkID:        s.ForkIDStr(),
-		NextForkID:    s.NextForkIDStr(),
-		Country:       s.Country,
-		Synced:        s.Synced,
-		DialSuccess:   s.DialSuccess,
-		Total:         s.Total,
+		Timestamp:      s.Timestamp.UTC(),
+		ClientName:     s.Client.Name,
+		ClientUserData: userData,
+		ClientVersion:  s.Client.Version,
+		ClientOS:       s.Client.OS,
+		ClientArch:     s.Client.Arch,
+		NetworkID:      s.NetworkID,
+		ForkID:         s.ForkIDStr(),
+		NextForkID:     s.NextForkIDStr(),
+		Country:        s.Country,
+		Synced:         s.Synced,
+		DialSuccess:    s.DialSuccess,
+		Total:          s.Total,
 	}
 
 	return json.Marshal(sj)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -31,26 +32,53 @@ func (p statsParams) cacheKey() string {
 	)
 }
 
+func parseCancunParam(w http.ResponseWriter, query url.Values, networkID int64) (int, bool) {
+	cancun, ok := parseAllYesNoParam(w, query.Get("cancun"), "cancun", -1)
+	if !ok {
+		return 0, false
+	}
+
+	if cancun == -1 {
+		return -1, true
+	}
+
+	chain, ok := database.Chains[networkID]
+	if !ok || chain.CancunTime == nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "cancun timestamp is unknown for this chain: %d", networkID)
+
+		return 0, false
+	}
+
+	return int(*chain.CancunTime), true
+}
+
 func parseStatsParams(w http.ResponseWriter, r *http.Request) *statsParams {
 	query := r.URL.Query()
-	networkIDStr := query.Get("network")
-	syncedStr := query.Get("synced")
-	nextForkStr := query.Get("next-fork")
 	clientName := query.Get("client-name")
 
-	networkID, found := parseNetworkID(w, networkIDStr)
-	if !found {
+	networkID, ok := parseNetworkID(w, query.Get("network"))
+	if !ok {
 		return nil
 	}
 
-	synced, found := parseSyncedParam(w, syncedStr)
-	if !found {
+	synced, ok := parseSyncedParam(w, query.Get("synced"))
+	if !ok {
 		return nil
 	}
 
-	nextFork, found := parseNextForkParam(w, nextForkStr)
-	if !found {
+	nextFork, ok := parseNextForkParam(w, query.Get("next-fork"))
+	if !ok {
 		return nil
+	}
+
+	cancunTime, ok := parseCancunParam(w, query, networkID)
+	if !ok {
+		return nil
+	}
+
+	if cancunTime != -1 {
+		nextFork = cancunTime
 	}
 
 	return &statsParams{
