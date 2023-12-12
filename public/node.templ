@@ -894,7 +894,7 @@ script statsGraph(title string, id string, ts database.Timeseries) {
 					backgroundColor: '#6a7985'
 				},
 			},
-			valueFormatter: (value) =>  value.toFixed(2) + '%',
+			valueFormatter: value => value ? value.toFixed(2) + '%' : '',
 			order: 'valueDesc',
 		},
 		legend: {
