@@ -56,6 +56,7 @@ func (db *DB) UpdateCrawledNodeFail(node common.NodeJSON) error {
 		`
 			INSERT INTO discovered_nodes (
 				node_id,
+				node_type,
 				node_pubkey,
 				node_record,
 				ip_address,
@@ -67,15 +68,16 @@ func (db *DB) UpdateCrawledNodeFail(node common.NodeJSON) error {
 				?2,
 				?3,
 				?4,
+				?5,
 				unixepoch(),
 				unixepoch(),
-				unixepoch() + ?7
+				unixepoch() + ?8
 			)
 			ON CONFLICT (node_id) DO UPDATE
 			SET
 				last_found = unixepoch(),
 				next_crawl = CASE
-					WHEN ?5 == 'dial'
+					WHEN ?6 == 'dial'
 					THEN excluded.next_crawl
 					ELSE next_crawl
 				END;
@@ -88,12 +90,13 @@ func (db *DB) UpdateCrawledNodeFail(node common.NodeJSON) error {
 			) VALUES (
 				?1,
 				unixepoch(),
-				?5,
-				?6
+				?6,
+				?7
 			)
 			ON CONFLICT (node_id, crawled_at) DO NOTHING;
 		`,
 		node.ID(),
+		common.ENRNodeType(node.N.Record()),
 		common.PubkeyBytes(node.N.Pubkey()),
 		common.EncodeENR(node.N.Record()),
 		node.N.IP().String(),
@@ -118,6 +121,7 @@ func (db *DB) UpdateNotEthNode(node common.NodeJSON) error {
 		`
 			INSERT INTO discovered_nodes (
 				node_id,
+				node_type,
 				node_pubkey,
 				node_record,
 				ip_address,
@@ -129,17 +133,19 @@ func (db *DB) UpdateNotEthNode(node common.NodeJSON) error {
 				?2,
 				?3,
 				?4,
+				?5,
 				unixepoch(),
 				unixepoch(),
-				unixepoch() + ?5
+				unixepoch() + ?6
 			)
 			ON CONFLICT (node_id) DO UPDATE
 			SET
 				last_found = unixepoch(),
 				next_crawl = excluded.next_crawl
-			WHERE ?6 == 'dial'
+			WHERE ?7 == 'dial'
 		`,
 		node.ID(),
+		common.ENRNodeType(node.N.Record()),
 		common.PubkeyBytes(node.N.Pubkey()),
 		common.EncodeENR(node.N.Record()),
 		node.N.IP().String(),
@@ -256,6 +262,7 @@ func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
 
 			INSERT INTO discovered_nodes (
 				node_id,
+				node_type,
 				node_pubkey,
 				node_record,
 				ip_address,
@@ -266,10 +273,11 @@ func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
 				?1,
 				?22,
 				?23,
+				?24,
 				?16,
 				unixepoch(),
 				unixepoch(),
-				unixepoch() + ?25
+				unixepoch() + ?26
 			)
 			ON CONFLICT (node_id) DO UPDATE
 			SET
@@ -279,7 +287,7 @@ func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
 				-- want to try dialing because we want to see if the node has
 				-- good inbound network configuration.
 				next_crawl = CASE
-					WHEN ?24 == 'dial'
+					WHEN ?25 == 'dial'
 						THEN excluded.next_crawl
 						ELSE next_crawl
 					END;
@@ -292,7 +300,7 @@ func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
 			) VALUES (
 				?1,
 				unixepoch(),
-				?24,
+				?25,
 				NULL
 			)
 			ON CONFLICT (node_id, crawled_at) DO NOTHING;
@@ -318,6 +326,7 @@ func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
 		location.city,
 		location.latitude,
 		location.longitude,
+		common.ENRNodeType(node.N.Record()),
 		common.PubkeyBytes(node.N.Pubkey()),
 		common.EncodeENR(node.N.Record()),
 		node.Direction,

@@ -22,6 +22,7 @@ func (d *DB) UpsertNode(node *enode.Node) error {
 		`
 			INSERT INTO discovered_nodes (
 				node_id,
+				node_type,
 				node_pubkey,
 				node_record,
 				ip_address,
@@ -29,6 +30,7 @@ func (d *DB) UpsertNode(node *enode.Node) error {
 				last_found,
 				next_crawl
 			) VALUES (
+				?,
 				?,
 				?,
 				?,
@@ -45,6 +47,7 @@ func (d *DB) UpsertNode(node *enode.Node) error {
 			WHERE last_found < unixepoch('now', '-1 hour')  -- Only update once an hour
 		`,
 		node.ID().Bytes(),
+		common.ENRNodeType(node.Record()),
 		common.PubkeyBytes(node.Pubkey()),
 		common.EncodeENR(node.Record()),
 		node.IP().String(),

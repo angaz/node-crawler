@@ -30,7 +30,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
+	pb "github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1"
+
 	"github.com/ethereum/go-ethereum/rlp"
+)
+
+type NodeType int
+
+var (
+	NodeTypeUnknown   NodeType = 0
+	NodeTypeExecution NodeType = 1
+	NodeTypeConsensus NodeType = 2
 )
 
 func IsEnodeV4(source string) bool {
@@ -85,6 +95,58 @@ func PubkeyBytes(pubkey *ecdsa.PublicKey) []byte {
 }
 
 var IDv4 = string(enr.IDv4)
+
+type ETH struct {
+	ForkID     [4]byte
+	NextForkID uint64
+}
+
+func (e ETH) ENRKey() string { return "eth" }
+
+type ETH2 struct {
+	*pb.ENRForkID
+}
+
+func (e *ETH2) ENRKey() string { return "eth2" }
+
+func (e *ETH2) DecodeRLP(s *rlp.Stream) error {
+	var sszEncodedForkEntry []byte
+	var forkEntry pb.ENRForkID
+
+	err := s.Decode(&sszEncodedForkEntry)
+	if err != nil {
+		return fmt.Errorf("rlpdecode: %w", err)
+	}
+
+	err = forkEntry.UnmarshalSSZ(sszEncodedForkEntry)
+	if err != nil {
+		return fmt.Errorf("unmarshalssz: %w", err)
+	}
+
+	e.ENRForkID = &forkEntry
+
+	return nil
+}
+
+// Returns if this Record belongs to en EL (Execution Layer) Client, if it
+// contains the `eth` key, or CL (Consensus Layer) Client, if it contains the
+// `eth2` key, or Unknown, if it contains neither.
+func ENRNodeType(r *enr.Record) NodeType {
+	var (
+		eth  ETH
+		eth2 ETH2
+	)
+
+	if err := r.Load(&eth); err == nil {
+		return NodeTypeExecution
+	}
+
+	if err := r.Load(&eth2); err == nil {
+		return NodeTypeConsensus
+	}
+
+	return NodeTypeUnknown
+}
 
 // Finds the best Record.
 // The best record is the one with the highest sequence number.
