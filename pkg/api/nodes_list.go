@@ -41,6 +41,11 @@ func (a *API) nodesListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	nodeType, ok := parseNumberParam(w, r, "node-type", false, -1)
+	if !ok {
+		return
+	}
+
 	nodeListQuery, err := database.ParseNodeListQuery(query)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -57,6 +62,7 @@ func (a *API) nodesListHandler(w http.ResponseWriter, r *http.Request) {
 		*nodeListQuery,
 		clientName,
 		clientUserData,
+		nodeType,
 	)
 	if err != nil {
 		log.Error("get node list failed", "err", err, "pageNumber", pageNumber)

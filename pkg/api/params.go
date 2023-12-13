@@ -66,6 +66,39 @@ func parseTimeParam(w http.ResponseWriter, param string, str string) (time.Time,
 	return t, true
 }
 
+func parseNumberParam(
+	w http.ResponseWriter,
+	r *http.Request,
+	param string,
+	required bool,
+	defaultValue int,
+) (int, bool) {
+	query := r.URL.Query()
+	str := query.Get(param)
+
+	// Value not set
+	if str == "" {
+		if required {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprintf(w, "%s query param is required.\n", param)
+
+			return 0, false
+		}
+
+		return defaultValue, true
+	}
+
+	num, err := strconv.Atoi(str)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "bad %s value: %s. Not a valid number.\n", param, str)
+
+		return 0, false
+	}
+
+	return num, true
+}
+
 func parsePageNum(w http.ResponseWriter, pageNumStr string) (int, bool) {
 	if pageNumStr == "" {
 		return 1, true

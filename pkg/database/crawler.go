@@ -56,8 +56,8 @@ func (db *DB) UpdateCrawledNodeFail(node common.NodeJSON) error {
 		`
 			INSERT INTO discovered_nodes (
 				node_id,
-				node_type,
 				node_pubkey,
+				node_type,
 				node_record,
 				ip_address,
 				first_found,
@@ -96,8 +96,8 @@ func (db *DB) UpdateCrawledNodeFail(node common.NodeJSON) error {
 			ON CONFLICT (node_id, crawled_at) DO NOTHING;
 		`,
 		node.ID(),
-		common.ENRNodeType(node.N.Record()),
 		common.PubkeyBytes(node.N.Pubkey()),
+		common.ENRNodeType(node.N.Record()),
 		common.EncodeENR(node.N.Record()),
 		node.N.IP().String(),
 		node.Direction,
@@ -121,8 +121,8 @@ func (db *DB) UpdateNotEthNode(node common.NodeJSON) error {
 		`
 			INSERT INTO discovered_nodes (
 				node_id,
-				node_type,
 				node_pubkey,
+				node_type,
 				node_record,
 				ip_address,
 				first_found,
@@ -145,8 +145,8 @@ func (db *DB) UpdateNotEthNode(node common.NodeJSON) error {
 			WHERE ?7 == 'dial'
 		`,
 		node.ID(),
-		common.ENRNodeType(node.N.Record()),
 		common.PubkeyBytes(node.N.Pubkey()),
+		common.ENRNodeType(node.N.Record()),
 		common.EncodeENR(node.N.Record()),
 		node.N.IP().String(),
 		db.nextCrawlNotEth+randomHourSeconds(),
@@ -262,8 +262,8 @@ func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
 
 			INSERT INTO discovered_nodes (
 				node_id,
-				node_type,
 				node_pubkey,
+				node_type,
 				node_record,
 				ip_address,
 				first_found,
@@ -326,8 +326,8 @@ func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
 		location.city,
 		location.latitude,
 		location.longitude,
-		common.ENRNodeType(node.N.Record()),
 		common.PubkeyBytes(node.N.Pubkey()),
+		common.ENRNodeType(node.N.Record()),
 		common.EncodeENR(node.N.Record()),
 		node.Direction,
 		db.nextCrawlSucces+randomHourSeconds(),

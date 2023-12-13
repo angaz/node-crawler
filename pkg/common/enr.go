@@ -43,6 +43,19 @@ var (
 	NodeTypeConsensus NodeType = 2
 )
 
+func (n NodeType) String() string {
+	switch n {
+	case NodeTypeUnknown:
+		return "Unknown"
+	case NodeTypeExecution:
+		return "Execution"
+	case NodeTypeConsensus:
+		return "Consensus"
+	default:
+		return "Not valid type"
+	}
+}
+
 func IsEnodeV4(source string) bool {
 	return strings.HasPrefix(source, "enode://")
 }
@@ -136,6 +149,11 @@ func ENRNodeType(r *enr.Record) NodeType {
 		eth  ETH
 		eth2 ETH2
 	)
+
+	// Record is Enode
+	if r.IdentityScheme() == "" {
+		return NodeTypeExecution
+	}
 
 	if err := r.Load(&eth); err == nil {
 		return NodeTypeExecution

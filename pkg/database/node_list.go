@@ -3,6 +3,8 @@ package database
 import (
 	"encoding/hex"
 	"time"
+
+	"github.com/ethereum/node-crawler/pkg/common"
 )
 
 func int64PrtToTimePtr(i *int64) *time.Time {
@@ -16,6 +18,7 @@ func int64PrtToTimePtr(i *int64) *time.Time {
 
 type NodeListRow struct {
 	nodeID            []byte
+	NodeType          common.NodeType
 	nodePubKey        []byte
 	UpdatedAt         *time.Time
 	ClientName        *string

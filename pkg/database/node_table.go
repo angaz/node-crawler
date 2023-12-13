@@ -23,6 +23,7 @@ func (h NodeTableHistory) CrawledAtLine() string {
 
 type NodeTable struct {
 	nodeID         []byte
+	NodeType       common.NodeType
 	nodePubKey     []byte
 	firstFound     time.Time
 	lastFound      time.Time

@@ -35,6 +35,7 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 			SELECT
 				disc.node_id,
 				disc.node_pubkey,
+				disc.node_type,
 				disc.first_found,
 				disc.last_found,
 				crawled.updated_at,
@@ -110,6 +111,7 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 	err = row.Scan(
 		&nodePage.nodeID,
 		&nodePage.nodePubKey,
+		&nodePage.NodeType,
 		&firstFound,
 		&lastFound,
 		&updatedAtInt,
@@ -291,6 +293,7 @@ func (db *DB) GetNodeList(
 	query NodeListQuery,
 	clientName string,
 	clientUserData string,
+	nodeType int,
 ) (*NodeList, error) {
 	var err error
 
@@ -311,6 +314,7 @@ func (db *DB) GetNodeList(
 			SELECT
 				disc.node_id,
 				disc.node_pubkey,
+				disc.node_type,
 				crawled.updated_at,
 				crawled.client_name,
 				crawled.client_user_data,
@@ -393,9 +397,13 @@ func (db *DB) GetNodeList(
 					?7 = ''
 					OR crawled.client_user_data = LOWER(?7)
 				)
+				AND (
+					?8 = -1
+					OR disc.node_type = ?8
+				)
 			ORDER BY disc.node_id
-			LIMIT ?8 + 1
-			OFFSET ?9
+			LIMIT ?9 + 1
+			OFFSET ?10
 		`, hint),
 		networkID,
 		synced,
@@ -404,6 +412,7 @@ func (db *DB) GetNodeList(
 		query.IP,
 		clientName,
 		clientUserData,
+		nodeType,
 		pageSize,
 		offset,
 	)
@@ -444,6 +453,7 @@ func (db *DB) GetNodeList(
 		err = rows.Scan(
 			&row.nodeID,
 			&row.nodePubKey,
+			&row.NodeType,
 			&updatedAtInt,
 			&row.ClientName,
 			&userData,

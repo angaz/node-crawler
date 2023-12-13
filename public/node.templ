@@ -23,6 +23,10 @@ templ NodeTable(nt database.NodeTable) {
 					<td>{ nt.NodePubKey() }</td>
 				</tr>
 				<tr>
+					<td>Node Type</td>
+					<td>{ nt.NodeType.String() }</td>
+				</tr>
+				<tr>
 					<td>Client Identifier</td>
 					<td>{ database.StringOrEmpty(nt.ClientID) }</td>
 				</tr>
@@ -516,6 +520,7 @@ templ NodeList(reqURL URL, nodes database.NodeList) {
 					<tr>
 						<td>Node ID</td>
 						<td>Node Pubkey</td>
+						<td>Node Type</td>
 						<td>Client Name</td>
 						<td>Client Version</td>
 						<td>Client Build</td>
@@ -532,6 +537,7 @@ templ NodeList(reqURL URL, nodes database.NodeList) {
 						<tr>
 							<td><a href={ templ.URL("/nodes/" + row.NodeID()) }>{ row.NodeID()[:8] }</a></td>
 							<td>{ row.NodePubKey()[:8] }</td>
+							<td>{ row.NodeType.String() }</td>
 							<td>{ database.StringOrEmpty(row.ClientName) }</td>
 							<td>{ database.StringOrEmpty(row.ClientVersion) }</td>
 							<td>{ database.StringOrEmpty(row.ClientBuild) }</td>

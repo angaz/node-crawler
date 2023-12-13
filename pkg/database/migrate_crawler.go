@@ -522,8 +522,8 @@ func migrationCrawler004NodeType(tx *sql.Tx) error {
 	_, err = tx.Exec(`
 		CREATE TABLE discovered_nodes (
 			node_id		BLOB	PRIMARY KEY,
-			node_type	INTEGER NOT NULL,
 			node_pubkey	BLOB	NOT NULL,
+			node_type	INTEGER NOT NULL,
 			node_record	BLOB	NOT NULL,
 			ip_address	TEXT	NOT NULL,
 			first_found	INTEGER	NOT NULL,
@@ -554,8 +554,8 @@ func migrationCrawler004NodeType(tx *sql.Tx) error {
 	stmt, err := tx.Prepare(`
 		INSERT INTO discovered_nodes (
 			node_id,
-			node_type,
 			node_pubkey,
+			node_type,
 			node_record,
 			ip_address,
 			first_found,
@@ -602,8 +602,8 @@ func migrationCrawler004NodeType(tx *sql.Tx) error {
 
 		_, err = stmt.Exec(
 			nodeID,
-			common.ENRNodeType(record),
 			nodePubkey,
+			common.ENRNodeType(record),
 			nodeRecord,
 			ipAddress,
 			firstFound,

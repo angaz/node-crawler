@@ -18,7 +18,7 @@ func today() time.Time {
 	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
 }
 
-func (db *DB) snapshot(database string, snapshotFilename string) {
+func (db *DB) snapshot(database string, snapshotFilename string) error {
 	snapshotName := time.Now().UTC().Format(snapshotFilename)
 
 	log.Info(
@@ -38,7 +38,7 @@ func (db *DB) snapshot(database string, snapshotFilename string) {
 			"err", err,
 		)
 
-		return
+		return fmt.Errorf("vacuum into: %w", err)
 	}
 
 	log.Info(
@@ -57,7 +57,7 @@ func (db *DB) snapshot(database string, snapshotFilename string) {
 			"err", err,
 		)
 
-		return
+		return fmt.Errorf("open snapshot: %w", err)
 	}
 	defer snapshotFile.Close()
 
@@ -77,7 +77,7 @@ func (db *DB) snapshot(database string, snapshotFilename string) {
 			"err", err,
 		)
 
-		return
+		return fmt.Errorf("compress snapshot: %w", err)
 	}
 	defer compressedFile.Close()
 
@@ -100,7 +100,7 @@ func (db *DB) snapshot(database string, snapshotFilename string) {
 			"err", err,
 		)
 
-		return
+		return fmt.Errorf("write compressed snapshot: %w", err)
 	}
 
 	log.Info(
@@ -119,7 +119,7 @@ func (db *DB) snapshot(database string, snapshotFilename string) {
 			"err", err,
 		)
 
-		return
+		return fmt.Errorf("close snapshot: %w", err)
 	}
 
 	err = writer.Flush()
@@ -131,7 +131,7 @@ func (db *DB) snapshot(database string, snapshotFilename string) {
 			"err", err,
 		)
 
-		return
+		return fmt.Errorf("gzip writer flush: %w", err)
 	}
 
 	err = writer.Close()
@@ -143,7 +143,7 @@ func (db *DB) snapshot(database string, snapshotFilename string) {
 			"err", err,
 		)
 
-		return
+		return fmt.Errorf("gzip writer close: %w", err)
 	}
 
 	err = compressedFile.Close()
@@ -155,19 +155,19 @@ func (db *DB) snapshot(database string, snapshotFilename string) {
 			"err", err,
 		)
 
-		return
+		return fmt.Errorf("compressed file close: %w", err)
 	}
 
 	err = os.Remove(snapshotName)
 	if err != nil {
 		log.Error(
-			"Snpashot file cleanup failed",
+			"Snapshot file cleanup failed",
 			"database", database,
 			"name", snapshotName,
 			"err", err,
 		)
 
-		return
+		return fmt.Errorf("snapshot cleanup: %w", err)
 	}
 
 	err = os.Rename(
@@ -182,8 +182,10 @@ func (db *DB) snapshot(database string, snapshotFilename string) {
 			"err", err,
 		)
 
-		return
+		return fmt.Errorf("temp compressed file cleanup: %w", err)
 	}
+
+	return nil
 }
 
 // Meant to be run as a goroutine
@@ -214,6 +216,12 @@ func (db *DB) SnapshotDaemon(database string, snapshotDir string, snapshotFilena
 		nextSnapshot := today().AddDate(0, 0, 1)
 		time.Sleep(time.Until(nextSnapshot))
 
-		db.snapshot(database, fullName)
+	snapshot:
+		err := db.snapshot(database, fullName)
+		if err != nil {
+			time.Sleep(5 * time.Minute)
+
+			goto snapshot
+		}
 	}
 }
