@@ -436,6 +436,9 @@ func (db *DB) GetMissingBlock(networkID uint64) (*ethcommon.Hash, error) {
 	start := time.Now()
 	defer metrics.ObserveDBQuery("get_missing_block", start, err)
 
+	// TODO: Optimize this. We have all the blocks at this time.
+	return nil, nil
+
 	rows, err := db.QueryRetryBusy(
 		`
 			SELECT
