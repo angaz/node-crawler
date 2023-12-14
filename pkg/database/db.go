@@ -78,7 +78,12 @@ func (db *DB) getTableStats() (*tableStats, error) {
 	rows, err := db.QueryRetryBusy(`
 		SELECT
 			(SELECT COUNT(*) FROM discovered_nodes),
-			(SELECT COUNT(*) FROM discovered_nodes WHERE next_crawl < unixepoch()),
+			(
+				SELECT COUNT(*) FROM discovered_nodes
+				WHERE
+					next_crawl < unixepoch()
+					AND node_type IN (0, 1)
+			),
 			(SELECT COUNT(*) FROM crawled_nodes),
 			(SELECT COUNT(*) FROM blocks),
 			(
