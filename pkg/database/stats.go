@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	_ "embed"
 	"encoding/binary"
 	"encoding/hex"
@@ -35,10 +36,8 @@ func (db *DB) CopyStats() error {
 	start := time.Now()
 	defer metrics.ObserveDBQuery("copy_stats", start, err)
 
-	_, err = db.db.Exec(
+	rows, err := db.db.Query(
 		`
-			INSERT INTO stats.crawled_nodes
-		
 			SELECT
 				unixepoch() timestamp,
 				crawled.client_name,
@@ -117,6 +116,155 @@ func (db *DB) CopyStats() error {
 	if err != nil {
 		return fmt.Errorf("exec failed: %w", err)
 	}
+	defer rows.Close()
+
+	tx, err := db.pg.Begin(context.Background())
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+
+	stmt, err := tx.Prepare(
+		context.Background(),
+		"copy_data",
+		`
+			WITH data AS (
+				$1 timestamp,
+				$2 client_name,
+				$3 client_user_data,
+				$4 client_version,
+				$5 client_os,
+				$6 client_arch,
+				$7 network_id,
+				$8 fork_id,
+				$9 next_fork_id,
+				$10 country,
+				$11 synced,
+				$12 dial_success,
+				$13 total
+			), client_names AS (
+				INSERT INTO stats.client_names (
+					client_name
+				)
+				SELECT DISTINCT client_name FROM data
+				WHERE client_name IS NOT NULL
+				ON CONFLICT DO NOTHING
+			), client_user_data AS (
+				INSERT INTO stats.client_user_data (
+					client_user_data
+				)
+				SELECT DISTINCT client_user_data FROM data
+				WHERE client_user_data IS NOT NULL
+				ON CONFLICT DO NOTHING
+			), client_versions AS (
+				INSERT INTO stats.client_version (
+					version
+				)
+				SELECT DISTINCT client_version FROM data
+				WHERE client_version IS NOT NULL
+				ON CONFLICT DO NOTHING
+			)
+
+			INSERT INTO stats.crawled_nodes (
+				timestamp,
+				client_name_id,
+				client_user_data_id,
+				client_version_id,
+				client_os,
+				client_arch,
+				network_id,
+				fork_id,
+				next_fork_id,
+				country,
+				synced,
+				dial_success,
+				total
+			)
+			SELECT
+				data.timestamp,
+				client_names.client_name_id,
+				client_user_data.client_user_data_id,
+				client_versions.client_version_id,
+				data.client_os,
+				data.client_arch,
+				data.network_id,
+				data.fork_id,
+				data.next_fork_id,
+				data.country,
+				data.syned,
+				data.dial_success,
+				data.total
+			FROM data
+			LEFT JOIN stats.client_names ON (client_names.client_name = data.client_name)
+			LEFT JOIN stats.client_user_data ON (client_user_data.client_user_data = data.client_user_data)
+			LEFT JOIN stats.client_versions USING (client_versions.client_version = data.client_version)
+		`,
+	)
+	if err != nil {
+		return fmt.Errorf("prepare: %w", err)
+	}
+
+	for rows.Next() {
+		var timestamp int64
+		var clientName string
+		var clientUserData *string
+		var clientVersion *string
+		var clientOS string
+		var clientArch string
+		var networkID int64
+		var forkID int64
+		var nextForkID uint64
+		var country string
+		var synced bool
+		var dialSuccess bool
+		var total int64
+
+		err := rows.Scan(
+			&timestamp,
+			&clientName,
+			&clientUserData,
+			&clientVersion,
+			&clientOS,
+			&clientArch,
+			&networkID,
+			&forkID,
+			&nextForkID,
+			&country,
+			&synced,
+			&dialSuccess,
+			&total,
+		)
+		if err != nil {
+			return fmt.Errorf("scan: %w", err)
+		}
+
+		_, err = tx.Exec(
+			context.Background(),
+			stmt.Name,
+
+			time.Unix(timestamp, 0),
+			clientName,
+			clientUserData,
+			clientVersion,
+			slices.Index(osStrings, clientOS),
+			slices.Index(archStrings, clientArch),
+			networkID,
+			forkID,
+			nextForkID,
+			ParseCountryName(country),
+			synced,
+			dialSuccess,
+			total,
+		)
+		if err != nil {
+			return fmt.Errorf("exec: %w", err)
+		}
+	}
+
+	err = tx.Commit(context.Background())
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
 
 	return nil
 }
@@ -160,8 +308,8 @@ func (s Stats) MarshalJSON() ([]byte, error) {
 		ClientName:     s.Client.Name,
 		ClientUserData: userData,
 		ClientVersion:  s.Client.Version,
-		ClientOS:       s.Client.OS,
-		ClientArch:     s.Client.Arch,
+		ClientOS:       s.Client.OS.String(),
+		ClientArch:     s.Client.Arch.String(),
 		NetworkID:      s.NetworkID,
 		ForkID:         s.ForkIDStr(),
 		NextForkID:     s.NextForkIDStr(),
@@ -579,7 +727,7 @@ func (s AllStats) GroupClientBuild(filters ...StatsFilterFn) AllCountTotal {
 func (s AllStats) GroupOS(filters ...StatsFilterFn) AllCountTotal {
 	return s.GroupBy(
 		func(s Stats) string {
-			return s.Client.OS + " / " + s.Client.Arch
+			return s.Client.OS.String() + " / " + s.Client.Arch.String()
 		},
 		filters...,
 	)
@@ -588,7 +736,7 @@ func (s AllStats) GroupOS(filters ...StatsFilterFn) AllCountTotal {
 func (s AllStats) GroupArch(filters ...StatsFilterFn) AllCountTotal {
 	return s.GroupBy(
 		func(s Stats) string {
-			return s.Client.Arch
+			return s.Client.Arch.String()
 		},
 		filters...,
 	)

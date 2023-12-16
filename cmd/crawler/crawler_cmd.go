@@ -56,6 +56,7 @@ var (
 			&nodeKeysFileFlag,
 			&nodeURLFlag,
 			&nodedbFlag,
+			&postgresFlag,
 			&snapshotDirFlag,
 			&statsCopyFrequencyFlag,
 			&statsDBFlag,

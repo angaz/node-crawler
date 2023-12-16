@@ -500,14 +500,14 @@ func (db *DB) GetStats(
 	start := time.Now()
 	defer metrics.ObserveDBQuery("get_stats", start, err)
 
-	rows, err := db.db.QueryContext(
+	rows, err := db.pg.Query(
 		ctx,
 		`
 			SELECT
 				timestamp,
-				client_name,
-				client_user_data,
-				client_version,
+				client_names.client_name,
+				client_user_data.client_user_data,
+				client_versions.client_version,
 				client_os,
 				client_arch,
 				network_id,
@@ -518,26 +518,32 @@ func (db *DB) GetStats(
 				dial_success,
 				total
 			FROM stats.crawled_nodes
+			LEFT JOIN stats.client_names
+				ON (crawled_nodes.client_name_id = client_names.client_name_id)
+			LEFT JOIN stats.client_user_data
+				ON (crawled_nodes.client_user_data_id = client_user_data.client_user_data_id)
+			LEFT JOIN stats.client_versions
+				ON (crawled_nodes.client_version_id = client_versions.client_version_id)
 			WHERE
-				timestamp > ?1
-				AND timestamp <= ?2
+				timestamp > $1
+				AND timestamp <= $2
 				AND (
-					?3 = -1
-					OR network_id = ?3
+					$3 = -1
+					OR network_id = $3
 				)
 				AND (
-					?4 = -1
-					OR synced = ?4
+					$4 = -1
+					OR synced = ($4 = 1)
 				)
 				AND (
-					?5 = ''
-					OR client_name = ?5
+					$5 = ''
+					OR client_names.client_name = $5
 				)
 			ORDER BY
 				timestamp ASC
 		`,
-		after.Unix(),
-		before.Unix(),
+		after,
+		before,
 		networkID,
 		synced,
 		clientName,
@@ -551,11 +557,12 @@ func (db *DB) GetStats(
 
 	for rows.Next() {
 		var stats Stats
-		var clientName, clientUserData, clientVersion, clientOS, clientArch *string
-		var timestamp int64
+		var clientName, clientUserData, clientVersion *string
+		var clientOS OS
+		var clientArch Arch
 
 		err := rows.Scan(
-			&timestamp,
+			&stats.Timestamp,
 			&clientName,
 			&clientUserData,
 			&clientVersion,
@@ -572,8 +579,6 @@ func (db *DB) GetStats(
 		if err != nil {
 			return AllStats{}, fmt.Errorf("scan failed: %w", err)
 		}
-
-		stats.Timestamp = time.Unix(timestamp, 0)
 
 		stats.Client = newClient(
 			clientName,

@@ -28,6 +28,7 @@ var apiCommand = &cli.Command{
 		&listenStartPortFlag,
 		&metricsAddressFlag,
 		&nodeKeysFileFlag,
+		&postgresFlag,
 		&snapshotDirFlag,
 		&statsDBFlag,
 		&statsUpdateFrequencyFlag,

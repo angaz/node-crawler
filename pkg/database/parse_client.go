@@ -24,8 +24,8 @@ type Client struct {
 	UserData string
 	Version  string
 	Build    string
-	OS       string
-	Arch     string
+	OS       OS
+	Arch     Arch
 	Language string
 }
 
@@ -37,13 +37,29 @@ func strOrUnknown(s *string) string {
 	return *s
 }
 
+func osOrUnknown(s *int32) OS {
+	if s == nil {
+		return OSUnknown
+	}
+
+	return OS(*s)
+}
+
+func archOrUnknown(s *int32) Arch {
+	if s == nil {
+		return ArchUnknown
+	}
+
+	return Arch(*s)
+}
+
 func newClient(
 	name *string,
 	userData *string,
 	version *string,
 	build *string,
-	os *string,
-	arch *string,
+	os OS,
+	arch Arch,
 	language *string,
 ) Client {
 	return Client{
@@ -51,8 +67,8 @@ func newClient(
 		UserData: strOrUnknown(userData),
 		Version:  strOrUnknown(version),
 		Build:    strOrUnknown(build),
-		OS:       strOrUnknown(os),
-		Arch:     strOrUnknown(arch),
+		OS:       os,
+		Arch:     arch,
 		Language: strOrUnknown(language),
 	}
 }
@@ -64,8 +80,8 @@ func (c *Client) Deref() Client {
 			UserData: Unknown,
 			Version:  Unknown,
 			Build:    Unknown,
-			OS:       Unknown,
-			Arch:     Unknown,
+			OS:       OSUnknown,
+			Arch:     ArchUnknown,
 			Language: Unknown,
 		}
 	}
@@ -73,16 +89,63 @@ func (c *Client) Deref() Client {
 	return *c
 }
 
-func parseOSArch(osStr string) (string, string, error) {
+type OS int32
+
+const (
+	OSUnknown OS = iota
+	OSAndroid
+	OSFreeBSD
+	OSLinux
+	OSMacOS
+	OSWindows
+)
+
+var osStrings = []string{
+	Unknown,
+	"Android",
+	"FreeBSD",
+	"Linux",
+	"MacOS",
+	"Windows",
+}
+
+func (os OS) String() string {
+	return osStrings[os]
+}
+
+type Arch int32
+
+const (
+	ArchUnknown Arch = iota
+	ArchAMD64
+	ArchARM64
+	ArchI386
+	ArchS390x
+)
+
+var archStrings = []string{
+	Unknown,
+	"amd64",
+	"arm64",
+	"i386",
+	"IBM System/390",
+}
+
+func (arch Arch) String() string {
+	return archStrings[arch]
+}
+
+func parseOSArch(osStr string) (OS, Arch, error) {
 	if osStr == "" {
-		return Unknown, Unknown, ErrOSArchEmpty
+		return OSUnknown, ArchUnknown, ErrOSArchEmpty
 	}
 
 	parts := strings.FieldsFunc(osStr, func(c rune) bool {
 		return c == '-'
 	})
 
-	var os, arch string
+	os := OSUnknown
+	arch := ArchUnknown
 
 	for _, part := range parts {
 		switch part {
@@ -90,41 +153,33 @@ func parseOSArch(osStr string) (string, string, error) {
 			// NOOP
 
 		// Operating Systems
-		case "linux":
-			os = "Linux"
-		case "freebsd":
-			os = "FreeBSD"
 		case "android":
-			os = "Android"
-		case "windows", "win32":
-			os = "Windows"
+			os = OSAndroid
+		case "freebsd":
+			os = OSFreeBSD
+		case "linux":
+			os = OSLinux
 		case "darwin", "osx", "macos", "apple":
-			os = "MacOS"
+			os = OSMacOS
+		case "windows", "win32":
+			os = OSWindows
 
 		// Archetectures
 		case "amd64", "x64", "x86_64":
-			arch = "amd64"
+			arch = ArchAMD64
 		case "arm64", "aarch_64", "aarch64", "arm":
-			arch = "arm64"
+			arch = ArchARM64
 		case "386":
-			arch = "i386"
+			arch = ArchI386
 		case "s390x":
-			arch = "IBM System/390"
+			arch = ArchS390x
 
 		default:
 			// NOOP
 		}
 	}
 
-	if os == "" {
-		os = Unknown
-	}
-
-	if arch == "" {
-		arch = Unknown
-	}
-
-	if os == Unknown && arch == Unknown {
+	if os == OSUnknown && arch == ArchUnknown {
 		return os, arch, ErrOSArchUnknown
 	}
 
@@ -244,8 +299,8 @@ func handleNimbus(name string) (*Client, error) {
 			UserData: Unknown,
 			Version:  Unknown,
 			Build:    Unknown,
-			OS:       Unknown,
-			Arch:     Unknown,
+			OS:       OSUnknown,
+			Arch:     ArchUnknown,
 			Language: Unknown,
 		}, nil
 	}
@@ -281,8 +336,8 @@ func handleLen1(parts []string) (*Client, error) {
 		UserData: Unknown,
 		Version:  Unknown,
 		Build:    Unknown,
-		OS:       Unknown,
-		Arch:     Unknown,
+		OS:       OSUnknown,
+		Arch:     ArchUnknown,
 		Language: Unknown,
 	}, nil
 }
@@ -298,8 +353,8 @@ func handleLen2(parts []string) (*Client, error) {
 		UserData: Unknown,
 		Version:  version.Version(),
 		Build:    version.Build,
-		OS:       Unknown,
-		Arch:     Unknown,
+		OS:       OSUnknown,
+		Arch:     ArchUnknown,
 		Language: Unknown,
 	}, nil
 }
@@ -378,7 +433,9 @@ func handleLen4(parts []string) (*Client, error) {
 }
 
 func handleLen5(parts []string) (*Client, error) {
-	var versionStr, os, arch, lang string
+	var versionStr, lang string
+	os := OSUnknown
+	arch := ArchUnknown
 	userData := Unknown
 
 	// handle geth/v1.2.11-e3acd735-20231031/linux-amd64/go1.20.5/{d+}

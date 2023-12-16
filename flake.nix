@@ -61,7 +61,7 @@
             src = gitignoreSource ./.;
             subPackages = [ "cmd/crawler" ];
 
-            vendorHash = "sha256-m66W2yx0Emcbr16o7GUIUwZoq6OlWQu0xrWSFWA6nCM=";
+            vendorHash = "sha256-oTvTzLVokI9y4c4jLjtqnVJ/PtoEwI2xEHFmgEBtvpA=";
 
             doCheck = false;
 
@@ -112,12 +112,14 @@
               '';
             }
           ];
+
           packages = with pkgs; [
             go_1_21
             golangci-lint
             graphviz
             nix-prefetch
             nodejs
+            postgresql_16
             sqlite-interactive
             templ
           ];
@@ -327,6 +329,14 @@
                 description = "Number of listeners.";
               };
             };
+
+            postgresql = {
+              enable = mkOption {
+                default = true;
+                type = types.bool;
+                description = "Enables the Postgres database.";
+              };
+            };
           };
 
           config = mkIf cfg.enable {
@@ -365,6 +375,7 @@
                       "--stats-db=${cfg.statsDatabaseName}"
                       "--stats-snapshot=${cfg.statsSnapshotFilename}"
                       "--workers=${toString cfg.crawler.workers}"
+                      "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler\""
                     ];
                   in
                   "${pkgs.nodeCrawler}/bin/crawler --pprof=${if cfg.crawler.pprof then "true" else "false"} crawl ${concatStringsSep " " args}";
@@ -395,6 +406,7 @@
                       "--metrics-addr=${cfg.api.metricsAddress}"
                       "--snapshot-dir=${cfg.snapshotDirname}"
                       "--stats-db=${cfg.statsDatabaseName}"
+                      "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler\""
                     ];
                   in
                   "${pkgs.nodeCrawler}/bin/crawler --pprof=${if cfg.api.pprof then "true" else "false"} api ${concatStringsSep " " args}";
@@ -411,19 +423,45 @@
               };
             };
 
-            services.nginx = {
-              enable = true;
-              upstreams.nodeCrawlerApi.servers."${apiAddress}" = { };
-              virtualHosts."${cfg.hostName}" = mkMerge [
-                cfg.nginx
-                {
-                  locations = {
-                    "/" = {
-                      proxyPass = "http://nodeCrawlerApi/";
+            services = {
+              nginx = {
+                enable = true;
+                upstreams.nodeCrawlerApi.servers."${apiAddress}" = { };
+                virtualHosts."${cfg.hostName}" = mkMerge [
+                  cfg.nginx
+                  {
+                    locations = {
+                      "/" = {
+                        proxyPass = "http://nodeCrawlerApi/";
+                      };
                     };
-                  };
-                }
-              ];
+                  }
+                ];
+              };
+              postgresql = mkIf cfg.postgresql.enable {
+                enable = true;
+                enableJIT = true;
+                package = pkgs.postgresql_16;
+                extraPlugins = psql: with psql; [ timescaledb ];
+                settings = {
+                  shared_preload_libraries = "timescaledb";
+                };
+                ensureDatabases = [ "nodecrawler" ];
+                ensureUsers = [
+                  {
+                    name = "nodecrawler";
+                    ensureDBOwnership = true;
+                    ensureClauses = {
+                      login = true;
+                    };
+                  }
+                ];
+              };
+              postgresqlBackup = mkIf cfg.postgresql.enable {
+                enable = true;
+                startAt = "*-*-* 00:00:00";
+                databases = [ "nodecrawler" ];
+              };
             };
           };
         };

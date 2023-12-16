@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/metrics"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oschwald/geoip2-golang"
 	"modernc.org/sqlite"
 )
@@ -24,6 +25,7 @@ func init() {
 
 type DB struct {
 	db      *sql.DB
+	pg      *pgxpool.Pool
 	geoipDB *geoip2.Reader
 
 	nextCrawlSucces int64
@@ -33,12 +35,13 @@ type DB struct {
 	wLock sync.Mutex
 }
 
-func NewAPIDB(db *sql.DB) *DB {
-	return NewDB(db, nil, 0, 0, 0)
+func NewAPIDB(db *sql.DB, pg *pgxpool.Pool) *DB {
+	return NewDB(db, pg, nil, 0, 0, 0)
 }
 
 func NewDB(
 	db *sql.DB,
+	pg *pgxpool.Pool,
 	geoipDB *geoip2.Reader,
 	nextCrawlSucces time.Duration,
 	nextCrawlFail time.Duration,
@@ -46,6 +49,7 @@ func NewDB(
 ) *DB {
 	return &DB{
 		db:      db,
+		pg:      pg,
 		geoipDB: geoipDB,
 
 		nextCrawlSucces: int64(nextCrawlSucces.Seconds()),
@@ -57,7 +61,10 @@ func NewDB(
 }
 
 func (db *DB) Close() error {
-	return db.db.Close()
+	db.pg.Close()
+	db.db.Close()
+
+	return nil
 }
 
 type tableStats struct {

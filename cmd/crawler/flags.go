@@ -98,6 +98,11 @@ var (
 		Usage: "URL of the node you want to connect to",
 		// Value: "http://localhost:8545",
 	}
+	postgresFlag = cli.StringFlag{
+		Name:     "postgres",
+		Usage:    "Postgresql connection string",
+		Required: true,
+	}
 	timeoutFlag = cli.DurationFlag{
 		Name:  "timeout",
 		Usage: "Timeout for the crawling in a round",

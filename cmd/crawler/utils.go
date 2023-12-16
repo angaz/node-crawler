@@ -10,6 +10,7 @@ import (
 	"github.com/angaz/sqlu"
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oschwald/geoip2-golang"
 	"github.com/urfave/cli/v2"
 )
@@ -54,8 +55,14 @@ func openDBWriter(cCtx *cli.Context, geoipDB *geoip2.Reader) (*database.DB, erro
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
+	pg, err := pgxpool.New(cCtx.Context, postgresFlag.Get(cCtx))
+	if err != nil {
+		return nil, fmt.Errorf("connect to postgres failed: %w", err)
+	}
+
 	db := database.NewDB(
 		sqlite,
+		pg,
 		geoipDB,
 		nextCrawlSuccessFlag.Get(cCtx),
 		nextCrawlFailFlag.Get(cCtx),
@@ -72,6 +79,11 @@ func openDBWriter(cCtx *cli.Context, geoipDB *geoip2.Reader) (*database.DB, erro
 		return nil, fmt.Errorf("stats database migration failed: %w", err)
 	}
 
+	err = db.MigrateStatsPG()
+	if err != nil {
+		return nil, fmt.Errorf("stats pg migration failed: %w", err)
+	}
+
 	return db, nil
 }
 
@@ -81,7 +93,12 @@ func openDBReader(cCtx *cli.Context) (*database.DB, error) {
 		return nil, fmt.Errorf("opening database failed: %w", err)
 	}
 
-	db := database.NewAPIDB(sqlite)
+	pg, err := pgxpool.New(cCtx.Context, postgresFlag.Get(cCtx))
+	if err != nil {
+		return nil, fmt.Errorf("connect to postgres failed: %w", err)
+	}
+
+	db := database.NewAPIDB(sqlite, pg)
 
 	return db, nil
 }
