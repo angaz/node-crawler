@@ -476,6 +476,11 @@ func intToAllYesNo(i int) string {
 	}
 }
 
+css fieldSize() {
+	min-width: 16em;
+	field-sizing: content;
+}
+
 templ NodeList(reqURL URL, nodes database.NodeList) {
 	<div class={ nodeListClass() }>
 		<div style="width: 100%; display: flex; flex-direction: column; row-gap: 0.5em;">
@@ -486,9 +491,9 @@ templ NodeList(reqURL URL, nodes database.NodeList) {
 				<input name="network" type="hidden" value={ strconv.FormatInt(nodes.NetworkFilter, 10) }/>
 				<input name="page" type="hidden" value={ strconv.Itoa(nodes.PageNumber) }/>
 				<input name="synced" type="hidden" value={ intToAllYesNo(nodes.Synced) }/>
-				<input class={ pageButton(), pageButtonActive() } name="q" type="text" placeholder="Search IP, ID, or Pubkey" value={ nodes.Query }/>
-				<input class={ pageButton(), pageButtonActive() } name="client-name" type="text" placeholder="Search Client Name" value={ nodes.ClientName }/>
-				<input class={ pageButton(), pageButtonActive() } name="client-user-data" type="text" placeholder="Search Client User Data" value={ nodes.ClientUserData }/>
+				<input class={ fieldSize(), pageButton(), pageButtonActive() } name="q" type="text" placeholder="Search IP, ID, or Pubkey" value={ nodes.Query }/>
+				<input class={ fieldSize(), pageButton(), pageButtonActive() } name="client-name" type="text" placeholder="Search Client Name" value={ nodes.ClientName }/>
+				<input class={ fieldSize(), pageButton(), pageButtonActive() } name="client-user-data" type="text" placeholder="Search Client User Data" value={ nodes.ClientUserData }/>
 				<input class={ pageButton(), pageButtonActive() } type="submit" value="Search"/>
 			</form>
 			<div style="display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 0.5em;">
