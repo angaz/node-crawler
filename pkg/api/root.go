@@ -236,12 +236,12 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, found := a.getCache(params.cacheKey())
-	if found {
-		_, _ = w.Write(b)
+	// b, found := a.getCache(params.cacheKey())
+	// if found {
+	// 	_, _ = w.Write(b)
 
-		return
-	}
+	// 	return
+	// }
 
 	days := 3
 
