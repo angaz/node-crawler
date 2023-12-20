@@ -94,6 +94,7 @@ func (a *API) getFilterStats(
 	params *statsParams,
 	before time.Time,
 	after time.Time,
+	interval time.Duration,
 ) (database.AllStats, error) {
 	fork, forkFound := database.Forks[params.networkID]
 
@@ -104,6 +105,7 @@ func (a *API) getFilterStats(
 		params.networkID,
 		params.synced,
 		params.clientName,
+		interval,
 	)
 	if err != nil {
 		log.Error("GetStats failed", "err", err)
@@ -214,7 +216,9 @@ func (a *API) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allStats, err := a.getFilterStats(r.Context(), params, before, after)
+	interval := 30 * time.Minute
+
+	allStats, err := a.getFilterStats(r.Context(), params, before, after, interval)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
@@ -243,18 +247,20 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	// 	return
 	// }
 
-	days := 3
+	days := 7
+	graphInterval := 3 * time.Hour
 
 	// All network ids has so much data, so we're prioritizing speed over days
 	// of data.
 	if params.networkID == -1 || params.synced == -1 {
 		days = 1
+		graphInterval = 30 * time.Minute
 	}
 
-	before := time.Now().Truncate(30 * time.Minute).Add(30 * time.Minute)
+	before := time.Now().Truncate(graphInterval).Add(graphInterval)
 	after := before.AddDate(0, 0, -days)
 
-	allStats, err := a.getFilterStats(r.Context(), params, before, after)
+	allStats, err := a.getFilterStats(r.Context(), params, before, after, graphInterval)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
@@ -275,7 +281,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 			public.StatsGraph(
 				fmt.Sprintf("Client Names (%dd)", days),
 				"client_names",
-				clientNames.Timeseries().Percentage(),
+				clientNames.Timeseries(graphInterval).Percentage(),
 			),
 		)
 
@@ -300,7 +306,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 			public.StatsGraph(
 				fmt.Sprintf("Client Versions (%dd)", days),
 				"client_versions",
-				clientVersions.Timeseries().Percentage(),
+				clientVersions.Timeseries(graphInterval).Percentage(),
 			),
 		)
 
@@ -338,7 +344,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		public.StatsGraph(
 			fmt.Sprintf("Dial Success (%dd)", days),
 			"dial_success",
-			dialSuccess.Timeseries().Percentage().Colours("#05c091", "#ff6e76"),
+			dialSuccess.Timeseries(graphInterval).Percentage().Colours("#05c091", "#ff6e76"),
 		),
 	)
 

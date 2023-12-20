@@ -535,7 +535,7 @@ func (ts Timeseries) Percentage() Timeseries {
 	return ts
 }
 
-func (s AllCountTotal) Timeseries() Timeseries {
+func (s AllCountTotal) Timeseries(interval time.Duration) Timeseries {
 	timestampMap := map[time.Time]struct{}{}
 
 	for _, c := range s {
@@ -560,8 +560,8 @@ func (s AllCountTotal) Timeseries() Timeseries {
 
 		for _, ts := range timestamps[1:] {
 			for {
-				if lastTs.Sub(ts).Abs() > 35*time.Minute {
-					lastTs = lastTs.Add(30 * time.Minute)
+				if lastTs.Sub(ts).Abs() > interval {
+					lastTs = lastTs.Add(interval)
 					outTs = append(outTs, lastTs)
 				} else {
 					outTs = append(outTs, ts)

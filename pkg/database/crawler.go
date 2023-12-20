@@ -17,10 +17,12 @@ import (
 )
 
 type location struct {
-	country   string
-	city      string
-	latitude  float64
-	longitude float64
+	country          string
+	countryGeoNameID uint
+	city             string
+	cityGeoNameID    uint
+	latitude         float64
+	longitude        float64
 }
 
 func (db *DB) IPToLocation(ip net.IP) (location, error) {
@@ -35,10 +37,12 @@ func (db *DB) IPToLocation(ip net.IP) (location, error) {
 	}
 
 	return location{
-		country:   ipRecord.Country.Names["en"],
-		city:      ipRecord.City.Names["en"],
-		latitude:  ipRecord.Location.Latitude,
-		longitude: ipRecord.Location.Longitude,
+		country:          ipRecord.Country.Names["en"],
+		countryGeoNameID: ipRecord.Country.GeoNameID,
+		city:             ipRecord.City.Names["en"],
+		cityGeoNameID:    ipRecord.City.GeoNameID,
+		latitude:         ipRecord.Location.Latitude,
+		longitude:        ipRecord.Location.Longitude,
 	}, nil
 }
 
@@ -172,6 +176,8 @@ func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
 	if err != nil {
 		return fmt.Errorf("geoip failed: %w", err)
 	}
+
+	log.Info("geoname", "country", location.countryGeoNameID, "city", location.cityGeoNameID)
 
 	if len(node.BlockHeaders) != 0 {
 		err = db.InsertBlocks(node.BlockHeaders, node.Info.NetworkID)

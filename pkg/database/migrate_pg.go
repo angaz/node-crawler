@@ -12,10 +12,21 @@ import (
 
 type migrationFnPG func(context.Context, pgx.Tx) error
 
+func migrateCommand(sql string) migrationFnPG {
+	return func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, sql)
+		if err != nil {
+			return fmt.Errorf("exec: %w", err)
+		}
+
+		return nil
+	}
+}
+
 func (db *DB) migratePG(
 	ctx context.Context,
 	migrations []migrationFnPG,
-	staticObjects migrationFnPG,
+	staticObjects ...migrationFnPG,
 ) error {
 	tx, err := db.pg.Begin(ctx)
 	if err != nil {

@@ -7,11 +7,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
-	"slices"
 	"time"
 
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/metrics"
+	"github.com/jackc/pgx/v5"
 )
 
 func BytesToUnit32(b []byte) uint32 {
@@ -487,6 +487,143 @@ func (db *DB) GetNodeList(
 	return &out, nil
 }
 
+type StatsGraphSeries struct {
+	Key    string
+	Totals []*int64
+}
+
+type StatsSeriesInstant struct {
+	Key   string
+	Total int64
+}
+
+type StatsResult struct {
+	Buckets           []time.Time
+	ClientNameGraph   []StatsGraphSeries
+	DialSuccessGraph  []StatsGraphSeries
+	ClientNameInstant []StatsSeriesInstant
+	CountriesInstant  []StatsSeriesInstant
+	OSArchInstant     []StatsSeriesInstant
+}
+
+// !!! `column` IS NOT SANITIZED !!! Do not use user-provided values.
+func statsInstant(
+	ctx context.Context,
+	tx pgx.Tx,
+	key string,
+) ([]StatsSeriesInstant, error) {
+	rows, err := tx.Query(
+		ctx,
+		fmt.Sprintf(
+			`
+				SELECT
+					%s key,
+					SUM(total) total
+				FROM timeseries
+				JOIN client.client_names USING (client_name_id)
+				JOIN client.client_versions USING (client_version_id)
+				JOIN client.os USING (client_os_id)
+				JOIN client_arch USING (client_arch_id)
+				JOIN geoname.countries USING (country_geoname_id)
+				WHERE
+					bucket = MAX(SELECT bucket FROM timeseries)
+				GROUP BY
+					key,
+					total
+				HAVING total IS NOT NULL
+				ORDER BY total DESC
+			`,
+			key,
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	stats := make([]StatsSeriesInstant, 0, 8)
+
+	for rows.Next() {
+		var row StatsSeriesInstant
+
+		err := rows.Scan(
+			&row.Key,
+			&row.Total,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+
+		stats = append(stats, row)
+	}
+
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+
+	return stats, nil
+}
+
+// !!! `column` IS NOT SANITIZED !!! Do not use user-provided values.
+func statsGraph(
+	ctx context.Context,
+	tx pgx.Tx,
+	column string,
+) ([]StatsGraphSeries, error) {
+	rows, err := tx.Query(
+		ctx,
+		fmt.Sprintf(
+			`
+				SELECT
+					key,
+					array_agg(total) totals
+				FROM (
+					SELECT
+						%s key,
+						SUM(total) total
+					FROM timeseries
+					JOIN client.client_names USING (client_name_id)
+					JOIN client.client_versions USING (client_version_id)
+					GROUP BY
+						bucket,
+						key
+				)
+				GROUP BY key
+				ORDER BY totals[array_lenth(totals)] DESC NULLS LAST  -- Sort by last element
+			`,
+			column,
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	graph := make([]StatsGraphSeries, 0, 8)
+
+	for rows.Next() {
+		var series StatsGraphSeries
+
+		err := rows.Scan(
+			&series.Key,
+			&series.Totals,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+
+		graph = append(graph, series)
+	}
+
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+
+	return graph, nil
+}
+
 func (db *DB) GetStats(
 	ctx context.Context,
 	after time.Time,
@@ -494,54 +631,74 @@ func (db *DB) GetStats(
 	networkID int64,
 	synced int,
 	clientName string,
-) (AllStats, error) {
+) (*StatsResult, error) {
 	var err error
 
 	start := time.Now()
 	defer metrics.ObserveDBQuery("get_stats", start, err)
 
-	rows, err := db.pg.Query(
+	tx, err := db.pg.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(
 		ctx,
 		`
 			SELECT
-				timestamp,
-				client_names.client_name,
-				client_user_data.client_user_data,
-				client_versions.client_version,
-				client_os,
-				client_arch,
+				time_bucket_gapfill(
+					GREATEST($3::TIMESTAMPTZ - $2::TIMESTAMP / 64, '30 minutes'),
+					timestamp,
+					$2,
+					$3
+				) bucket,
+				client_name_id,
+				client_version_id,
+				client_os_id,
+				client_arch_id,
 				network_id,
 				fork_id,
 				next_fork_id,
-				country,
+				country_geoname_id,
 				synced,
 				dial_success,
-				total
-			FROM stats.crawled_nodes
-			LEFT JOIN stats.client_names
-				ON (crawled_nodes.client_name_id = client_names.client_name_id)
-			LEFT JOIN stats.client_user_data
-				ON (crawled_nodes.client_user_data_id = client_user_data.client_user_data_id)
-			LEFT JOIN stats.client_versions
-				ON (crawled_nodes.client_version_id = client_versions.client_version_id)
+				avg(total)::INT total
+			INTO TEMPORARY UNLOGGED TABLE timeseries
+			FROM stats.execution_nodes
+			JOIN client.client_names USING (client_name_id)
 			WHERE
-				timestamp > $1
-				AND timestamp <= $2
-				AND (
-					$3 = -1
-					OR network_id = $3
-				)
+				client_type = $1
+				AND timestamp >= $2
+				AND timestamp < $3
 				AND (
 					$4 = -1
-					OR synced = ($4 = 1)
+					OR network_id = $4
 				)
 				AND (
-					$5 = ''
-					OR client_names.client_name = $5
+					$5 = -1
+					OR synced = ($5 = 1)
 				)
+				AND (
+					$6 = ''
+					OR client_names.client_name = $6
+				)
+			GROUP BY
+				bucket,
+				client_name_id,
+				client_version_id,
+				client_os_id,
+				client_arch_id,
+				network_id,
+				fork_id,
+				next_fork_id,
+				country_geoname_id,
+				synced,
+				dial_success
 			ORDER BY
-				timestamp ASC
+				bucket ASC
 		`,
+		common.NodeTypeExecution,
 		after,
 		before,
 		networkID,
@@ -549,244 +706,78 @@ func (db *DB) GetStats(
 		clientName,
 	)
 	if err != nil {
-		return AllStats{}, fmt.Errorf("query failed: %w", err)
+		return nil, fmt.Errorf("create temp table: %w", err)
+	}
+
+	rows, err := tx.Query(ctx, `SELECT bucket FROM timeseries`)
+	if err != nil {
+		return nil, fmt.Errorf("query buckets: %w", err)
 	}
 	defer rows.Close()
 
-	allStats := make([]Stats, 0, 1024)
+	buckets := make([]time.Time, 0, 64)
 
 	for rows.Next() {
-		var stats Stats
-		var clientName, clientUserData, clientVersion *string
-		var clientOS OS
-		var clientArch Arch
+		var bucket time.Time
 
-		err := rows.Scan(
-			&stats.Timestamp,
-			&clientName,
-			&clientUserData,
-			&clientVersion,
-			&clientOS,
-			&clientArch,
-			&stats.NetworkID,
-			&stats.ForkID,
-			&stats.NextForkID,
-			&stats.Country,
-			&stats.Synced,
-			&stats.DialSuccess,
-			&stats.Total,
-		)
+		err := rows.Scan(&bucket)
 		if err != nil {
-			return AllStats{}, fmt.Errorf("scan failed: %w", err)
+			return nil, fmt.Errorf("scan bucket: %w", err)
 		}
 
-		stats.Client = newClient(
-			clientName,
-			clientUserData,
-			clientVersion,
-			nil,
-			clientOS,
-			clientArch,
-			nil,
-		)
-		allStats = append(allStats, stats)
+		buckets = append(buckets, bucket)
 	}
 
-	return AllStats(allStats), nil
-}
-
-type HistoryListRow struct {
-	NodeID           string
-	ClientIdentifier *string
-	NetworkID        *int64
-	CrawledAt        time.Time
-	Direction        string
-	Error            *string
-}
-
-func (r HistoryListRow) CrawledAtStr() string {
-	return r.CrawledAt.UTC().Format(time.RFC3339)
-}
-
-func (r HistoryListRow) SinceCrawled() string {
-	return since(&r.CrawledAt)
-}
-
-func (r HistoryListRow) NetworkIDStr() string {
-	if r.NetworkID == nil {
-		return ""
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows buckets: %w")
 	}
 
-	return fmt.Sprintf("%s (%d)", NetworkName(r.NetworkID), *r.NetworkID)
-}
+	var clientNameGraph []StatsGraphSeries
 
-type HistoryList struct {
-	Rows      []HistoryListRow
-	NetworkID int64
-	IsError   int
-	Before    *time.Time
-	After     *time.Time
-	LastTime  *time.Time
-	FirstTime *time.Time
-}
-
-var DateTimeLocal = "2006-01-02T15:04:05"
-
-func (l HistoryList) BeforeStr() string {
-	if l.Before == nil {
-		return ""
+	if clientName == "" {
+		clientNameGraph, err = statsGraph(ctx, tx, "client_name")
+		if err != nil {
+			return nil, fmt.Errorf("client_name graph: %w", err)
+		}
+	} else {
+		clientNameGraph, err = statsGraph(ctx, tx, "client_version")
+		if err != nil {
+			return nil, fmt.Errorf("client_version graph: %w", err)
+		}
 	}
 
-	return l.Before.UTC().Format(DateTimeLocal)
-}
-
-func (l HistoryList) AfterStr() string {
-	if l.After == nil {
-		return ""
+	dialSuccessGraph, err := statsGraph(ctx, tx, "dial_success")
+	if err != nil {
+		return nil, fmt.Errorf("dial_success graph: %w", err)
 	}
 
-	return l.After.UTC().Format(DateTimeLocal)
-}
-
-func (l HistoryList) FirstTimeStr() string {
-	if l.FirstTime == nil {
-		return l.AfterStr()
+	clientNameInstant, err := statsInstant(ctx, tx, "client_name")
+	if err != nil {
+		return nil, fmt.Errorf("client_name instant: %w", err)
 	}
 
-	return l.FirstTime.UTC().Format(DateTimeLocal)
-}
-
-func (l HistoryList) LastTimeStr() string {
-	if l.FirstTime == nil {
-		return l.BeforeStr()
+	countriesInstant, err := statsInstant(ctx, tx, "country_name")
+	if err != nil {
+		return nil, fmt.Errorf("countries instant: %w", err)
 	}
 
-	return l.LastTime.UTC().Format(DateTimeLocal)
-}
-
-func timePtrToUnixPtr(t *time.Time) *int64 {
-	if t == nil {
-		return nil
-	}
-
-	u := t.Unix()
-	return &u
-}
-
-func (db *DB) GetHistoryList(
-	ctx context.Context,
-	before *time.Time,
-	after *time.Time,
-	networkID int64,
-	isError int,
-) (*HistoryList, error) {
-	var err error
-
-	start := time.Now()
-	defer metrics.ObserveDBQuery("get_history_list", start, err)
-
-	queryOrderDirection := "ASC"
-	if before == nil {
-		queryOrderDirection = "DESC"
-	}
-
-	rows, err := db.db.QueryContext(
+	osArchInstant, err := statsInstant(
 		ctx,
-		// Don't ever do this, but we have no other choice because I could not
-		// find another way to conditionally set the order direction. :(
-		fmt.Sprintf(`
-			SELECT
-				history.node_id,
-				crawled.client_identifier,
-				crawled.network_id,
-				history.crawled_at,
-				history.direction,
-				history.error
-			FROM crawl_history AS history
-			LEFT JOIN crawled_nodes AS crawled ON (history.node_id = crawled.node_id)
-			WHERE
-				(
-					?1 IS NULL
-					OR history.crawled_at >= ?1
-				)
-				AND (
-					?2 IS NULL
-					OR history.crawled_at <= ?2
-				)
-				AND (
-					?3 = -1
-					OR crawled.network_id = ?3
-				)
-				AND (
-					?4 = -1
-					OR (
-						?4 = 0
-						AND history.error IS NULL
-					)
-					OR (
-						?4 = 1
-						AND history.error IS NOT NULL
-					)
-				)
-			ORDER BY history.crawled_at %s
-			LIMIT 50
-		`, queryOrderDirection),
-		timePtrToUnixPtr(before),
-		timePtrToUnixPtr(after),
-		networkID,
-		isError,
+		tx,
+		("COALESCE(client_os_name, 'Unknown') || " +
+			"' / ' || COALESCE(client_arch_name, 'Unknown')"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-	defer rows.Close()
-
-	historyList := HistoryList{
-		Rows:      []HistoryListRow{},
-		NetworkID: networkID,
-		IsError:   isError,
-		Before:    before,
-		After:     after,
-		FirstTime: nil,
-		LastTime:  nil,
+		return nil, fmt.Errorf("os/arch instant: %w", err)
 	}
 
-	for rows.Next() {
-		row := HistoryListRow{} //nolint:exhaustruct
-		nodeIDBytes := make([]byte, 32)
-		var crawledAtInt int64
-
-		err := rows.Scan(
-			&nodeIDBytes,
-			&row.ClientIdentifier,
-			&row.NetworkID,
-			&crawledAtInt,
-			&row.Direction,
-			&row.Error,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("scan failed: %w", err)
-		}
-
-		row.NodeID = hex.EncodeToString(nodeIDBytes[:])
-		row.CrawledAt = time.Unix(crawledAtInt, 0)
-		historyList.Rows = append(historyList.Rows, row)
-	}
-
-	if len(historyList.Rows) > 0 {
-		slices.SortStableFunc(historyList.Rows, func(a, b HistoryListRow) int {
-			if a.CrawledAt.Equal(b.CrawledAt) {
-				return 0
-			}
-			if a.CrawledAt.After(b.CrawledAt) {
-				return -1
-			}
-			return 1
-		})
-
-		historyList.FirstTime = &historyList.Rows[0].CrawledAt
-		historyList.LastTime = &historyList.Rows[len(historyList.Rows)-1].CrawledAt
-	}
-
-	return &historyList, nil
+	return &StatsResult{
+		Buckets:           buckets,
+		ClientNameGraph:   clientNameGraph,
+		DialSuccessGraph:  dialSuccessGraph,
+		ClientNameInstant: clientNameInstant,
+		CountriesInstant:  countriesInstant,
+		OSArchInstant:     osArchInstant,
+	}, nil
 }
