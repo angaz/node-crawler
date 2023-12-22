@@ -40,7 +40,7 @@ func (n NodeListRow) NodePubKey() string {
 }
 
 func (n NodeListRow) SinceUpdate() string {
-	return since(n.UpdatedAt)
+	return common.Since(n.UpdatedAt)
 }
 
 func (n NodeListRow) IsSynced() string {

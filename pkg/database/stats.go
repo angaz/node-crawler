@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/metrics"
 	"golang.org/x/exp/slices"
 )
@@ -253,12 +254,17 @@ func (db *DB) CopyStats() error {
 			clientName,
 			clientUserData,
 			clientVersion,
-			slices.Index(osStrings, clientOS),
-			slices.Index(archStrings, clientArch),
+			// TODO
+			// slices.Index(osStrings, clientOS),
+			// slices.Index(archStrings, clientArch),
+			0,
+			0,
 			networkID,
 			forkID,
 			nextForkID,
-			ParseCountryName(country),
+			// TODO
+			// ParseCountryName(country),
+			0,
 			synced,
 			dialSuccess,
 			total,
@@ -278,7 +284,7 @@ func (db *DB) CopyStats() error {
 
 type Stats struct {
 	Timestamp   time.Time
-	Client      Client
+	Client      common.Client
 	NetworkID   int64
 	ForkID      uint32
 	NextForkID  *uint64
@@ -306,7 +312,7 @@ type statsJSON struct {
 
 func (s Stats) MarshalJSON() ([]byte, error) {
 	var userData *string
-	if s.Client.UserData != Unknown {
+	if s.Client.UserData != common.Unknown {
 		userData = &s.Client.UserData
 	}
 
@@ -334,7 +340,7 @@ func (s Stats) CountryStr() string {
 }
 
 func (s Stats) ForkIDStr() string {
-	return Uint32ToForkID(s.ForkID).Hex()
+	return common.Uint32ToForkID(s.ForkID).Hex()
 }
 
 func (s Stats) NextForkIDStr() *string {

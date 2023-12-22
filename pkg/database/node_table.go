@@ -18,7 +18,7 @@ type NodeTableHistory struct {
 }
 
 func (h NodeTableHistory) CrawledAtLine() string {
-	return since(&h.CrawledAt)
+	return common.Since(&h.CrawledAt)
 }
 
 type NodeTable struct {
@@ -40,7 +40,7 @@ type NodeTable struct {
 	RlpxVersion    *int64
 	Capabilities   *string
 	networkID      *int64
-	ForkID         *ForkID
+	ForkID         *common.ForkID
 	NextForkID     *uint64
 	HeadHash       *[]byte
 	HeadHashTime   *time.Time
@@ -70,10 +70,10 @@ func (n NodeTable) ForkIDStr() string {
 		return ""
 	}
 
-	name := Unknown
+	name := common.Unknown
 
 	if n.networkID != nil {
-		forkData, ok := Forks[*n.networkID]
+		forkData, ok := common.Forks[*n.networkID]
 		if ok {
 			forkName, ok := forkData.Hash[n.ForkID.Uint32()]
 			if ok {
@@ -90,10 +90,10 @@ func (n NodeTable) NextForkIDStr() string {
 		return ""
 	}
 
-	name := Unknown
+	name := common.Unknown
 
 	if n.networkID != nil {
-		forkData, ok := Forks[*n.networkID]
+		forkData, ok := common.Forks[*n.networkID]
 		if ok {
 			forkName, ok := forkData.BlockTime[*n.NextForkID]
 			if ok {
@@ -110,7 +110,7 @@ func isReadyForCancun(networkID *int64, forkID *uint32, nextForkID *uint64) int 
 		return -1
 	}
 
-	chain, ok := Chains[*networkID]
+	chain, ok := common.Chains[*networkID]
 	if !ok {
 		return -1
 	}
@@ -123,12 +123,12 @@ func isReadyForCancun(networkID *int64, forkID *uint32, nextForkID *uint64) int 
 		return -1
 	}
 
-	forks, ok := Forks[*networkID]
+	forks, ok := common.Forks[*networkID]
 	if !ok {
 		return -1
 	}
 
-	if forks.Hash[*forkID] == ForkNameCancun {
+	if forks.Hash[*forkID] == common.ForkNameCancun {
 		return 1
 	}
 
@@ -201,11 +201,9 @@ func (n NodeTable) HeadHashLine() string {
 	)
 }
 
-var Unknown = "Unknown"
-
 func isSynced(updatedAt *time.Time, headHash *time.Time) string {
 	if updatedAt == nil || headHash == nil {
-		return Unknown
+		return common.Unknown
 	}
 
 	// If head hash is within one minute of the crawl time,
@@ -224,7 +222,7 @@ func (n NodeTable) IsSynced() string {
 func (n NodeTable) FirstFound() string {
 	return fmt.Sprintf(
 		"%s (%s)",
-		since(&n.firstFound),
+		common.Since(&n.firstFound),
 		n.lastFound.UTC().Format(DateFormat),
 	)
 }
@@ -232,7 +230,7 @@ func (n NodeTable) FirstFound() string {
 func (n NodeTable) LastFound() string {
 	return fmt.Sprintf(
 		"%s (%s)",
-		since(&n.lastFound),
+		common.Since(&n.lastFound),
 		n.lastFound.UTC().Format(DateFormat),
 	)
 }
@@ -244,7 +242,7 @@ func (n NodeTable) UpdatedAt() string {
 
 	return fmt.Sprintf(
 		"%s (%s)",
-		since(n.updatedAt),
+		common.Since(n.updatedAt),
 		n.updatedAt.UTC().Format(DateFormat),
 	)
 }
@@ -254,12 +252,16 @@ func (n NodeTable) NextCrawl() string {
 		return "Never"
 	}
 
-	return fmt.Sprintf("%s (%s)", since(n.nextCrawl), n.nextCrawl.UTC().Format(DateFormat))
+	return fmt.Sprintf(
+		"%s (%s)",
+		common.Since(n.nextCrawl),
+		n.nextCrawl.UTC().Format(DateFormat),
+	)
 }
 
 func NetworkName(networkID *int64) string {
 	if networkID == nil {
-		return Unknown
+		return common.Unknown
 	}
 
 	switch *networkID {
@@ -276,7 +278,7 @@ func NetworkName(networkID *int64) string {
 	case 56:
 		return "BNB Smart Chain Mainnet"
 	default:
-		return Unknown
+		return common.Unknown
 	}
 }
 

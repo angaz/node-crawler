@@ -723,7 +723,7 @@ css pageButtonInactive() {
 func networkName(networkID int64) string {
 	name := database.NetworkName(&networkID)
 
-	if name == database.Unknown {
+	if name == common.Unknown {
 		return strconv.FormatInt(networkID, 10)
 	}
 
@@ -941,20 +941,20 @@ templ StatsGraph(title string, id string, ts database.Timeseries) {
 	@statsGraph(title, id, ts)
 }
 
-templ StatsGroup(name string, stats database.CountTotal, hrefFn func(string) templ.SafeURL) {
+templ StatsGroup(name string, instant database.StatsInstant, hrefFn func(string) templ.SafeURL) {
 	<div style="display: flex; flex-direction: column; border: 1px solid orange; border-radius: 1em; padding: 1em; flex-grow: 1; min-width: 30%;">
 		<h2>{ name }</h2>
 		<div style="background-color: #333; padding: 0.5em 0; width: 100%;">
-			<span style="padding-inline-start: 0.5em; white-space: nowrap;">Total ({ strconv.FormatInt(stats.Total, 10) })</span>
+			<span style="padding-inline-start: 0.5em; white-space: nowrap;">Total ({ strconv.FormatInt(instant.Total, 10) })</span>
 		</div>
 		<div style="display: flex; flex-direction: column; max-height: 20em; overflow-y: scroll;">
-			for _, stat := range stats.Values {
-				<div STYLE_REPLACE={ fmt.Sprintf("background-color: #333; padding: 0.5em 0; width: %d%%", stat.Count*100/stats.Total) }>
+			for _, stat := range instant.Series {
+				<div STYLE_REPLACE={ fmt.Sprintf("background-color: #333; padding: 0.5em 0; width: %d%%", stat.Total*100/instant.Total) }>
 					<span style="padding-inline-start: 0.5em; white-space: nowrap;">
 						if hrefFn(stat.Key) == "" {
-							{ stat.Key } ({ strconv.FormatInt(stat.Count, 10) })
+							{ stat.Key } ({ strconv.FormatInt(stat.Total, 10) })
 						} else {
-							<a href={hrefFn(stat.Key)}>{ stat.Key } ({ strconv.FormatInt(stat.Count, 10) })</a>
+							<a href={hrefFn(stat.Key)}>{ stat.Key } ({ strconv.FormatInt(stat.Total, 10) })</a>
 						}
 					</span>
 				</div>

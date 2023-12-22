@@ -1,4 +1,4 @@
-package database
+package common
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func since(updatedAt *time.Time) string {
+func Since(updatedAt *time.Time) string {
 	if updatedAt == nil {
 		return "Never"
 	}
@@ -22,9 +22,10 @@ func since(updatedAt *time.Time) string {
 
 		if hours%24 == 0 {
 			daysStr += "0h"
-		}
-		if int64(since.Minutes())%60 == 0 {
-			daysStr += "0m"
+
+			if int64(since.Minutes())%60 == 0 {
+				daysStr += "0m"
+			}
 		}
 	}
 

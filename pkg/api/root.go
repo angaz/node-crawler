@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/ethereum/node-crawler/public"
 )
@@ -42,7 +42,7 @@ func parseCancunParam(w http.ResponseWriter, query url.Values, networkID int64) 
 		return -1, true
 	}
 
-	chain, ok := database.Chains[networkID]
+	chain, ok := common.Chains[networkID]
 	if !ok || chain.CancunTime == nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = fmt.Fprintf(w, "cancun timestamp is unknown for this chain: %d", networkID)
@@ -95,9 +95,7 @@ func (a *API) getFilterStats(
 	before time.Time,
 	after time.Time,
 	interval time.Duration,
-) (database.AllStats, error) {
-	fork, forkFound := database.Forks[params.networkID]
-
+) (*database.StatsResult, error) {
 	allStats, err := a.db.GetStats(
 		ctx,
 		after,
@@ -105,69 +103,12 @@ func (a *API) getFilterStats(
 		params.networkID,
 		params.synced,
 		params.clientName,
-		interval,
 	)
 	if err != nil {
 		log.Error("GetStats failed", "err", err)
 
 		return nil, fmt.Errorf("internal server error")
 	}
-
-	allStats = allStats.Filter(
-		func(_ int, s database.Stats) bool {
-			return params.synced == -1 ||
-				(params.synced == 1 && s.Synced) ||
-				(params.synced == 0 && !s.Synced)
-		},
-		func(_ int, s database.Stats) bool {
-			if params.networkID == -1 {
-				return true
-			}
-
-			if s.NetworkID != params.networkID {
-				return false
-			}
-
-			// If fork is not known, keep the stats.
-			if !forkFound {
-				return true
-			}
-
-			// If the fork is known, the fork ID should be in the set.
-			_, found := fork.Hash[s.ForkID]
-			return found
-		},
-		func(_ int, s database.Stats) bool {
-			if params.nextFork == -1 {
-				return true
-			}
-
-			if s.NextForkID == nil {
-				return false
-			}
-
-			// Unknown chain, keep the stats.
-			if !forkFound {
-				return true
-			}
-
-			// Fork time unknown, keep the stats.
-			if fork.NextFork == nil {
-				return true
-			}
-
-			isReady := *s.NextForkID == *fork.NextFork
-
-			return isReady == (params.nextFork == 1)
-		},
-		func(_ int, s database.Stats) bool {
-			if params.clientName == "" {
-				return true
-			}
-
-			return s.Client.Name == params.clientName
-		},
-	)
 
 	return allStats, nil
 }
@@ -218,7 +159,8 @@ func (a *API) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 
 	interval := 30 * time.Minute
 
-	allStats, err := a.getFilterStats(r.Context(), params, before, after, interval)
+	// TODO: Put this back
+	_, err := a.getFilterStats(r.Context(), params, before, after, interval)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
@@ -228,10 +170,10 @@ func (a *API) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	encoder := json.NewEncoder(w)
-	encoder.Encode(statsResp{
-		Stats: allStats,
-	})
+	// encoder := json.NewEncoder(w)
+	// encoder.Encode(statsResp{
+	// 	Stats: allStats,
+	// })
 }
 
 func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
@@ -271,25 +213,23 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	reqURL := public.URLFromReq(r)
 
 	graphs := make([]templ.Component, 0, 2)
-	last := make([]templ.Component, 0, 4)
+	instant := make([]templ.Component, 0, 4)
 
 	if params.clientName == "" {
-		clientNames := allStats.GroupClientName()
-
 		graphs = append(
 			graphs,
 			public.StatsGraph(
 				fmt.Sprintf("Client Names (%dd)", days),
 				"client_names",
-				clientNames.Timeseries(graphInterval).Percentage(),
+				allStats.ClientNamesTimeseries().Percentage(),
 			),
 		)
 
-		last = append(
-			last,
+		instant = append(
+			instant,
 			public.StatsGroup(
 				"Client Names",
-				clientNames.Last(),
+				database.ToInstant(allStats.ClientNamesInstant),
 				func(key string) templ.SafeURL {
 					return reqURL.
 						KeepParams("network", "synced", "next-fork").
@@ -299,52 +239,45 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 			),
 		)
 	} else {
-		clientVersions := allStats.GroupClientVersion()
-
 		graphs = append(
 			graphs,
 			public.StatsGraph(
 				fmt.Sprintf("Client Versions (%dd)", days),
 				"client_versions",
-				clientVersions.Timeseries(graphInterval).Percentage(),
+				allStats.ClientNamesTimeseries().Percentage(),
 			),
 		)
 
-		last = append(
-			last,
+		instant = append(
+			instant,
 			public.StatsGroup(
 				"Client Versions",
-				clientVersions.Last(),
+				database.ToInstant(allStats.ClientNamesInstant),
 				func(_ string) templ.SafeURL { return "" },
 			),
 		)
 	}
 
-	countries := allStats.GroupCountries()
-	OSs := allStats.GroupOS()
-
-	last = append(
-		last,
+	instant = append(
+		instant,
 		public.StatsGroup(
 			"Countries",
-			countries.Last(),
+			database.ToInstant(allStats.CountriesInstant),
 			func(_ string) templ.SafeURL { return "" },
 		),
 		public.StatsGroup(
 			"OS / Archetectures",
-			OSs.Last(),
+			database.ToInstant(allStats.OSArchInstant),
 			func(_ string) templ.SafeURL { return "" },
 		),
 	)
-
-	dialSuccess := allStats.GroupDialSuccess()
 
 	graphs = append(
 		graphs,
 		public.StatsGraph(
 			fmt.Sprintf("Dial Success (%dd)", days),
 			"dial_success",
-			dialSuccess.Timeseries(graphInterval).Percentage().Colours("#05c091", "#ff6e76"),
+			allStats.DialSuccessTimeseries().Percentage().Colours("#05c091", "#ff6e76"),
 		),
 	)
 
@@ -355,8 +288,8 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		params.nextFork,
 		params.clientName,
 		graphs,
-		last,
-		len(allStats) == 0,
+		instant,
+		len(allStats.Buckets) == 0,
 	)
 
 	index := public.Index(reqURL, statsPage, params.networkID, params.synced)

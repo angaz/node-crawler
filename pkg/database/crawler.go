@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -186,7 +185,7 @@ func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
 		}
 	}
 
-	clientPtr := parseClientID(&node.Info.ClientName)
+	clientPtr := common.ParseClientID(&node.Info.ClientName)
 	if clientPtr == nil && node.Info.ClientName != "" {
 		log.Error("parsing client ID failed", "id", node.Info.ClientName)
 	}
@@ -445,46 +444,46 @@ func (db *DB) GetMissingBlock(networkID uint64) (*ethcommon.Hash, error) {
 	// TODO: Optimize this. We have all the blocks at this time.
 	return nil, nil
 
-	rows, err := db.QueryRetryBusy(
-		`
-			SELECT
-				crawled.head_hash
-			FROM crawled_nodes AS crawled
-			LEFT JOIN blocks ON (crawled.head_hash = blocks.block_hash)
-			WHERE
-				crawled.network_id = ?1
-				AND blocks.block_hash IS NULL
-			LIMIT 1000
-		`,
-		networkID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
+	// rows, err := db.QueryRetryBusy(
+	// 	`
+	// 		SELECT
+	// 			crawled.head_hash
+	// 		FROM crawled_nodes AS crawled
+	// 		LEFT JOIN blocks ON (crawled.head_hash = blocks.block_hash)
+	// 		WHERE
+	// 			crawled.network_id = ?1
+	// 			AND blocks.block_hash IS NULL
+	// 		LIMIT 1000
+	// 	`,
+	// 	networkID,
+	// )
+	// if err != nil {
+	// 	return nil, fmt.Errorf("query failed: %w", err)
+	// }
 
-	newBlocks := make([]ethcommon.Hash, 0, 1000)
+	// newBlocks := make([]ethcommon.Hash, 0, 1000)
 
-	for rows.Next() {
-		var hash ethcommon.Hash
+	// for rows.Next() {
+	// 	var hash ethcommon.Hash
 
-		err = rows.Scan(&hash)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, nil
-			}
+	// 	err = rows.Scan(&hash)
+	// 	if err != nil {
+	// 		if errors.Is(err, sql.ErrNoRows) {
+	// 			return nil, nil
+	// 		}
 
-			return nil, fmt.Errorf("scan failed: %w", err)
-		}
+	// 		return nil, fmt.Errorf("scan failed: %w", err)
+	// 	}
 
-		newBlocks = append(newBlocks, hash)
-	}
+	// 	newBlocks = append(newBlocks, hash)
+	// }
 
-	if len(newBlocks) == 0 {
-		return nil, nil
-	}
+	// if len(newBlocks) == 0 {
+	// 	return nil, nil
+	// }
 
-	block := newBlocks[0]
-	missingBlockCache[networkID] = newBlocks[1:]
+	// block := newBlocks[0]
+	// missingBlockCache[networkID] = newBlocks[1:]
 
-	return &block, nil
+	// return &block, nil
 }

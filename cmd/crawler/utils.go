@@ -69,19 +69,9 @@ func openDBWriter(cCtx *cli.Context, geoipDB *geoip2.Reader) (*database.DB, erro
 		nextCrawlNotEthFlag.Get(cCtx),
 	)
 
-	err = db.MigrateCrawler()
+	err = db.Migrate()
 	if err != nil {
 		return nil, fmt.Errorf("database migration failed: %w", err)
-	}
-
-	err = db.MigrateStats()
-	if err != nil {
-		return nil, fmt.Errorf("stats database migration failed: %w", err)
-	}
-
-	err = db.MigrateStatsPG()
-	if err != nil {
-		return nil, fmt.Errorf("stats pg migration failed: %w", err)
 	}
 
 	return db, nil

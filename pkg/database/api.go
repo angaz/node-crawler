@@ -151,7 +151,7 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 	nodePage.nextCrawl = int64PrtToTimePtr(nextCrawlInt)
 
 	if forkIDInt != nil {
-		fid := Uint32ToForkID(*forkIDInt)
+		fid := common.Uint32ToForkID(*forkIDInt)
 		nodePage.ForkID = &fid
 	}
 
@@ -489,21 +489,86 @@ func (db *DB) GetNodeList(
 
 type StatsGraphSeries struct {
 	Key    string
-	Totals []*int64
+	Totals []*float64
 }
+
+type StatsGraph []StatsGraphSeries
 
 type StatsSeriesInstant struct {
 	Key   string
 	Total int64
 }
 
+type StatsInstant struct {
+	Series []StatsSeriesInstant
+	Total  int64
+}
+
 type StatsResult struct {
-	Buckets           []time.Time
-	ClientNameGraph   []StatsGraphSeries
-	DialSuccessGraph  []StatsGraphSeries
-	ClientNameInstant []StatsSeriesInstant
-	CountriesInstant  []StatsSeriesInstant
-	OSArchInstant     []StatsSeriesInstant
+	Buckets            []time.Time
+	ClientNamesGraph   []StatsGraphSeries
+	DialSuccessGraph   []StatsGraphSeries
+	ClientNamesInstant []StatsSeriesInstant
+	CountriesInstant   []StatsSeriesInstant
+	OSArchInstant      []StatsSeriesInstant
+}
+
+func ToInstant(series []StatsSeriesInstant) StatsInstant {
+	var total int64
+
+	for _, series := range series {
+		total += series.Total
+	}
+
+	return StatsInstant{
+		Series: series,
+		Total:  total,
+	}
+}
+
+func (stats StatsResult) toTimeseries(series []StatsGraphSeries) Timeseries {
+	times := make([]string, len(stats.Buckets))
+	legend := make([]string, len(series))
+	chartSeries := make([]ChartSeries, len(series))
+
+	for i, ts := range stats.Buckets {
+		times[i] = ts.UTC().Format("2006-01-02 15:04")
+	}
+
+	for i, series := range series {
+		chartSeries[i] = ChartSeries{
+			Name:      series.Key,
+			Type:      "line",
+			Colour:    "",
+			Stack:     "Total",
+			AreaStyle: struct{}{},
+			Emphasis: ChartSeriesEmphasis{
+				Focus: "series",
+			},
+			Data: series.Totals,
+		}
+	}
+
+	return Timeseries{
+		Legend: legend,
+		Series: chartSeries,
+		XAxis: []ChartXAxis{
+			{
+				Type:       "category",
+				BoundryGap: false,
+				Data:       times,
+			},
+		},
+		YAxisMax: nil,
+	}
+}
+
+func (stats StatsResult) ClientNamesTimeseries() Timeseries {
+	return stats.toTimeseries(stats.ClientNamesGraph)
+}
+
+func (stats StatsResult) DialSuccessTimeseries() Timeseries {
+	return stats.toTimeseries(stats.DialSuccessGraph)
 }
 
 // !!! `column` IS NOT SANITIZED !!! Do not use user-provided values.
@@ -730,7 +795,7 @@ func (db *DB) GetStats(
 
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows buckets: %w")
+		return nil, fmt.Errorf("rows buckets: %w", err)
 	}
 
 	var clientNameGraph []StatsGraphSeries
@@ -773,11 +838,11 @@ func (db *DB) GetStats(
 	}
 
 	return &StatsResult{
-		Buckets:           buckets,
-		ClientNameGraph:   clientNameGraph,
-		DialSuccessGraph:  dialSuccessGraph,
-		ClientNameInstant: clientNameInstant,
-		CountriesInstant:  countriesInstant,
-		OSArchInstant:     osArchInstant,
+		Buckets:            buckets,
+		ClientNamesGraph:   clientNameGraph,
+		DialSuccessGraph:   dialSuccessGraph,
+		ClientNamesInstant: clientNameInstant,
+		CountriesInstant:   countriesInstant,
+		OSArchInstant:      osArchInstant,
 	}, nil
 }

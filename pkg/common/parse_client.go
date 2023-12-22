@@ -1,9 +1,10 @@
-package database
+package common
 
 import (
 	"cmp"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -17,6 +18,7 @@ var (
 	ErrNotGethOrReth = errors.New("not geth or reth")
 	ErrUnknownClient = errors.New("unknown client")
 	ErrVersionEmpty  = errors.New("version empty")
+	Unknown          = "Unknown"
 )
 
 type Client struct {
@@ -100,7 +102,7 @@ const (
 	OSWindows
 )
 
-var osStrings = []string{
+var OSStrings = []string{
 	Unknown,
 	"Android",
 	"FreeBSD",
@@ -110,7 +112,7 @@ var osStrings = []string{
 }
 
 func (os OS) String() string {
-	return osStrings[os]
+	return OSStrings[os]
 }
 
 type Arch int32
@@ -123,7 +125,7 @@ const (
 	ArchS390x
 )
 
-var archStrings = []string{
+var ArchStrings = []string{
 	Unknown,
 	"amd64",
 	"arm64",
@@ -132,7 +134,25 @@ var archStrings = []string{
 }
 
 func (arch Arch) String() string {
-	return archStrings[arch]
+	return ArchStrings[arch]
+}
+
+func OSIndex(os string) OS {
+	idx := slices.Index(OSStrings, os)
+	if idx == -1 {
+		return OSUnknown
+	}
+
+	return OS(idx)
+}
+
+func ArchIndex(arch string) Arch {
+	idx := slices.Index(ArchStrings, arch)
+	if idx == -1 {
+		return ArchUnknown
+	}
+
+	return Arch(idx)
 }
 
 func parseOSArch(osStr string) (OS, Arch, error) {
@@ -525,7 +545,7 @@ var funcs = []func([]string) (*Client, error){
 	handleLen7,
 }
 
-func parseClientID(clientName *string) *Client {
+func ParseClientID(clientName *string) *Client {
 	if clientName == nil {
 		return nil
 	}
