@@ -17,6 +17,7 @@ build
 npm-debug.log*
 
 # application
+/data/
 /snapshots/
 /*.db
 /*.db.gz

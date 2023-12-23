@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -24,20 +23,16 @@ func migrateCommand(sql string) migrationFn {
 	}
 }
 
-func (db *DB) migrationFnSqlite(fn func(context.Context, pgx.Tx, *sql.DB) error) migrationFn {
-	return func(ctx context.Context, tx pgx.Tx) error {
-		return fn(ctx, tx, db.db)
-	}
-}
-
 func (db *DB) Migrate() error {
 	return db.migrate(
 		context.Background(),
 		[]migrationFn{
 			migrations.Migrate000Schema,
-			db.migrationFnSqlite(migrations.Migrate001SqliteToPG),
+			func(ctx context.Context, tx pgx.Tx) error {
+				return migrations.Migrate001SqliteToPG(ctx, tx, db.db, db.geoipDB)
+			},
 		},
-		migrations.InsertNetworks,
+		// migrations.InsertNetworks,
 	)
 }
 
@@ -107,10 +102,10 @@ func (db *DB) migrate(
 		)
 	}
 
-	for _, fn := range staticObjects {
+	for i, fn := range staticObjects {
 		err = fn(ctx, tx)
 		if err != nil {
-			return fmt.Errorf("create indexes failed: %w", err)
+			return fmt.Errorf("static object: %d failed: %w", i, err)
 		}
 	}
 

@@ -140,7 +140,8 @@ func (arch Arch) String() string {
 func OSIndex(os string) OS {
 	idx := slices.Index(OSStrings, os)
 	if idx == -1 {
-		return OSUnknown
+		panic("unknown os")
+		// return OSUnknown
 	}
 
 	return OS(idx)
@@ -149,7 +150,8 @@ func OSIndex(os string) OS {
 func ArchIndex(arch string) Arch {
 	idx := slices.Index(ArchStrings, arch)
 	if idx == -1 {
-		return ArchUnknown
+		panic("unknown arch")
+		// return ArchUnknown
 	}
 
 	return Arch(idx)

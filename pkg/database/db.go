@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	_ "embed"
@@ -35,18 +36,24 @@ type DB struct {
 	wLock sync.Mutex
 }
 
-func NewAPIDB(db *sql.DB, pg *pgxpool.Pool) *DB {
-	return NewDB(db, pg, nil, 0, 0, 0)
+func NewAPIDB(ctx context.Context, db *sql.DB, pgConnString string) (*DB, error) {
+	return NewDB(ctx, db, pgConnString, nil, 0, 0, 0)
 }
 
 func NewDB(
+	ctx context.Context,
 	db *sql.DB,
-	pg *pgxpool.Pool,
+	pgConnString string,
 	geoipDB *geoip2.Reader,
 	nextCrawlSucces time.Duration,
 	nextCrawlFail time.Duration,
 	nextCrawlNotEth time.Duration,
-) *DB {
+) (*DB, error) {
+	pg, err := pgxpool.New(ctx, pgConnString)
+	if err != nil {
+		return nil, fmt.Errorf("tmp conn: %w", err)
+	}
+
 	return &DB{
 		db:      db,
 		pg:      pg,
@@ -57,7 +64,7 @@ func NewDB(
 		nextCrawlNotEth: int64(nextCrawlNotEth.Seconds()),
 
 		wLock: sync.Mutex{},
-	}
+	}, nil
 }
 
 func (db *DB) Close() error {
