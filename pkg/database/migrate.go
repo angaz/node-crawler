@@ -45,9 +45,19 @@ func (db *DB) migrate(
 ) error {
 	tx, err := db.pg.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin transaction failed: %w", err)
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(
+		ctx,
+		`
+			SELECT pg_advisory_lock(0x9c538d3d);  -- crc32.ChecksumIEEE('node-crawler')
+		`,
+	)
+	if err != nil {
+		return fmt.Errorf("take lock: %w", err)
+	}
 
 	_, err = tx.Exec(
 		ctx,

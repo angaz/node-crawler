@@ -130,7 +130,7 @@ func (db *DB) CopyStats() error {
 
 	stmt, err := tx.Prepare(
 		context.Background(),
-		"copy_data",
+		"copy_stats",
 		`
 			WITH data AS (
 				SELECT
