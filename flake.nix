@@ -323,10 +323,17 @@
                 default = 30303;
                 description = "Port number to start on for the list of listeners.";
               };
+
               listenerCount = mkOption {
                 type = types.int;
                 default = 16;
                 description = "Number of listeners.";
+              };
+
+              githubTokenFile = mkOption {
+                type = types.str;
+                default = "./github_token";
+                description = "File path to the GitHub token file. Set to an empty string if you don't want to use one.";
               };
             };
 
@@ -366,16 +373,17 @@
                       "--crawler-db=${cfg.crawlerDatabaseName}"
                       "--crawler-snapshot=${cfg.crawlerSnapshotFilename}"
                       "--geoipdb=${cfg.crawler.geoipdb}"
+                      "--github-token-file=${cfg.crawler.githubTokenFile}"
                       "--listen-start-port=${toString cfg.crawler.listenPortStart}"
                       "--metrics-addr=${cfg.crawler.metricsAddress}"
                       "--next-crawl-fail=${cfg.crawler.nextCrawlFail}"
                       "--next-crawl-not-eth=${cfg.crawler.nextCrawlNotEth}"
                       "--next-crawl-success=${cfg.crawler.nextCrawlSuccess}"
+                      "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler\""
                       "--snapshot-dir=${cfg.snapshotDirname}"
                       "--stats-db=${cfg.statsDatabaseName}"
                       "--stats-snapshot=${cfg.statsSnapshotFilename}"
                       "--workers=${toString cfg.crawler.workers}"
-                      "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler\""
                     ];
                   in
                   "${pkgs.nodeCrawler}/bin/crawler --pprof=${if cfg.crawler.pprof then "true" else "false"} crawl ${concatStringsSep " " args}";
