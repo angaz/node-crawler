@@ -7,6 +7,20 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+/*
+
+DROP SCHEMA client CASCADE;
+DROP SCHEMA crawler CASCADE;
+DROP SCHEMA network CASCADE;
+DROP SCHEMA stats CASCADE;
+DROP SCHEMA geoname CASCADE;
+DROP SCHEMA disc CASCADE;
+DROP SCHEMA execution CASCADE;
+DROP SCHEMA consensus CASCADE;
+DROP SCHEMA migrations CASCADE;
+
+*/
+
 func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 	_, err := tx.Exec(
 		ctx,
@@ -14,9 +28,66 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 			CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 			CREATE SCHEMA client;
+			CREATE SCHEMA crawler;
 			CREATE SCHEMA network;
 			CREATE SCHEMA stats;
 			CREATE SCHEMA geoname;
+			CREATE SCHEMA disc;
+			CREATE SCHEMA execution;
+			CREATE SCHEMA consensus;
+
+			CREATE TYPE crawler.direction AS ENUM (
+				'dial',
+				'accept'
+			);
+
+			CREATE TYPE crawler.error AS ENUM (
+				'disconnect requested',
+				'network error',
+				'breach of protocol',
+				'useless peer',
+				'too many peers',
+				'already connected',
+				'incompatible p2p protocol version',
+				'invalid node identity',
+				'client quitting',
+				'unexpected identity',
+				'connected to self',
+				'read timeout',
+				'DISCONNECT_RESERVED_0c',
+				'DISCONNECT_RESERVED_0d',
+				'DISCONNECT_RESERVED_0e',
+				'DISCONNECT_RESERVED_0f',
+				'subprotocol error',
+				'DISCONNECT_RESERVED_11',
+				'DISCONNECT_RESERVED_12',
+				'DISCONNECT_RESERVED_13',
+				'DISCONNECT_RESERVED_14',
+				'DISCONNECT_RESERVED_15',
+				'DISCONNECT_RESERVED_16',
+				'DISCONNECT_RESERVED_17',
+				'DISCONNECT_RESERVED_18',
+				'DISCONNECT_RESERVED_19',
+				'DISCONNECT_RESERVED_1a',
+				'DISCONNECT_RESERVED_1b',
+				'DISCONNECT_RESERVED_1c',
+				'DISCONNECT_RESERVED_1d',
+				'DISCONNECT_RESERVED_1e',
+				'DISCONNECT_RESERVED_1f',
+				'DISCONNECT_REASONS',
+	
+				'EOF',
+				'connection refused',
+				'connection reset by peer',
+				'corrupt input',
+				'i/o timeout',
+				'invalid message',
+				'invalid public key',
+				'network is unreachable',
+				'no route to host',
+				'protocol not available',
+				'rlp decode'
+			);
 
 			CREATE TYPE client.node_type AS ENUM (
 				'Unknown',
@@ -41,19 +112,30 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				'IBM System/390'
 			);
 
-			CREATE TABLE geoname.cities (
-				city_geoname_id	INTEGER PRIMARY KEY,
-				city_name		TEXT	NOT NULL,
-				latitude		REAL	NOT NULL,
-				longitude		REAL	NOT NULL
-			);
-
 			CREATE TABLE geoname.countries (
 				country_geoname_id	INTEGER PRIMARY KEY,
 				country_name		TEXT	NOT NULL
 			);
 
-			CREATE TABLE client.client_names (
+			CREATE TABLE geoname.cities (
+				city_geoname_id		INTEGER NOT NULL,
+				city_name			TEXT	NOT NULL,
+				country_geoname_id	INTEGER	NOT NULL REFERENCES geoname.countries(country_geoname_id),
+				latitude			REAL	NOT NULL,
+				longitude			REAL	NOT NULL,
+
+				PRIMARY KEY (city_geoname_id) INCLUDE (country_geoname_id)
+			);
+
+			CREATE TABLE client.identifiers (
+				client_identifier_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+				client_identifier		TEXT	NOT NULL,
+
+				CONSTRAINT client_identifier_unique
+					UNIQUE (client_identifier) INCLUDE (client_identifier_id)
+			);
+
+			CREATE TABLE client.names (
 				client_name_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
 				client_name		TEXT	NOT NULL,
 
@@ -61,7 +143,7 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 					UNIQUE (client_name) INCLUDE (client_name_id)
 			);
 
-			CREATE TABLE client.client_user_data (
+			CREATE TABLE client.user_data (
 				client_user_data_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
 				client_user_data	TEXT	NOT NULL,
 
@@ -69,12 +151,28 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 					UNIQUE (client_user_data) INCLUDE (client_user_data_id)
 			);
 
-			CREATE TABLE client.client_versions (
+			CREATE TABLE client.versions (
 				client_version_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
 				client_version		TEXT	NOT NULL,
 
 				CONSTRAINT client_version_unique
 					UNIQUE (client_version) INCLUDE (client_version_id)
+			);
+
+			CREATE TABLE client.builds (
+				client_build_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+				client_build	TEXT	NOT NULL,
+
+				CONSTRAINT client_build_unique
+					UNIQUE (client_build) INCLUDE (client_build_id)
+			);
+
+			CREATE TABLE client.languages (
+				client_language_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+				client_language		TEXT	NOT NULL,
+
+				CONSTRAINT client_language_unique
+					UNIQUE (client_language) INCLUDE (client_language_id)
 			);
 
 			CREATE TABLE network.forks (
@@ -85,7 +183,8 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				fork_name			TEXT	NOT NULL,
 				network_name		TEXT	NOT NULL,
 
-				CONSTRAINT fork_id_network_id UNIQUE (network_id, fork_id)
+				CONSTRAINT fork_id_network_id
+					UNIQUE (network_id, fork_id)
 			);
 
 			CREATE TABLE network.ephemery_releases (
@@ -94,26 +193,145 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 			);
 
 			CREATE TABLE stats.execution_nodes (
-				timestamp			TIMESTAMPTZ			NOT NULL,
-				client_name_id		INTEGER				DEFAULT NULL REFERENCES client.client_names(client_name_id),
-				client_user_data_id	INTEGER				DEFAULT NULL REFERENCES client.client_user_data(client_user_data_id),
-				client_version_id	INTEGER				DEFAULT NULL REFERENCES client.client_versions(client_version_id),
-				client_os			client.os			NOT NULL,
-				client_arch			client.arch			NOT NULL,
-				network_id			BIGINT				NOT NULL,
-				fork_id				BIGINT				NOT NULL,
-				next_fork_id		BIGINT				DEFAULT NULL,
-				country_geoname_id	INTEGER				NOT NULL REFERENCES geoname.countries(country_geoname_id),
-				synced				BOOLEAN				NOT NULL,
-				dial_success		BOOLEAN 			NOT NULL,
-				total				INTEGER 			NOT NULL
+				timestamp			TIMESTAMPTZ	NOT NULL,
+				client_name_id		INTEGER		DEFAULT NULL REFERENCES client.names(client_name_id),
+				client_user_data_id	INTEGER		DEFAULT NULL REFERENCES client.user_data(client_user_data_id),
+				client_version_id	INTEGER		DEFAULT NULL REFERENCES client.versions(client_version_id),
+				client_os			client.os	NOT NULL,
+				client_arch			client.arch	NOT NULL,
+				network_id			BIGINT		NOT NULL,
+				fork_id				BIGINT		NOT NULL,
+				next_fork_id		BIGINT		DEFAULT NULL,
+				country_geoname_id	INTEGER		NOT NULL REFERENCES geoname.countries(country_geoname_id),
+				synced				BOOLEAN		NOT NULL,
+				dial_success		BOOLEAN 	NOT NULL,
+				total				INTEGER 	NOT NULL
 			);
 
 			SELECT create_hypertable('stats.execution_nodes', by_range('timestamp'));
+
+			CREATE TABLE disc.nodes (
+				node_id			BYTEA				PRIMARY KEY,
+				node_type		client.node_type	NOT NULL,
+				first_found		TIMESTAMPTZ			NOT NULL,
+				last_found		TIMESTAMPTZ			NOT NULL,
+				next_crawl		TIMESTAMPTZ			NOT NULL,
+				node_pubkey		BYTEA				NOT NULL,
+				node_record		BYTEA				NOT NULL,
+				ip_address		INET				NOT NULL,
+				city_geoname_id	INTEGER				NOT NULL REFERENCES geoname.cities(city_geoname_id)
+			) PARTITION BY RANGE (node_id);
+
+			CREATE INDEX disc_nodes_next_crawl_node_type_node_record ON
+				disc.nodes (next_crawl, node_type, node_record);
+			CREATE INDEX disc_nodes_last_found ON
+				disc.nodes (last_found);
+			CREATE INDEX disc_nodes_ip_address ON
+				disc.nodes (ip_address);
+
+			CREATE TABLE execution.capabilities (
+				capabilities_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+				capabilities	TEXT	NOT NULL,
+
+				CONSTRAINT execution_capabilities_unique
+					UNIQUE (capabilities) INCLUDE (capabilities_id)
+			);
+
+			CREATE TABLE execution.nodes (
+				node_id					BYTEA		PRIMARY KEY REFERENCES disc.nodes(node_id),
+				updated_at				TIMESTAMPTZ	NOT NULL,
+				client_identifier_id	INTEGER		NOT NULL REFERENCES client.identifiers(client_identifier_id),
+				rlpx_version			INTEGER		NOT NULL,
+				capabilities_id			INTEGER		NOT NULL REFERENCES execution.capabilities(capabilities_id),
+				network_id				BIGINT		NOT NULL,
+				fork_id					BIGINT		NOT NULL,
+				next_fork_id			BIGINT		DEFAULT NULL,
+				head_hash				BYTEA		NOT NULL,
+				client_name_id			INTEGER		DEFAULT NULL REFERENCES client.names(client_name_id),
+				client_user_data_id		INTEGER		DEFAULT NULL REFERENCES client.user_data(client_user_data_id),
+				client_version_id		INTEGER		DEFAULT NULL REFERENCES client.versions(client_version_id),
+				client_build_id			INTEGER		DEFAULT NULL REFERENCES client.builds(client_build_id),
+				client_os				client.os	DEFAULT NULL,
+				client_arch				client.arch	DEFAULT NULL,
+				client_language_id		INTEGER		DEFAULT NULL REFERENCES client.languages(client_language_id)
+			) PARTITION BY RANGE (node_id);
+
+			CREATE INDEX execution_nodes_client_name
+				ON execution.nodes (client_name_id);
+			CREATE INDEX execution_nodes_client_user_data
+				ON execution.nodes (client_user_data_id);
+
+			CREATE TABLE execution.blocks (
+				block_hash		BYTEA		NOT NULL,
+				network_id		BIGINT		NOT NULL,
+				block_number	BIGINT		NOT NULL,
+				timestamp		TIMESTAMPTZ	NOT NULL,
+
+				PRIMARY KEY (block_hash, network_id) INCLUDE (timestamp)
+			);
+
+			CREATE TABLE crawler.history (
+				node_id		BYTEA				NOT NULL REFERENCES disc.nodes(node_id),
+				crawled_at	TIMESTAMPTZ			NOT NULL,
+				direction	crawler.direction	NOT NULL,
+				error		crawler.error		DEFAULT NULL,
+
+				PRIMARY KEY (node_id, crawled_at) INCLUDE (direction, error)
+			);
+
+			SELECT create_hypertable('crawler.history', by_range('crawled_at'));
+			SELECT add_dimension('crawler.history', by_hash('node_id', 256));
+
+			CREATE INDEX crawler_history_crawled_at
+				ON crawler.history (crawled_at);
 		`,
 	)
 	if err != nil {
 		return fmt.Errorf("create initial schema failed: %w", err)
+	}
+
+	err = createPartitions(ctx, tx, "disc.nodes")
+	if err != nil {
+		return fmt.Errorf("create partitions disc.nodes: %w", err)
+	}
+	err = createPartitions(ctx, tx, "execution.nodes")
+	if err != nil {
+		return fmt.Errorf("create partitions execution.nodes: %w", err)
+	}
+
+	return nil
+}
+
+func createPartitions(ctx context.Context, tx pgx.Tx, table string) error {
+	for i := 0; i <= 0xff; i++ {
+		from := fmt.Sprintf("'\\x%02X'", i)
+		to := fmt.Sprintf("'\\x%02X'", i+1)
+
+		if i == 0 {
+			from = "MINVALUE"
+		}
+
+		if i == 0xff {
+			to = "MAXVALUE"
+		}
+
+		_, err := tx.Exec(
+			ctx,
+			fmt.Sprintf(
+				`
+					CREATE TABLE %[1]s_%02[2]X
+						PARTITION OF %[1]s
+						FOR VALUES FROM (%[3]s) TO (%[4]s)
+				`,
+				table,
+				i,
+				from,
+				to,
+			),
+		)
+		if err != nil {
+			return fmt.Errorf("create partition: %02X: %w", i, err)
+		}
 	}
 
 	return nil

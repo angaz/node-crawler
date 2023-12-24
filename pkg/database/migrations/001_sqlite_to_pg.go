@@ -4,23 +4,33 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"net"
+	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/jackc/pgx/v5"
 	"github.com/oschwald/geoip2-golang"
 )
 
-func copySqliteToPGClientName(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
-	clientNames := map[string]int64{}
+func randomString(prefix string) string {
+	return fmt.Sprintf("%s_%x", prefix, rand.Uint64())
+}
+
+func denormalizeString(
+	ctx context.Context,
+	tx pgx.Tx,
+	sqlite *sql.DB,
+	selectSQL string,
+	insertSQL string,
+) (map[string]int64, error) {
+	names := map[string]int64{}
 
 	rows, err := sqlite.QueryContext(
 		ctx,
-		`
-			SELECT DISTINCT client_name
-			FROM stats.crawled_nodes
-			WHERE client_name IS NOT NULL
-		`,
+		selectSQL,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
@@ -29,16 +39,8 @@ func copySqliteToPGClientName(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (m
 
 	stmt, err := tx.Prepare(
 		ctx,
-		"insert_client_names",
-		`
-			INSERT INTO client.client_names (
-				client_name
-			) VALUES (
-				$1
-			)
-			ON CONFLICT (client_name) DO NOTHING
-			RETURNING client_name_id
-		`,
+		randomString("insert"),
+		insertSQL,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("prepare: %w", err)
@@ -64,128 +66,115 @@ func copySqliteToPGClientName(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (m
 			return nil, fmt.Errorf("insert: %w", err)
 		}
 
-		clientNames[name] = id
+		names[name] = id
 	}
 
-	return clientNames, nil
+	return names, nil
+}
+
+func denormalizeClient(ctx context.Context, tx pgx.Tx, sqlite *sql.DB, column string, table string, schema string) (map[string]int64, error) {
+	log.Info("migration start", "name", column)
+	start := time.Now()
+	defer func() {
+		log.Info("migration end", "name", column, "duration", time.Since(start))
+	}()
+
+	return denormalizeString(
+		ctx,
+		tx,
+		sqlite,
+		fmt.Sprintf(`
+			SELECT DISTINCT %[1]s
+			FROM %[2]s.crawled_nodes
+			WHERE %[1]s IS NOT NULL
+		`, column, schema),
+		fmt.Sprintf(`
+			INSERT INTO %[2]s (
+				%[1]s
+			) VALUES (
+				$1
+			)
+			ON CONFLICT (%[1]s) DO NOTHING
+			RETURNING %[1]s_id
+		`, column, table),
+	)
+}
+
+func copySqliteToPGClientName(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
+	return denormalizeClient(
+		ctx,
+		tx,
+		sqlite,
+		"client_name",
+		"client.names",
+		"stats",
+	)
 }
 
 func copySqliteToPGClientVersion(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
-	clientVersions := map[string]int64{}
-
-	rows, err := sqlite.QueryContext(
+	return denormalizeClient(
 		ctx,
-		`
-			SELECT DISTINCT client_version
-			FROM stats.crawled_nodes
-			WHERE client_version IS NOT NULL
-		`,
+		tx,
+		sqlite,
+		"client_version",
+		"client.versions",
+		"stats",
 	)
-	if err != nil {
-		return nil, fmt.Errorf("query: %w", err)
-	}
-	defer rows.Close()
-
-	stmt, err := tx.Prepare(
-		ctx,
-		"insert_client_version",
-		`
-			INSERT INTO client.client_versions (
-				client_version
-			) VALUES (
-				$1
-			)
-			ON CONFLICT (client_version) DO NOTHING
-			RETURNING client_version_id
-		`,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("prepare: %w", err)
-	}
-
-	for rows.Next() {
-		var version string
-		var id int64
-
-		err = rows.Scan(&version)
-		if err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
-		}
-
-		row := tx.QueryRow(
-			ctx,
-			stmt.Name,
-			version,
-		)
-
-		err = row.Scan(&id)
-		if err != nil {
-			return nil, fmt.Errorf("insert: %w", err)
-		}
-
-		clientVersions[version] = id
-	}
-
-	return clientVersions, nil
 }
 
 func copySqliteToPGClientUserData(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
-	clientUserDatas := map[string]int64{}
-
-	rows, err := sqlite.QueryContext(
+	return denormalizeClient(
 		ctx,
-		`
-			SELECT DISTINCT client_user_data
-			FROM stats.crawled_nodes
-			WHERE client_user_data IS NOT NULL
-		`,
+		tx,
+		sqlite,
+		"client_user_data",
+		"client.user_data",
+		"stats",
 	)
-	if err != nil {
-		return nil, fmt.Errorf("query: %w", err)
-	}
-	defer rows.Close()
+}
 
-	stmt, err := tx.Prepare(
+func copySqliteToPGClientBuild(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
+	return denormalizeClient(
 		ctx,
-		"insert_client_user_data",
-		`
-			INSERT INTO client.client_user_data (
-				client_user_data
-			) VALUES (
-				$1
-			)
-			ON CONFLICT (client_user_data) DO NOTHING
-			RETURNING client_user_data_id
-		`,
+		tx,
+		sqlite,
+		"client_build",
+		"client.builds",
+		"main",
 	)
-	if err != nil {
-		return nil, fmt.Errorf("prepare: %w", err)
-	}
+}
 
-	for rows.Next() {
-		var userData string
-		var id int64
+func copySqliteToPGIdentifiers(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
+	return denormalizeClient(
+		ctx,
+		tx,
+		sqlite,
+		"client_identifier",
+		"client.identifiers",
+		"main",
+	)
+}
 
-		err = rows.Scan(&userData)
-		if err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
-		}
+func copySqliteToPGLanguages(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
+	return denormalizeClient(
+		ctx,
+		tx,
+		sqlite,
+		"client_language",
+		"client.languages",
+		"main",
+	)
+}
 
-		row := tx.QueryRow(
-			ctx,
-			stmt.Name,
-			userData,
-		)
-
-		err = row.Scan(&id)
-		if err != nil {
-			return nil, fmt.Errorf("insert: %w", err)
-		}
-
-		clientUserDatas[userData] = id
-	}
-
-	return clientUserDatas, nil
+func copySqliteToPGCapabilities(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
+	return denormalizeClient(
+		ctx,
+		tx,
+		sqlite,
+		"capabilities",
+		"execution.capabilities",
+		"main",
+	)
 }
 
 func copySqlitePGcountriesCities(
@@ -194,6 +183,12 @@ func copySqlitePGcountriesCities(
 	sqlite *sql.DB,
 	geoip *geoip2.Reader,
 ) (map[string]int32, error) {
+	log.Info("migration start", "name", "cities")
+	start := time.Now()
+	defer func() {
+		log.Info("migration end", "name", "cities", "duration", time.Since(start))
+	}()
+
 	countriesMap := map[string]int32{
 		"Congo Republic": 2260494,
 		"Cuba":           3562981,
@@ -241,11 +236,13 @@ func copySqlitePGcountriesCities(
 			INSERT INTO geoname.cities (
 				city_geoname_id,
 				city_name,
+				country_geoname_id,
 				latitude,
 				longitude
 			) VALUES (
 				$3,
 				$4,
+				$1,
 				$5,
 				$6
 			) ON CONFLICT (city_geoname_id) DO NOTHING
@@ -297,26 +294,20 @@ func copySqlitePGcountriesCities(
 	return countriesMap, nil
 }
 
-func Migrate001SqliteToPG(ctx context.Context, tx pgx.Tx, sqlite *sql.DB, geoip *geoip2.Reader) error {
-	clientNamesMap, err := copySqliteToPGClientName(ctx, tx, sqlite)
-	if err != nil {
-		return fmt.Errorf("client_names: %w", err)
-	}
-
-	clientVersionsMap, err := copySqliteToPGClientVersion(ctx, tx, sqlite)
-	if err != nil {
-		return fmt.Errorf("client_versions: %w", err)
-	}
-
-	clientUserDataMap, err := copySqliteToPGClientUserData(ctx, tx, sqlite)
-	if err != nil {
-		return fmt.Errorf("client_user_data: %w", err)
-	}
-
-	countriesMap, err := copySqlitePGcountriesCities(ctx, tx, sqlite, geoip)
-	if err != nil {
-		return fmt.Errorf("countries cities: %w", err)
-	}
+func migrateStatsTable(
+	ctx context.Context,
+	tx pgx.Tx,
+	sqlite *sql.DB,
+	clientNamesMap map[string]int64,
+	clientUserDataMap map[string]int64,
+	clientVersionsMap map[string]int64,
+	countriesMap map[string]int32,
+) error {
+	log.Info("migration start", "name", "stats table")
+	start := time.Now()
+	defer func() {
+		log.Info("migration end", "name", "stats table", "duration", time.Since(start))
+	}()
 
 	rows, err := sqlite.QueryContext(
 		ctx,
@@ -438,6 +429,499 @@ func Migrate001SqliteToPG(ctx context.Context, tx pgx.Tx, sqlite *sql.DB, geoip 
 	}, copier)
 	if err != nil {
 		return fmt.Errorf("copy: %w", err)
+	}
+
+	return nil
+}
+
+func migrateExecutionNodesTable(
+	ctx context.Context,
+	tx pgx.Tx,
+	sqlite *sql.DB,
+	clientIdentifiersMap map[string]int64,
+	clientNamesMap map[string]int64,
+	clientUserDataMap map[string]int64,
+	clientVersionsMap map[string]int64,
+	clientBuildsMap map[string]int64,
+	clientLanguagesMap map[string]int64,
+	capabilitiesMap map[string]int64,
+) error {
+	log.Info("migration start", "name", "execution nodes table")
+	start := time.Now()
+	defer func() {
+		log.Info("migration end", "name", "execution nodes table", "duration", time.Since(start))
+	}()
+
+	rows, err := sqlite.QueryContext(
+		ctx,
+		`
+			SELECT
+				node_id,
+				updated_at,
+				client_identifier,
+				client_name,
+				client_user_data,
+				client_version,
+				client_build,
+				COALESCE(client_os, 'Unknown'),
+				COALESCE(client_arch, 'Unknown'),
+				client_language,
+				rlpx_version,
+				capabilities,
+				network_id,
+				fork_id,
+				next_fork_id,
+				head_hash
+			FROM crawled_nodes
+			WHERE
+				client_identifier IS NOT NULL
+				AND head_hash IS NOT NULL
+				AND capabilities IS NOT NULL
+				AND network_id IS NOT NULL
+				AND fork_id IS NOT NULL
+				AND rlpx_version IS NOT NULL
+		`,
+	)
+	if err != nil {
+		return fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	copier := pgx.CopyFromFunc(func() ([]any, error) {
+		if !rows.Next() {
+			return nil, nil
+		}
+
+		var nodeID []byte
+		var updatedAt int64
+		var clientIdentifier string
+		var clientName *string
+		var clientUserData *string
+		var clientVersion *string
+		var clientBuild *string
+		var clientOS string
+		var clientArch string
+		var clientLanguage *string
+		var rlpxVersion int64
+		var capabilities string
+		var networkID int64
+		var forkID int64
+		var nextForkID *int64
+		var headHash []byte
+
+		err := rows.Scan(
+			&nodeID,
+			&updatedAt,
+			&clientIdentifier,
+			&clientName,
+			&clientUserData,
+			&clientVersion,
+			&clientBuild,
+			&clientOS,
+			&clientArch,
+			&clientLanguage,
+			&rlpxVersion,
+			&capabilities,
+			&networkID,
+			&forkID,
+			&nextForkID,
+			&headHash,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+
+		var cnID, cudID, cvID, cbID, clID *int64
+
+		cID := clientIdentifiersMap[clientIdentifier]
+		capID := capabilitiesMap[capabilities]
+
+		if clientName != nil {
+			id := clientNamesMap[*clientName]
+			cnID = &id
+		}
+
+		if clientUserData != nil {
+			id := clientUserDataMap[*clientUserData]
+			cudID = &id
+		}
+
+		if clientVersion != nil {
+			id := clientVersionsMap[*clientVersion]
+			cvID = &id
+		}
+
+		if clientBuild != nil {
+			id := clientBuildsMap[*clientBuild]
+			cbID = &id
+		}
+
+		if clientLanguage != nil {
+			id := clientLanguagesMap[*clientLanguage]
+			clID = &id
+		}
+
+		return []any{
+			nodeID,
+			time.Unix(updatedAt, 0),
+			cID,
+			rlpxVersion,
+			capID,
+			networkID,
+			forkID,
+			nextForkID,
+			headHash,
+			cnID,
+			cudID,
+			cvID,
+			cbID,
+			clientOS,
+			clientArch,
+			clID,
+		}, nil
+	})
+
+	_, err = tx.CopyFrom(ctx, []string{"execution", "nodes"}, []string{
+		"node_id",
+		"updated_at",
+		"client_identifier_id",
+		"rlpx_version",
+		"capabilities_id",
+		"network_id",
+		"fork_id",
+		"next_fork_id",
+		"head_hash",
+		"client_name_id",
+		"client_user_data_id",
+		"client_version_id",
+		"client_build_id",
+		"client_os",
+		"client_arch",
+		"client_language_id",
+	}, copier)
+	if err != nil {
+		return fmt.Errorf("copy: %w", err)
+	}
+
+	return nil
+}
+
+func migrateDiscNodes(
+	ctx context.Context,
+	tx pgx.Tx,
+	sqlite *sql.DB,
+	geoip *geoip2.Reader,
+) error {
+	log.Info("migration start", "name", "disc nodes table")
+	start := time.Now()
+	defer func() {
+		log.Info("migration end", "name", "disc nodes table", "duration", time.Since(start))
+	}()
+
+	rows, err := sqlite.QueryContext(
+		ctx,
+		`
+			SELECT
+				node_id,
+				node_pubkey,
+				node_type,
+				node_record,
+				ip_address,
+				first_found,
+				last_found,
+				next_crawl
+			FROM discovered_nodes
+		`,
+	)
+	if err != nil {
+		return fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	copier := pgx.CopyFromFunc(func() ([]any, error) {
+		if !rows.Next() {
+			return nil, nil
+		}
+
+		var nodeID []byte
+		var nodePubkey []byte
+		var nodeType int64
+		var nodeRecord []byte
+		var ipAddress string
+		var firstFound int64
+		var lastFound int64
+		var nextCrawl int64
+
+		err := rows.Scan(
+			&nodeID,
+			&nodePubkey,
+			&nodeType,
+			&nodeRecord,
+			&ipAddress,
+			&firstFound,
+			&lastFound,
+			&nextCrawl,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+
+		ipAddr := net.ParseIP(ipAddress)
+		if ipAddr == nil {
+			return nil, fmt.Errorf("parse ip: %s", ipAddress)
+		}
+
+		city, err := geoip.City(ipAddr)
+		if err != nil {
+			return nil, fmt.Errorf("lookup ip: %w", err)
+		}
+
+		return []any{
+			nodeID,
+			common.NodeType(nodeType).String(),
+			time.Unix(firstFound, 0),
+			time.Unix(lastFound, 0),
+			time.Unix(nextCrawl, 0),
+			nodePubkey,
+			nodeRecord,
+			ipAddress,
+			city.City.GeoNameID,
+		}, nil
+	})
+
+	_, err = tx.CopyFrom(ctx, []string{"disc", "nodes"}, []string{
+		"node_id",
+		"node_type",
+		"first_found",
+		"last_found",
+		"next_crawl",
+		"node_pubkey",
+		"node_record",
+		"ip_address",
+		"city_geoname_id",
+	}, copier)
+	if err != nil {
+		return fmt.Errorf("copy: %w", err)
+	}
+
+	return nil
+}
+
+func migrateBlocks(
+	ctx context.Context,
+	tx pgx.Tx,
+	sqlite *sql.DB,
+) error {
+	log.Info("migration start", "name", "blocks table")
+	start := time.Now()
+	defer func() {
+		log.Info("migration end", "name", "blocks table", "duration", time.Since(start))
+	}()
+
+	rows, err := sqlite.QueryContext(
+		ctx,
+		`
+			SELECT
+				block_hash,
+				network_id,
+				timestamp,
+				block_number
+			FROM blocks
+		`,
+	)
+	if err != nil {
+		return fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	copier := pgx.CopyFromFunc(func() ([]any, error) {
+		if !rows.Next() {
+			return nil, nil
+		}
+
+		var blockHash []byte
+		var networkID int64
+		var timestamp int64
+		var blockNumber int64
+
+		err := rows.Scan(
+			&blockHash,
+			&networkID,
+			&timestamp,
+			&blockNumber,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+
+		return []any{
+			blockHash,
+			networkID,
+			time.Unix(timestamp, 0),
+			blockNumber,
+		}, nil
+	})
+
+	_, err = tx.CopyFrom(ctx, []string{"execution", "blocks"}, []string{
+		"block_hash",
+		"network_id",
+		"timestamp",
+		"block_number",
+	}, copier)
+	if err != nil {
+		return fmt.Errorf("copy: %w", err)
+	}
+
+	return nil
+}
+
+func migrateCrawlHistory(
+	ctx context.Context,
+	tx pgx.Tx,
+	sqlite *sql.DB,
+) error {
+	log.Info("migration start", "name", "crawl history table")
+	start := time.Now()
+	defer func() {
+		log.Info("migration end", "name", "crawl history table", "duration", time.Since(start))
+	}()
+
+	rows, err := sqlite.QueryContext(
+		ctx,
+		`
+			SELECT
+				node_id,
+				crawled_at,
+				direction,
+				error
+			FROM crawl_history
+		`,
+	)
+	if err != nil {
+		return fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	copier := pgx.CopyFromFunc(func() ([]any, error) {
+		if !rows.Next() {
+			return nil, nil
+		}
+
+		var nodeID []byte
+		var crawledAt int64
+		var direction string
+		var error *string
+
+		err := rows.Scan(
+			&nodeID,
+			&crawledAt,
+			&direction,
+			&error,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+
+		if error != nil {
+			if strings.Contains(*error, "protocol not available") {
+				*error = "protocol not available"
+			}
+		}
+
+		return []any{
+			nodeID,
+			time.Unix(crawledAt, 0),
+			direction,
+			error,
+		}, nil
+	})
+
+	_, err = tx.CopyFrom(ctx, []string{"crawler", "history"}, []string{
+		"node_id",
+		"crawled_at",
+		"direction",
+		"error",
+	}, copier)
+	if err != nil {
+		return fmt.Errorf("copy: %w", err)
+	}
+
+	return nil
+}
+
+func Migrate001SqliteToPG(ctx context.Context, tx pgx.Tx, sqlite *sql.DB, geoip *geoip2.Reader) error {
+	clientIdentifiersMap, err := copySqliteToPGIdentifiers(ctx, tx, sqlite)
+	if err != nil {
+		return fmt.Errorf("client_identifiers: %w", err)
+	}
+
+	clientNamesMap, err := copySqliteToPGClientName(ctx, tx, sqlite)
+	if err != nil {
+		return fmt.Errorf("client_names: %w", err)
+	}
+
+	clientVersionsMap, err := copySqliteToPGClientVersion(ctx, tx, sqlite)
+	if err != nil {
+		return fmt.Errorf("client_versions: %w", err)
+	}
+
+	clientBuildsMap, err := copySqliteToPGClientBuild(ctx, tx, sqlite)
+	if err != nil {
+		return fmt.Errorf("client_builds: %w", err)
+	}
+
+	clientUserDataMap, err := copySqliteToPGClientUserData(ctx, tx, sqlite)
+	if err != nil {
+		return fmt.Errorf("client_user_data: %w", err)
+	}
+
+	clientLanguagesMap, err := copySqliteToPGLanguages(ctx, tx, sqlite)
+	if err != nil {
+		return fmt.Errorf("client_languages: %w", err)
+	}
+
+	capabilitiesMap, err := copySqliteToPGCapabilities(ctx, tx, sqlite)
+	if err != nil {
+		return fmt.Errorf("capabilities: %w", err)
+	}
+
+	countriesMap, err := copySqlitePGcountriesCities(ctx, tx, sqlite, geoip)
+	if err != nil {
+		return fmt.Errorf("countries cities: %w", err)
+	}
+
+	err = migrateStatsTable(ctx, tx, sqlite, clientNamesMap, clientUserDataMap, clientVersionsMap, countriesMap)
+	if err != nil {
+		return fmt.Errorf("migrate stats table: %w", err)
+	}
+
+	err = migrateDiscNodes(ctx, tx, sqlite, geoip)
+	if err != nil {
+		return fmt.Errorf("migrate disc nodes table: %w", err)
+	}
+
+	err = migrateExecutionNodesTable(
+		ctx, tx, sqlite,
+		clientIdentifiersMap,
+		clientNamesMap,
+		clientUserDataMap,
+		clientVersionsMap,
+		clientBuildsMap,
+		clientLanguagesMap,
+		capabilitiesMap,
+	)
+	if err != nil {
+		return fmt.Errorf("migrate execution nodes table: %w", err)
+	}
+
+	err = migrateBlocks(ctx, tx, sqlite)
+	if err != nil {
+		return fmt.Errorf("migrate blocks: %w", err)
+	}
+
+	err = migrateCrawlHistory(ctx, tx, sqlite)
+	if err != nil {
+		return fmt.Errorf("migrate crawl history: %w", err)
 	}
 
 	return nil
