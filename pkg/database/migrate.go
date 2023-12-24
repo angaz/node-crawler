@@ -32,7 +32,9 @@ func (db *DB) Migrate() error {
 				return migrations.Migrate001SqliteToPG(ctx, tx, db.db, db.geoipDB)
 			},
 		},
-		// migrations.InsertNetworks,
+		func(ctx context.Context, tx pgx.Tx) error {
+			return migrations.InsertNetworks(ctx, tx, db.githubToken)
+		},
 	)
 }
 

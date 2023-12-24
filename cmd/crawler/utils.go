@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/angaz/sqlu"
 	"github.com/ethereum/node-crawler/pkg/common"
@@ -13,6 +15,26 @@ import (
 	"github.com/oschwald/geoip2-golang"
 	"github.com/urfave/cli/v2"
 )
+
+func readGithubTokenFile(cCtx *cli.Context) (string, error) {
+	filename := githubTokenFileFlag.Get(cCtx)
+
+	if filename == "" {
+		return "", nil
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return "", fmt.Errorf("open: %w", err)
+	}
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return "", fmt.Errorf("read: %w", err)
+	}
+
+	return strings.TrimSpace(string(data)), nil
+}
 
 func openSQLiteDB(cCtx *cli.Context, mode sqlu.Param) (*sql.DB, error) {
 	dsn := sqlu.ConnParams{
@@ -54,6 +76,11 @@ func openDBWriter(cCtx *cli.Context, geoipDB *geoip2.Reader) (*database.DB, erro
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
+	githubToken, err := readGithubTokenFile(cCtx)
+	if err != nil {
+		return nil, fmt.Errorf("read github token file: %w", err)
+	}
+
 	db, err := database.NewDB(
 		cCtx.Context,
 		sqlite,
@@ -62,6 +89,7 @@ func openDBWriter(cCtx *cli.Context, geoipDB *geoip2.Reader) (*database.DB, erro
 		nextCrawlSuccessFlag.Get(cCtx),
 		nextCrawlFailFlag.Get(cCtx),
 		nextCrawlNotEthFlag.Get(cCtx),
+		githubToken,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("connect to postgres failed: %w", err)

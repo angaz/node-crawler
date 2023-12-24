@@ -46,6 +46,7 @@ var (
 			&crawlerDBFlag,
 			&crawlerSnapshotFlag,
 			&geoipdbFlag,
+			&githubTokenFileFlag,
 			&listenAddrFlag,
 			&listenStartPortFlag,
 			&metricsAddressFlag,

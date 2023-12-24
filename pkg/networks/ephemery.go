@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/google/go-github/v57/github"
 )
 
@@ -16,10 +16,14 @@ type EphemeryNetwork struct {
 	Forks       []Fork
 }
 
-func getEphemeryReleases(lastRelease time.Time) ([]*github.RepositoryRelease, error) {
+func getEphemeryReleases(githubToken string, lastRelease time.Time) ([]*github.RepositoryRelease, error) {
 	var allReleases []*github.RepositoryRelease
 
 	client := github.NewClient(nil)
+
+	if githubToken != "" {
+		client = client.WithAuthToken(githubToken)
+	}
 
 	pageNum := 1
 	pageSize := 10
@@ -56,8 +60,15 @@ func getEphemeryReleases(lastRelease time.Time) ([]*github.RepositoryRelease, er
 	}
 }
 
-func ephemeryIteration(genesis *core.Genesis) uint64 {
-	return genesis.Config.ChainID.Uint64() - 39438000
+func ephemeryIterationName(release *github.RepositoryRelease) string {
+	fmt.Println(*release.Name)
+	split := strings.Split(*release.Name, "-")
+
+	if len(split) == 1 {
+		return "Ephemery " + split[0]
+	}
+
+	return "Ephemery " + split[1]
 }
 
 func releaseNetwork(release *github.RepositoryRelease) (*EphemeryNetwork, error) {
@@ -66,18 +77,22 @@ func releaseNetwork(release *github.RepositoryRelease) (*EphemeryNetwork, error)
 			continue
 		}
 
-		resp, err := http.Get(*asset.URL)
+		resp, err := http.Get(*asset.BrowserDownloadURL)
 		if err != nil {
 			return nil, fmt.Errorf("download: %w", err)
 		}
 		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("download: status not OK: %d", resp.StatusCode)
+		}
 
 		genesis, err := parseEthereumGenesisJSON(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("parse genesis json: %w", err)
 		}
 
-		name := fmt.Sprintf("Ephemery %d", ephemeryIteration(genesis))
+		name := ephemeryIterationName(release)
 
 		return &EphemeryNetwork{
 			Name:        name,
@@ -92,10 +107,10 @@ func releaseNetwork(release *github.RepositoryRelease) (*EphemeryNetwork, error)
 	return nil, fmt.Errorf("no genesis.json release found")
 }
 
-func GetEphemeryNetworks(lastRelease time.Time) ([]EphemeryNetwork, error) {
+func GetEphemeryNetworks(githubToken string, lastRelease time.Time) ([]EphemeryNetwork, error) {
 	var networks []EphemeryNetwork
 
-	releases, err := getEphemeryReleases(lastRelease)
+	releases, err := getEphemeryReleases(githubToken, lastRelease)
 	if err != nil {
 		return nil, fmt.Errorf("get releases: %w", err)
 	}
@@ -103,7 +118,7 @@ func GetEphemeryNetworks(lastRelease time.Time) ([]EphemeryNetwork, error) {
 	for _, release := range releases {
 		network, err := releaseNetwork(release)
 		if err != nil {
-			return nil, fmt.Errorf("release forks: %w", err)
+			return nil, fmt.Errorf("release forks: %s: %w", *release.Name, err)
 		}
 
 		networks = append(networks, *network)

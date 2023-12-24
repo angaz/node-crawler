@@ -116,7 +116,7 @@ func insertForks(ctx context.Context, tx pgx.Tx, forks []networks.Fork) error {
 	return nil
 }
 
-func InsertNetworks(ctx context.Context, tx pgx.Tx) error {
+func InsertNetworks(ctx context.Context, tx pgx.Tx, githubToken string) error {
 	forks := networks.EthereumNetworks()
 
 	lastEphemery, err := lastEphemeryRelease(ctx, tx)
@@ -124,7 +124,7 @@ func InsertNetworks(ctx context.Context, tx pgx.Tx) error {
 		return fmt.Errorf("query last ephemery: %w", err)
 	}
 
-	ephemeryNetworks, err := networks.GetEphemeryNetworks(lastEphemery)
+	ephemeryNetworks, err := networks.GetEphemeryNetworks(githubToken, lastEphemery)
 	if err != nil {
 		return fmt.Errorf("get ephemerey networks: %w", err)
 	}

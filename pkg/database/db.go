@@ -32,12 +32,13 @@ type DB struct {
 	nextCrawlSucces int64
 	nextCrawlFail   int64
 	nextCrawlNotEth int64
+	githubToken     string
 
 	wLock sync.Mutex
 }
 
 func NewAPIDB(ctx context.Context, db *sql.DB, pgConnString string) (*DB, error) {
-	return NewDB(ctx, db, pgConnString, nil, 0, 0, 0)
+	return NewDB(ctx, db, pgConnString, nil, 0, 0, 0, "")
 }
 
 func NewDB(
@@ -48,6 +49,7 @@ func NewDB(
 	nextCrawlSucces time.Duration,
 	nextCrawlFail time.Duration,
 	nextCrawlNotEth time.Duration,
+	githubToken string,
 ) (*DB, error) {
 	pg, err := pgxpool.New(ctx, pgConnString)
 	if err != nil {
@@ -62,6 +64,7 @@ func NewDB(
 		nextCrawlSucces: int64(nextCrawlSucces.Seconds()),
 		nextCrawlFail:   int64(nextCrawlFail.Seconds()),
 		nextCrawlNotEth: int64(nextCrawlNotEth.Seconds()),
+		githubToken:     githubToken,
 
 		wLock: sync.Mutex{},
 	}, nil

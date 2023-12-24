@@ -51,6 +51,12 @@ var (
 		Usage:    "Crawler SQLite file name",
 		Required: true,
 	}
+	githubTokenFileFlag = cli.StringFlag{
+		Name: "github-token",
+		Usage: ("File containing a GitHub access token. Used for downloading " +
+			"Ephemery releases."),
+		Value: "github_token",
+	}
 	statsDBFlag = cli.StringFlag{
 		Name:     "stats-db",
 		Usage:    "Stats SQLite file name",
