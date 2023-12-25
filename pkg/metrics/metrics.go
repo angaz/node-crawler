@@ -94,11 +94,12 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: "database_stats",
-			Name:      "size_bytes",
-			Help:      "Size of the database in bytes",
+			Name:      "table_size_bytes",
+			Help:      "Size of each table in bytes",
 		},
 		[]string{
-			"database",
+			"schema",
+			"table",
 		},
 	)
 	DatabaseRetries = promauto.NewCounterVec(

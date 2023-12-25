@@ -119,6 +119,11 @@ var (
 		Usage: "Number of workers to start for updating nodes",
 		Value: 16,
 	}
+	discWorkersFlag = cli.IntFlag{
+		Name:  "disc-workers",
+		Usage: "Number of discovery workers to start",
+		Value: 4,
+	}
 	metricsAddressFlag = cli.StringFlag{
 		Name:  "metrics-addr",
 		Usage: "Address for the metrics server",

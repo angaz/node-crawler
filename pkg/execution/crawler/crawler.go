@@ -1,7 +1,10 @@
 package crawler
 
 import (
+	"context"
 	"crypto/ecdsa"
+	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -11,33 +14,29 @@ import (
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/ethereum/node-crawler/pkg/execution/p2p"
-	"github.com/ethereum/node-crawler/pkg/fifomemory"
-	"github.com/ethereum/node-crawler/pkg/metrics"
+	"github.com/jackc/pgx/v5"
 )
 
 type Crawler struct {
 	db       *database.DB
 	nodeKeys []*ecdsa.PrivateKey
-	workers  int
 
-	toCrawl chan *enode.Node
-	ch      chan common.NodeJSON
-	wg      *sync.WaitGroup
+	wg *sync.WaitGroup
 }
+
+var (
+	ErrNothingToCrawl = errors.New("nothing to crawl")
+)
 
 func New(
 	db *database.DB,
 	nodeKeys []*ecdsa.PrivateKey,
-	workers int,
 ) (*Crawler, error) {
 	c := &Crawler{
 		db:       db,
 		nodeKeys: nodeKeys,
-		workers:  workers,
 
-		toCrawl: make(chan *enode.Node),
-		ch:      make(chan common.NodeJSON, 64),
-		wg:      new(sync.WaitGroup),
+		wg: new(sync.WaitGroup),
 	}
 
 	return c, nil
@@ -47,39 +46,15 @@ func (c *Crawler) Wait() {
 	c.wg.Wait()
 }
 
-func (c *Crawler) Close() {
-	close(c.toCrawl)
-	close(c.ch)
-}
+func (c *Crawler) Close() {}
 
-func (c *Crawler) StartDaemon() error {
-	for i := 0; i < c.workers; i++ {
+func (c *Crawler) StartDaemon(ctx context.Context, workers int) error {
+	for i := 0; i < workers; i++ {
 		c.wg.Add(1)
-		go c.crawler()
+		go c.crawler(ctx)
 	}
-
-	c.wg.Add(1)
-	go c.nodesToCrawlDaemon(c.workers * 4)
-
-	c.wg.Add(1)
-	go c.updaterLoop()
 
 	return nil
-}
-
-func (c *Crawler) updaterLoop() {
-	defer c.wg.Done()
-
-	for node := range c.ch {
-		metrics.NodeUpdateBacklog("crawler", len(c.ch))
-
-		err := c.db.UpsertCrawledNode(node)
-		if err != nil {
-			log.Error("upsert crawled node failed", "err", err, "node_id", node.TerminalString())
-		}
-
-		metrics.NodeUpdateInc(string(node.Direction), node.Error)
-	}
 }
 
 func (c *Crawler) randomNodeKey() *ecdsa.PrivateKey {
@@ -88,73 +63,86 @@ func (c *Crawler) randomNodeKey() *ecdsa.PrivateKey {
 	return c.nodeKeys[idx]
 }
 
-func (c *Crawler) crawlNode(node *enode.Node) {
+func (c *Crawler) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
 	conn, err := p2p.Dial(c.randomNodeKey(), node, 10*time.Second)
 	if err != nil {
 		known, errStr := p2p.TranslateError(err)
 		if !known {
-			log.Info("dial failed", "err", err)
+			log.Error("dial failed", "err", err)
 		}
 
 		//nolint:exhaustruct  // Missing values because of error.
-		c.ch <- common.NodeJSON{
+		err := c.db.UpsertCrawledNode(ctx, tx, common.NodeJSON{
 			N:         node,
 			EthNode:   true,
 			Direction: common.DirectionDial,
 			Error:     errStr,
+		})
+		if err != nil {
+			return fmt.Errorf("upsert err: %w", err)
 		}
 
-		return
+		return nil
 	}
 	defer conn.Close()
 
-	c.ch <- conn.GetClientInfo(
+	err = c.db.UpsertCrawledNode(ctx, tx, conn.GetClientInfo(
+		ctx,
+		tx,
 		node,
 		common.DirectionDial,
 		c.db.GetMissingBlock,
-	)
+	))
+	if err != nil {
+		return fmt.Errorf("upsert success: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Crawler) crawlAndUpdateNode(ctx context.Context) error {
+	tx, err := c.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	node, err := c.db.SelectDiscoveredNode(ctx, tx)
+	if err != nil {
+		return fmt.Errorf("select node: %w", err)
+	}
+
+	if node == nil {
+		return ErrNothingToCrawl
+	}
+
+	err = c.crawlNode(ctx, tx, node)
+	if err != nil {
+		return fmt.Errorf("crawl node: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return nil
 }
 
 // Meant to be run as a goroutine
-//
-// Selects nodes to crawl from the database
-func (c *Crawler) nodesToCrawlDaemon(batchSize int) {
+func (c *Crawler) crawler(ctx context.Context) {
 	defer c.wg.Done()
 
-	// To make sure we don't crawl the same node too often.
-	recentlyCrawled := fifomemory.New[enode.ID](batchSize * 2)
-
-	for {
-		nodes, err := c.db.SelectDiscoveredNodeSlice(batchSize)
+	for ctx.Err() == nil {
+		err := c.crawlAndUpdateNode(ctx)
 		if err != nil {
-			log.Error("selecting discovered node slice failed", "err", err)
+			if !errors.Is(err, ErrNothingToCrawl) {
+				log.Error("crawl failed", "err", err)
+			}
+
 			time.Sleep(time.Minute)
 
 			continue
 		}
-
-		for _, node := range nodes {
-			nodeID := node.ID()
-
-			if !recentlyCrawled.Contains(nodeID) {
-				recentlyCrawled.Push(nodeID)
-				c.toCrawl <- node
-			}
-		}
-
-		if len(nodes) < batchSize {
-			time.Sleep(time.Minute)
-		}
-	}
-}
-
-// Meant to be run as a goroutine
-//
-// Crawls nodes from the toCrawl channel
-func (c *Crawler) crawler() {
-	defer c.wg.Done()
-
-	for node := range c.toCrawl {
-		c.crawlNode(node)
 	}
 }

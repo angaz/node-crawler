@@ -9,12 +9,12 @@ import (
 )
 
 type ClientInfo struct {
-	ClientName      string
-	RLPxVersion     uint64
-	Capabilities    []p2p.Cap
-	NetworkID       uint64
-	ForkID          forkid.ID
-	Blockheight     string
-	TotalDifficulty *big.Int
-	HeadHash        common.Hash
+	ClientIdentifier string
+	RLPxVersion      uint64
+	Capabilities     []p2p.Cap
+	NetworkID        uint64
+	ForkID           forkid.ID
+	Blockheight      string
+	TotalDifficulty  *big.Int
+	HeadHash         common.Hash
 }

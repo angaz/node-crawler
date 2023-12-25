@@ -1,11 +1,11 @@
 package disc
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
@@ -72,6 +72,11 @@ func New(
 	d.localnode = enode.NewLocalNode(nodeDB, d.privateKey)
 	d.localnode.Set(enr.TCP(port))
 
+	err = d.setupDiscovery()
+	if err != nil {
+		return nil, fmt.Errorf("discovery setup: %w", err)
+	}
+
 	return d, nil
 }
 
@@ -128,46 +133,23 @@ func (d *Discovery) Wait() {
 	d.wg.Wait()
 }
 
-func (d *Discovery) discLoop(iter enode.Iterator, discVersion string, ch chan<- *enode.Node) {
+func (d *Discovery) discLoop(ctx context.Context, iter enode.Iterator, discVersion string) {
 	defer d.wg.Done()
 
 	for iter.Next() {
-		ch <- iter.Node()
-
-		metrics.DiscUpdateCount.WithLabelValues(discVersion).Inc()
-
-		time.Sleep(250 * time.Microsecond)
-	}
-}
-
-func (d *Discovery) updaterLoop(ch <-chan *enode.Node) {
-	defer d.wg.Done()
-
-	for {
-		metrics.DiscUpdateBacklog.Set(float64(len(ch)))
-
-		node := <-ch
-
-		err := d.db.UpsertNode(node)
+		err := d.db.UpsertNode(ctx, iter.Node())
 		if err != nil {
 			log.Error("upserting disc node failed", "err", err)
 		}
+
+		metrics.DiscUpdateCount.WithLabelValues(discVersion).Inc()
 	}
 }
 
-// Starts the discovery in a goroutine
-func (d *Discovery) StartDaemon() error {
-	err := d.setupDiscovery()
-	if err != nil {
-		return fmt.Errorf("setting up discovery failed: %w", err)
-	}
+// Starts a discovery crawler in a goroutine
+func (d *Discovery) StartDaemon(ctx context.Context) {
+	d.wg.Add(2)
 
-	ch := make(chan *enode.Node, 64)
-
-	d.wg.Add(3)
-	go d.discLoop(d.v4.RandomNodes(), "v4", ch)
-	go d.discLoop(d.v5.RandomNodes(), "v5", ch)
-	go d.updaterLoop(ch)
-
-	return nil
+	go d.discLoop(ctx, d.v4.RandomNodes(), "v4")
+	go d.discLoop(ctx, d.v5.RandomNodes(), "v5")
 }

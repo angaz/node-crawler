@@ -1,6 +1,7 @@
 package listener
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"fmt"
 	"net"
@@ -23,9 +24,9 @@ type Listener struct {
 	listenHost      string
 	listenPortStart uint16
 
-	ch        chan common.NodeJSON
 	wg        *sync.WaitGroup
 	listeners []net.Listener
+	disc      []*disc.Discovery
 }
 
 func New(
@@ -40,9 +41,9 @@ func New(
 		listenHost:      listenHost,
 		listenPortStart: listenPortStart,
 
-		ch:        make(chan common.NodeJSON, 64),
 		wg:        new(sync.WaitGroup),
 		listeners: make([]net.Listener, 0, len(nodeKeys)),
+		disc:      make([]*disc.Discovery, 0, len(nodeKeys)),
 	}
 }
 
@@ -54,45 +55,32 @@ func (l *Listener) Close() {
 	for _, listener := range l.listeners {
 		listener.Close()
 	}
-
-	close(l.ch)
 }
 
-func (l *Listener) StartDaemon() {
+func (l *Listener) StartDaemon(ctx context.Context) {
 	for i, nodeKey := range l.nodeKeys {
 		port := l.listenPortStart + uint16(i)
+
 		l.wg.Add(1)
+
 		go l.startListener(
+			ctx,
 			nodeKey,
-			fmt.Sprintf(
-				"[%s]:%d",
-				l.listenHost,
-				port,
-			),
+			fmt.Sprintf("[%s]:%d", l.listenHost, port),
 			port,
 		)
 	}
-
-	l.wg.Add(1)
-	go l.updaterLoop()
 }
 
-func (l *Listener) updaterLoop() {
-	defer l.wg.Done()
+func (l *Listener) StartDiscCrawlers(ctx context.Context, crawlers int) {
+	for i := 0; i < crawlers; i++ {
+		disc := l.disc[i%len(l.disc)]
 
-	for node := range l.ch {
-		metrics.NodeUpdateBacklog("listener", len(l.ch))
-
-		err := l.db.UpsertCrawledNode(node)
-		if err != nil {
-			log.Error("upsert crawled node failed", "err", err, "node_id", node.TerminalString())
-		}
-
-		metrics.NodeUpdateInc(string(node.Direction), node.Error)
+		disc.StartDaemon(ctx)
 	}
 }
 
-func (l *Listener) startListener(nodeKey *ecdsa.PrivateKey, listenAddr string, port uint16) {
+func (l *Listener) startListener(ctx context.Context, nodeKey *ecdsa.PrivateKey, listenAddr string, port uint16) {
 	defer l.wg.Done()
 
 	disc, err := disc.New(l.db, nodeKey, listenAddr, port)
@@ -103,12 +91,7 @@ func (l *Listener) startListener(nodeKey *ecdsa.PrivateKey, listenAddr string, p
 	}
 	defer disc.Close()
 
-	err = disc.StartDaemon()
-	if err != nil {
-		log.Error("start discovery failed", "err", err, "addr", listenAddr)
-
-		return
-	}
+	l.disc = append(l.disc, disc)
 
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
@@ -119,7 +102,7 @@ func (l *Listener) startListener(nodeKey *ecdsa.PrivateKey, listenAddr string, p
 
 	l.listeners = append(l.listeners, listener)
 
-	for {
+	for ctx.Err() == nil {
 		var conn net.Conn
 		var err error
 
@@ -137,11 +120,11 @@ func (l *Listener) startListener(nodeKey *ecdsa.PrivateKey, listenAddr string, p
 
 		metrics.AcceptedConnections.WithLabelValues(listenAddr).Inc()
 
-		go l.crawlPeer(nodeKey, conn)
+		go l.crawlPeer(ctx, nodeKey, conn)
 	}
 }
 
-func (l *Listener) crawlPeer(nodeKey *ecdsa.PrivateKey, fd net.Conn) {
+func (l *Listener) crawlPeer(ctx context.Context, nodeKey *ecdsa.PrivateKey, fd net.Conn) {
 	pubKey, conn, err := p2p.Accept(nodeKey, fd)
 	if err != nil {
 		known, _ := p2p.TranslateError(err)
@@ -153,11 +136,37 @@ func (l *Listener) crawlPeer(nodeKey *ecdsa.PrivateKey, fd net.Conn) {
 	}
 	defer conn.Close()
 
-	l.ch <- conn.GetClientInfo(
+	tx, err := l.db.Begin(ctx)
+	if err != nil {
+		log.Error("accept crawl peer begin failed", "err", err)
+
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	node := conn.GetClientInfo(
+		ctx,
+		tx,
 		l.nodeFromConn(pubKey, fd),
 		common.DirectionAccept,
 		l.db.GetMissingBlock,
 	)
+
+	err = l.db.UpsertCrawledNode(ctx, tx, node)
+	if err != nil {
+		log.Error("accept crawl peer upsert failed", "err", err, "node_id", node.TerminalString())
+
+		return
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		log.Error("accept crawl peer commit failed", "err", err, "node_id", node.TerminalString())
+
+		return
+	}
+
+	metrics.NodeUpdateInc(string(node.Direction), node.Error)
 }
 
 func (l *Listener) nodeFromConn(pubkey *ecdsa.PublicKey, conn net.Conn) *enode.Node {

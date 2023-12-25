@@ -37,82 +37,60 @@ func (db *DB) CopyStatsDaemon(frequency time.Duration) {
 func (db *DB) CopyStats() error {
 	var err error
 
-	start := time.Now()
-	defer metrics.ObserveDBQuery("copy_stats", start, err)
+	defer metrics.ObserveDBQuery("copy_stats", time.Now(), err)
 
 	rows, err := db.db.Query(
 		`
 			SELECT
-				unixepoch() timestamp,
-				crawled.client_name,
-				crawled.client_user_data,
-				-- If reth, add build data
-				CASE
-					WHEN crawled.client_name = 'reth' AND instr(crawled.client_build, '-') != 0
-					THEN crawled.client_version || '-' || substr(crawled.client_build, 0, instr(crawled.client_build, '-'))
-					ELSE crawled.client_version
-				END client_version,
-				crawled.client_os,
-				crawled.client_arch,
-				crawled.network_id,
-				crawled.fork_id,
-				crawled.next_fork_id,
-				crawled.country,
+				now() timestamp,
+				nodes.client_name_id,
+				nodes.client_user_data_id,
+				nodes.client_version_id,
+				nodes.client_os,
+				nodes.client_arch,
+				nodes.network_id,
+				nodes.fork_id,
+				nodes.next_fork_id,
+				cities.country_geoname_id,
 				CASE
 					WHEN blocks.timestamp IS NULL
-					THEN false
-					ELSE abs(crawled.updated_at - blocks.timestamp) < 60
+						THEN false
+					WHEN nodes.updated_at > blocks.timestamp
+						THEN (nodes.updated_at - blocks.timestamp) < INTERVAL '1 minute'
+					ELSE false
 				END synced,
 				EXISTS (
 					SELECT 1
-					FROM crawl_history history
+					FROM crawler.history
 					WHERE
-						history.node_id = crawled.node_id
+						history.node_id = nodes.node_id
 						AND history.direction = 'dial'
-						AND history.crawled_at > unixepoch('now', '-7 days')
+						AND history.crawled_at > (now() - INTERVAL '7 days')
 						AND (
 							history.error IS NULL
-							OR history.error IN (  -- Disconnect Reasons
-								'disconnect requested',
-								'network error',
-								'breach of protocol',
-								'useless peer',
-								'too many peers',
-								'already connected',
-								'incompatible p2p protocol version',
-								'invalid node identity',
-								'client quitting',
-								'unexpected identity',
-								'connected to self',
-								'read timeout',
-								'subprotocol error'
-							)
+							OR history.error < 'DISCONNECT_REASONS'
 						)
 				) dial_success,
 				COUNT(*) total
-			FROM crawled_nodes crawled
-			LEFT JOIN discovered_nodes disc ON (
-				crawled.node_id = disc.node_id
+			FROM execution.nodes
+			LEFT JOIN disc.nodes disc USING (node_id)
+			LEFT JOIN execution.blocks ON (
+				nodes.head_hash = blocks.block_hash
+				AND nodes.network_id = blocks.network_id
 			)
-			LEFT JOIN blocks ON (
-				crawled.head_hash = blocks.block_hash
-				AND crawled.network_id = blocks.network_id
-			)
+			LEFT JOIN geoname.cities USING (city_geoname_id)
 			WHERE
-				disc.last_found > unixepoch('now', '-48 hours')
-				AND crawled.network_id IS NOT NULL
-				AND crawled.fork_id IS NOT NULL
-				AND crawled.country IS NOT NULL
+				disc.last_found > (now() - INTERVAL '48 hours')
 			GROUP BY
-				crawled.client_name,
-				crawled.client_user_data,
-				client_version,
-				crawled.client_os,
-				crawled.client_arch,
-				crawled.network_id,
-				crawled.fork_id,
-				crawled.next_fork_id,
-				crawled.country,
+				nodes.client_name_id,
+				nodes.client_user_data_id,
+				nodes.client_version_id,
+				nodes.client_os,
+				nodes.client_arch,
+				nodes.network_id,
+				nodes.fork_id,
+				nodes.next_fork_id,
+				cities.country_geoname_id,
 				synced,
 				dial_success
 		`,

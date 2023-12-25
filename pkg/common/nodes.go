@@ -44,6 +44,10 @@ const (
 	DirectionDial   Direction = "dial"
 )
 
+func (d Direction) String() string {
+	return string(d)
+}
+
 type NodeJSON struct {
 	Seq uint64      `json:"seq"`
 	N   *enode.Node `json:"record"`

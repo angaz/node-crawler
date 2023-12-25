@@ -1,7 +1,7 @@
 package database
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/metrics"
+	"github.com/jackc/pgx/v5"
 )
 
 type location struct {
@@ -49,293 +50,378 @@ func randomHourSeconds() int64 {
 	return rand.Int63n(3600)
 }
 
-func (db *DB) UpdateCrawledNodeFail(node common.NodeJSON) error {
+func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.NodeJSON) error {
 	var err error
 
 	start := time.Now()
 	defer metrics.ObserveDBQuery("update_crawled_node_fail", start, err)
 
-	_, err = db.ExecRetryBusy(
-		`
-			INSERT INTO discovered_nodes (
-				node_id,
-				node_pubkey,
-				node_type,
-				node_record,
-				ip_address,
-				first_found,
-				last_found,
-				next_crawl
-			) VALUES (
-				?1,
-				?2,
-				?3,
-				?4,
-				?5,
-				unixepoch(),
-				unixepoch(),
-				unixepoch() + ?8
-			)
-			ON CONFLICT (node_id) DO UPDATE
-			SET
-				last_found = unixepoch(),
-				next_crawl = CASE
-					WHEN ?6 == 'dial'
-					THEN excluded.next_crawl
-					ELSE next_crawl
-				END;
+	ip := node.N.IP()
 
-			INSERT INTO crawl_history (
+	location, err := db.IPToLocation(ip)
+	if err != nil {
+		return fmt.Errorf("ip to location: %w", err)
+	}
+
+	err = db.upsertCountryCity(ctx, tx, location)
+	if err != nil {
+		return fmt.Errorf("upsert country city: %w", err)
+	}
+
+	_, err = tx.Exec(
+		ctx,
+		`
+			WITH disc_upsert AS (
+				INSERT INTO disc.nodes (
+					node_id,
+					node_type,
+					first_found,
+					last_found,
+					next_crawl,
+					node_pubkey,
+					node_record,
+					ip_address,
+					city_geoname_id
+				)
+				VALUES (
+					@node_id,
+					@node_type,
+					now(),
+					now(),
+					now() + INTERVAL @next_crawl,
+					@node_pubkey,
+					@node_record,
+					@ip_address,
+					@city_geoname_id
+				)
+				ON CONFLICT (node_id) DO UPDATE
+				SET
+					next_crawl = excluded.next_crawl
+				WHERE @direction == 'dial'
+			)
+
+			INSERT INTO crawler.history (
 				node_id,
 				crawled_at,
 				direction,
 				error
-			) VALUES (
-				?1,
-				unixepoch(),
-				?6,
-				?7
+			)
+			VALUES (
+				@node_id,
+				now(),
+				@direction,
+				@error
 			)
 			ON CONFLICT (node_id, crawled_at) DO NOTHING;
 		`,
-		node.ID(),
-		common.PubkeyBytes(node.N.Pubkey()),
-		common.ENRNodeType(node.N.Record()),
-		common.EncodeENR(node.N.Record()),
-		node.N.IP().String(),
-		node.Direction,
-		node.Error,
-		db.nextCrawlFail+randomHourSeconds(),
+		pgx.NamedArgs{
+			"node_id":     node.ID(),
+			"node_pubkey": common.PubkeyBytes(node.N.Pubkey()),
+			"node_type":   common.ENRNodeType(node.N.Record()).String(),
+			"node_record": common.EncodeENR(node.N.Record()),
+			"ip_address":  ip.String(),
+			"direction":   node.Direction.String(),
+			"error":       node.Error,
+			"next_crawl":  fmt.Sprintf("%d seconds", db.nextCrawlFail+randomHourSeconds()),
+		},
 	)
 	if err != nil {
-		return fmt.Errorf("exec failed: %w", err)
+		return fmt.Errorf("exec: %w", err)
 	}
 
 	return nil
 }
 
-func (db *DB) UpdateNotEthNode(node common.NodeJSON) error {
+func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJSON) error {
 	var err error
 
-	start := time.Now()
-	defer metrics.ObserveDBQuery("update_crawled_node_not_eth", start, err)
+	defer metrics.ObserveDBQuery("update_crawled_node_not_eth", time.Now(), err)
 
-	_, err = db.ExecRetryBusy(
+	ip := node.N.IP()
+
+	location, err := db.IPToLocation(ip)
+	if err != nil {
+		return fmt.Errorf("ip to location: %w", err)
+	}
+
+	err = db.upsertCountryCity(ctx, tx, location)
+	if err != nil {
+		return fmt.Errorf("upsert country city: %w", err)
+	}
+
+	_, err = tx.Exec(
+		ctx,
 		`
-			INSERT INTO discovered_nodes (
+			INSERT INTO disc.nodes (
 				node_id,
-				node_pubkey,
 				node_type,
-				node_record,
-				ip_address,
 				first_found,
 				last_found,
-				next_crawl
-			) VALUES (
-				?1,
-				?2,
-				?3,
-				?4,
-				?5,
-				unixepoch(),
-				unixepoch(),
-				unixepoch() + ?6
+				next_crawl,
+				node_pubkey,
+				node_record,
+				ip_address,
+				city_geoname_id
+			)
+			VALUES (
+				@node_id,
+				@node_type,
+				now(),
+				now(),
+				now() + INTERVAL @next_crawl,
+				@node_pubkey,
+				@node_record,
+				@ip_address,
+				@city_geoname_id
 			)
 			ON CONFLICT (node_id) DO UPDATE
 			SET
-				last_found = unixepoch(),
 				next_crawl = excluded.next_crawl
-			WHERE ?7 == 'dial'
+			WHERE @direction == 'dial'
 		`,
-		node.ID(),
-		common.PubkeyBytes(node.N.Pubkey()),
-		common.ENRNodeType(node.N.Record()),
-		common.EncodeENR(node.N.Record()),
-		node.N.IP().String(),
-		db.nextCrawlNotEth+randomHourSeconds(),
-		node.Direction,
+		pgx.NamedArgs{
+			"node_id":     node.ID(),
+			"node_pubkey": common.PubkeyBytes(node.N.Pubkey()),
+			"node_type":   common.ENRNodeType(node.N.Record()).String(),
+			"node_record": common.EncodeENR(node.N.Record()),
+			"ip_address":  ip.String(),
+			"direction":   node.Direction.String(),
+			"error":       node.Error,
+			"next_crawl":  fmt.Sprintf("%d seconds", db.nextCrawlNotEth+randomHourSeconds()),
+		},
 	)
 	if err != nil {
-		return fmt.Errorf("exec failed: %w", err)
+		return fmt.Errorf("exec: %w", err)
 	}
 
 	return nil
 }
 
-func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
+func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node common.NodeJSON) error {
 	var err error
 
-	start := time.Now()
-	defer metrics.ObserveDBQuery("update_crawled_node_success", start, err)
+	defer metrics.ObserveDBQuery("update_crawled_node_success", time.Now(), err)
 
 	info := node.GetInfo()
 	ip := node.N.IP()
 
 	location, err := db.IPToLocation(ip)
 	if err != nil {
-		return fmt.Errorf("geoip failed: %w", err)
+		return fmt.Errorf("geolocation: %w", err)
 	}
 
-	log.Info("geoname", "country", location.countryGeoNameID, "city", location.cityGeoNameID)
-
 	if len(node.BlockHeaders) != 0 {
-		err = db.InsertBlocks(node.BlockHeaders, node.Info.NetworkID)
+		err = db.InsertBlocks(ctx, tx, node.Info.NetworkID, node.BlockHeaders)
 		if err != nil {
-			return fmt.Errorf("inserting blocks failed: %w", err)
+			return fmt.Errorf("inserting blocks: %w", err)
 		}
 	}
 
-	clientPtr := common.ParseClientID(&node.Info.ClientName)
-	if clientPtr == nil && node.Info.ClientName != "" {
-		log.Error("parsing client ID failed", "id", node.Info.ClientName)
+	clientPtr := common.ParseClientID(&node.Info.ClientIdentifier)
+	if clientPtr == nil && node.Info.ClientIdentifier != "" {
+		log.Error("parsing client ID failed", "id", node.Info.ClientIdentifier)
 	}
 
 	client := clientPtr.Deref()
 
-	_, err = db.ExecRetryBusy(
+	err = db.upsertCountryCity(ctx, tx, location)
+	if err != nil {
+		return fmt.Errorf("upsert country city: %w", err)
+	}
+
+	_, err = tx.Exec(
+		ctx,
 		`
-			INSERT INTO crawled_nodes (
-				node_id,
-				updated_at,
-				client_identifier,
-				client_name,
-				client_user_data,
-				client_version,
-				client_build,
-				client_os,
-				client_arch,
-				client_language,
-				rlpx_version,
-				capabilities,
-				network_id,
-				fork_id,
-				next_fork_id,
-				head_hash,
-				ip_address,
-				connection_type,
-				country,
-				city,
-				latitude,
-				longitude
-			) VALUES (
-				?1,						-- node_id
-				unixepoch(),			-- updated_at
-				nullif(?2, ''),			-- client_identifier
-				nullif(?3, 'Unknown'),	-- client_name,
-				nullif(?4, 'Unknown'),	-- client_user_data,
-				nullif(?5, 'Unknown'),	-- client_version,
-				nullif(?6, 'Unknown'),	-- client_build,
-				nullif(?7, 'Unknown'),	-- client_os,
-				nullif(?8, 'Unknown'),	-- client_arch,
-				nullif(?9, 'Unknown'),	-- client_language,
-				nullif(?10, 0),			-- rlpx_version
-				nullif(?11, ''),		-- capabilities
-				nullif(?12, 0),			-- network_id
-				nullif(?13, 0),			-- fork_id
-				nullif(?14, 0),			-- next_fork_id
-				nullif(?15, X''),		-- head_hash
-				nullif(?16, ''),		-- ip_address
-				nullif(?17, ''),		-- connection_type
-				nullif(?18, ''),		-- country
-				nullif(?19, ''),		-- city
-				nullif(?20, 0.0),		-- latitude
-				nullif(?21, 0.0)		-- longitude
+			WITH client_identifier AS (
+				INSERT INTO client.identifiers (
+					client_identifier
+				)
+				VALUES (
+					nullif(@client_identifier, 'Unknown')
+				)
+				ON CONFLICT (client_identifier) DO NOTHING
+				RETURNING client_identifier_id
+			), client_name AS (
+				INSERT INTO client.names (
+					client_name
+				)
+				VALUES (
+					nullif(@client_name, 'Unknown')
+				)
+				ON CONFLICT (client_name) DO NOTHING
+				RETURNING client_name_id
+			), client_user_data AS (
+				INSERT INTO client.user_data (
+					client_user_data
+				)
+				VALUES (
+					nullif(@client_user_data, 'Unknown')
+				)
+				ON CONFLICT (client_user_data) DO NOTHING
+				RETURNING client_user_data_id
+			), client_version AS (
+				INSERT INTO client.versions (
+					client_version
+				)
+				VALUES (
+					nullif(@client_version, 'Unknown')
+				)
+				ON CONFLICT (client_version) DO NOTHING
+				RETURNING client_version_id
+			), client_build AS (
+				INSERT INTO client.builds (
+					client_build
+				)
+				VALUES (
+					nullif(@client_build, 'Unknown')
+				)
+				ON CONFLICT (client_build) DO NOTHING
+				RETURNING client_build_id
+			), client_language AS (
+				INSERT INTO client.languages (
+					client_language
+				)
+				VALUES (
+					nullif(@client_language, 'Unknown')
+				)
+				ON CONFLICT (client_language) DO NOTHING
+				RETURNING client_language_id
+			), capabilities AS (
+				INSERT INTO execution.capabilities (
+					capabilities
+				)
+				VALUES (
+					nullif(@capabilities, 'Unknown')
+				)
+				ON CONFLICT (capabilities) DO NOTHING
+				RETURNING capabilities_id
+			), disc_node AS (
+				INSERT INTO disc.nodes (
+					node_id,
+					node_type,
+					first_found,
+					last_found,
+					next_crawl,
+					node_pubkey,
+					node_record,
+					ip_address,
+					city_geoname_id
+				)
+				VALUES (
+					@node_id,
+					@node_type,
+					now(),
+					now(),
+					now() + INTERVAL @next_crawl,
+					@node_pubkey,
+					@node_record,
+					@ip_address,
+					@city_geoname_id
+				)
+				ON CONFLICT (node_id) DO UPDATE
+				SET
+					last_found = unixepoch(),
+					-- Only update next_crawl if we initiated the connection.
+					-- Even if the peer initiated the the connection, we still
+					-- want to try dialing because we want to see if the node has
+					-- good inbound network configuration.
+					next_crawl = CASE
+						WHEN @direction == 'dial'
+							THEN excluded.next_crawl
+							ELSE next_crawl
+						END
+			), crawled_node AS (
+				INSERT INTO execution.nodes (
+					node_id,
+					updated_at,
+					client_identifier_id,
+					rlpx_version,
+					capabilities_id,
+					network_id,
+					fork_id,
+					next_fork_id,
+					head_hash,
+					client_name_id,
+					client_user_data_id,
+					client_version_id,
+					client_build_id,
+					client_os,
+					client_arch,
+					client_language_id
+				) VALUES (
+					@node_id,
+					now(),
+					(SELECT client_identifier_id FROM client_identifier),
+					@rlpx_version,
+					(SELECT capabilities_id FROM capabilities),
+					@network_id,
+					@fork_id,
+					@next_fork_id,
+					@head_hash,
+					(SELECT client_name_id FROM client_name),
+					(SELECT client_user_data_id FROM client_user_data),
+					(SELECT client_version_id FROM client_version),
+					(SELECT client_build_id FROM client_build),
+					@client_os,
+					@client_arch,
+					(SELECT client_language_id FROM client_language)
+				)
+				ON CONFLICT (node_id) DO UPDATE
+				SET
+					updated_at = now(),
+					client_identifier_id = excluded.client_identifier_id,
+					rlpx_version = excluded.rlpx_version,
+					capabilities_id = excluded.capabilities_id,
+					network_id = excluded.network_id,
+					fork_id = excluded.fork_id,
+					next_fork_id = excluded.next_fork_id,
+					head_hash = excluded.head_hash,
+					client_name_id = excluded.client_name_id,
+					client_user_data_id = excluded.client_user_data_id,
+					client_version_id = excluded.client_version_id,
+					client_build_id = excluded.client_build_id,
+					client_os = excluded.client_os,
+					client_arch = excluded.client_arch,
+					client_language_id = excluded.client_language_id
 			)
-			ON CONFLICT (node_id) DO UPDATE
-			SET
-				updated_at = unixepoch(),
-				client_identifier = coalesce(excluded.client_identifier, client_identifier),
-				client_name = coalesce(excluded.client_name, client_name),
-				client_user_data = coalesce(excluded.client_user_data, client_user_data),
-				client_version = coalesce(excluded.client_version, client_version),
-				client_build = coalesce(excluded.client_build, client_build),
-				client_os = coalesce(excluded.client_os, client_os),
-				client_arch = coalesce(excluded.client_arch, client_arch),
-				client_language = coalesce(excluded.client_language, client_language),
-				rlpx_version = coalesce(excluded.rlpx_version, rlpx_version),
-				capabilities = coalesce(excluded.capabilities, capabilities),
-				network_id = coalesce(excluded.network_id, network_id),
-				fork_id = coalesce(excluded.fork_id, fork_id),
-				next_fork_id = excluded.next_fork_id,			-- Not coalesce because no next fork is valid
-				head_hash = coalesce(excluded.head_hash, head_hash),
-				ip_address = coalesce(excluded.ip_address, ip_address),
-				connection_type = coalesce(excluded.connection_type, connection_type),
-				country = coalesce(excluded.country, country),
-				city = coalesce(excluded.city, city),
-				latitude = coalesce(excluded.latitude, latitude),
-				longitude = coalesce(excluded.longitude, longitude);
 
-			INSERT INTO discovered_nodes (
-				node_id,
-				node_pubkey,
-				node_type,
-				node_record,
-				ip_address,
-				first_found,
-				last_found,
-				next_crawl
-			) VALUES (
-				?1,
-				?22,
-				?23,
-				?24,
-				?16,
-				unixepoch(),
-				unixepoch(),
-				unixepoch() + ?26
-			)
-			ON CONFLICT (node_id) DO UPDATE
-			SET
-				last_found = unixepoch(),
-				-- Only update next_crawl if we initiated the connection.
-				-- Even if the peer initiated the the connection, we still
-				-- want to try dialing because we want to see if the node has
-				-- good inbound network configuration.
-				next_crawl = CASE
-					WHEN ?25 == 'dial'
-						THEN excluded.next_crawl
-						ELSE next_crawl
-					END;
-
-			INSERT INTO crawl_history (
+			INSERT INTO crawler.history (
 				node_id,
 				crawled_at,
 				direction,
 				error
 			) VALUES (
-				?1,
-				unixepoch(),
-				?25,
+				@node_id,
+				now(),
+				@direction,
 				NULL
 			)
-			ON CONFLICT (node_id, crawled_at) DO NOTHING;
+			ON CONFLICT (node_id, crawled_at) DO NOTHING
 		`,
-		node.ID(),
-		info.ClientName,
-		client.Name,
-		client.UserData,
-		client.Version,
-		client.Build,
-		client.OS,
-		client.Arch,
-		client.Language,
-		info.RLPxVersion,
-		node.CapsString(),
-		info.NetworkID,
-		BytesToUnit32(info.ForkID.Hash[:]),
-		info.ForkID.Next,
-		info.HeadHash[:],
-		node.N.IP().String(),
-		node.ConnectionType(),
-		location.country,
-		location.city,
-		location.latitude,
-		location.longitude,
-		common.PubkeyBytes(node.N.Pubkey()),
-		common.ENRNodeType(node.N.Record()),
-		common.EncodeENR(node.N.Record()),
-		node.Direction,
-		db.nextCrawlSucces+randomHourSeconds(),
+		pgx.NamedArgs{
+			"node_id":           node.ID(),
+			"client_identifier": info.ClientIdentifier,
+			"client_name":       client.Name,
+			"client_user_data":  client.UserData,
+			"client_version":    client.Version,
+			"client_build":      client.Build,
+			"client_os":         client.OS,
+			"client_arch":       client.Arch,
+			"client_language":   client.Language,
+			"rlpx_version":      info.RLPxVersion,
+			"capabilities":      node.CapsString(),
+			"network_id":        info.NetworkID,
+			"fork_id":           BytesToUnit32(info.ForkID.Hash[:]),
+			"next_fork_id":      info.ForkID.Next,
+			"head_hash":         info.HeadHash[:],
+			"ip_address":        node.N.IP().String(),
+			"city_geoname_id":   location.cityGeoNameID,
+			"node_pubkey":       common.PubkeyBytes(node.N.Pubkey()),
+			"node_type":         common.ENRNodeType(node.N.Record()),
+			"node_record":       common.EncodeENR(node.N.Record()),
+			"direction":         node.Direction,
+			"next_crawl":        fmt.Sprintf("%d seconds", db.nextCrawlSucces+randomHourSeconds()),
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("exec failed: %w", err)
@@ -344,87 +430,92 @@ func (db *DB) UpdateCrawledNodeSuccess(node common.NodeJSON) error {
 	return nil
 }
 
-func (db *DB) InsertBlocks(blocks []*types.Header, networkID uint64) error {
-	// tx, err := db.db.Begin()
-	// if err != nil {
-	// 	return fmt.Errorf("starting tx failed: %w", err)
-	// }
-	// defer tx.Rollback()
-
-	stmt, err := db.db.Prepare(`
-		INSERT INTO blocks (
-			block_hash,
-			network_id,
-			timestamp,
-			block_number
-		) VALUES (
-			?,
-			?,
-			?,
-			?
-		)
-		ON CONFLICT (block_hash, network_id)
-		DO NOTHING
-	`)
+func (db *DB) InsertBlocks(
+	ctx context.Context,
+	tx pgx.Tx,
+	networkID uint64,
+	blocks []*types.Header,
+) error {
+	stmt, err := tx.Prepare(
+		ctx,
+		"insert_blocks",
+		`
+			INSERT INTO execution.blocks (
+				block_hash,
+				network_id,
+				timestamp,
+				block_number
+			) VALUES (
+				@block_hash,
+				@network_id,
+				@block_number,
+				@timestamp
+			)
+			ON CONFLICT (block_hash, network_id) DO NOTHING
+		`,
+	)
 	if err != nil {
-		return fmt.Errorf("preparing statement failed: %w", err)
+		return fmt.Errorf("prepare: %w", err)
 	}
-	defer stmt.Close()
 
 	for _, block := range blocks {
 		start := time.Now()
-		_, err = retryBusy(func() (sql.Result, error) {
-			return stmt.Exec(
-				block.Hash().Bytes(),
-				networkID,
-				block.Time,
-				block.Number.Uint64(),
-			)
-		})
+
+		_, err = tx.Exec(
+			ctx,
+			stmt.Name,
+
+			pgx.NamedArgs{
+				"block_hash":   block.Hash().Bytes(),
+				"network_id":   networkID,
+				"block_number": block.Number.Uint64(),
+				"timestamp":    block.Time,
+			},
+		)
+
 		metrics.ObserveDBQuery("insert_block", start, err)
 
 		if err != nil {
-			log.Error("upsert block failed", "err", err)
+			return fmt.Errorf("upsert: %w", err)
 		}
 	}
-
-	// err = tx.Commit()
-	// if err != nil {
-	// 	return fmt.Errorf("commit failed: %w", err)
-	// }
 
 	return nil
 }
 
-func (db *DB) UpsertCrawledNode(node common.NodeJSON) error {
-	db.wLock.Lock()
-	defer db.wLock.Unlock()
+func (db *DB) UpsertCrawledNode(ctx context.Context, tx pgx.Tx, node common.NodeJSON) error {
+	defer metrics.NodeUpdateInc(node.Direction.String(), node.Error)
 
 	if !node.EthNode {
-		err := db.UpdateNotEthNode(node)
+		err := db.UpdateNotEthNode(ctx, tx, node)
 		if err != nil {
-			return fmt.Errorf("update not eth node failed: %w", err)
+			return fmt.Errorf("upsert not eth node: %w", err)
 		}
 
 		return nil
 	}
 
 	if node.Error != "" {
-		err := db.UpdateCrawledNodeFail(node)
+		err := db.UpdateCrawledNodeFail(ctx, tx, node)
 		if err != nil {
-			return fmt.Errorf("update failed crawl failed: %w", err)
+			return fmt.Errorf("upsert failed crawl: %w", err)
 		}
 
 		return nil
 	}
 
-	return db.UpdateCrawledNodeSuccess(node)
+	err := db.UpdateCrawledNodeSuccess(ctx, tx, node)
+	if err != nil {
+		return fmt.Errorf("upsert success: %w", err)
+	}
+
+	return nil
 }
 
 var missingBlockCache = map[uint64][]ethcommon.Hash{}
 var missingBlocksLock = sync.Mutex{}
 
-func (db *DB) GetMissingBlock(networkID uint64) (*ethcommon.Hash, error) {
+func (db *DB) GetMissingBlock(ctx context.Context, tx pgx.Tx, networkID uint64) (*ethcommon.Hash, error) {
 	var err error
 
 	missingBlocksLock.Lock()

@@ -1,108 +1,212 @@
 package database
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/metrics"
+	"github.com/jackc/pgx/v5"
 )
 
-func (d *DB) UpsertNode(node *enode.Node) error {
-	d.wLock.Lock()
-	defer d.wLock.Unlock()
-
-	var err error
-
-	start := time.Now()
-	defer metrics.ObserveDBQuery("disc_upsert_node", start, err)
-
-	_, err = d.ExecRetryBusy(
+func (db *DB) upsertCountryCity(ctx context.Context, tx pgx.Tx, location location) error {
+	_, err := tx.Exec(
+		ctx,
 		`
-			INSERT INTO discovered_nodes (
-				node_id,
-				node_pubkey,
-				node_type,
-				node_record,
-				ip_address,
-				first_found,
-				last_found,
-				next_crawl
-			) VALUES (
-				?,
-				?,
-				?,
-				?,
-				?,
-				unixepoch(),
-				unixepoch(),
-				unixepoch()
+			WITH country AS (
+				INSERT INTO geoname.countries (
+					country_geoname_id,
+					country_name
+				) VALUES (
+					@country_geoname_id,
+					@country_name
+				)
 			)
-			ON CONFLICT (node_id) DO UPDATE
-			SET
-				node_record = best_record(node_record, excluded.node_record),
-				ip_address = excluded.ip_address,
-				last_found = unixepoch()
-			WHERE last_found < unixepoch('now', '-1 hour')  -- Only update once an hour
+
+			INSERT INTO geoname.cities (
+				city_geoname_id,
+				city_name,
+				country_geoname_id,
+				latitude,
+				longitude
+			) VALUES (
+				@city_geoname_id,
+				@city_name,
+				@country_geoname_id,
+				@latitude,
+				@longitude
+			)
 		`,
-		node.ID().Bytes(),
-		common.PubkeyBytes(node.Pubkey()),
-		common.ENRNodeType(node.Record()),
-		common.EncodeENR(node.Record()),
-		node.IP().String(),
+		pgx.NamedArgs{
+			"country_geoname_id": location.countryGeoNameID,
+			"country_name":       location.country,
+			"city_geoname_id":    location.cityGeoNameID,
+			"city_name":          location.city,
+			"latitude":           location.latitude,
+			"longitude":          location.longitude,
+		},
 	)
 	if err != nil {
-		return fmt.Errorf("exec failed: %w", err)
+		return fmt.Errorf("exec: %w", err)
 	}
 
 	return nil
 }
 
-func (d *DB) SelectDiscoveredNodeSlice(limit int) ([]*enode.Node, error) {
+func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
+	var err error
+
+	start := time.Now()
+	defer metrics.ObserveDBQuery("disc_upsert_node", start, err)
+
+	ip := node.IP()
+
+	location, err := db.IPToLocation(ip)
+	if err != nil {
+		return fmt.Errorf("ip to location: %w", err)
+	}
+
+	tx, err := db.pg.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	err = db.upsertCountryCity(ctx, tx, location)
+	if err != nil {
+		return fmt.Errorf("upsert country city: %w", err)
+	}
+
+	var savedRecordBytes []byte
+	var savedRecord *enr.Record
+
+	row := tx.QueryRow(
+		ctx,
+		`
+			SELECT
+				node_record
+			FROM disc.nodes
+			WHERE node_id = @node_id
+		`,
+		pgx.NamedArgs{
+			"node_id": node.ID(),
+		},
+	)
+
+	err = row.Scan(&savedRecordBytes)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("query node_record: %w", err)
+	}
+
+	if savedRecordBytes != nil {
+		savedRecord, err = common.LoadENR(savedRecordBytes)
+		if err != nil {
+			return fmt.Errorf("load saved record: %w", err)
+		}
+	}
+
+	bestRecord := common.BestRecord(savedRecord, node.Record())
+
+	_, err = tx.Exec(
+		ctx,
+		`
+			INSERT INTO disc.nodes (
+				node_id,
+				node_type,
+				first_found,
+				last_found,
+				next_crawl,
+				node_pubkey,
+				node_record,
+				ip_address,
+				city_geoname_id
+			) VALUES (
+				@node_id,
+				@node_type,
+				now(),
+				now(),
+				now(),
+				@node_pubkey,
+				@node_record,
+				@ip_address,
+				@city_geoname_id
+			)
+			ON CONFLICT (node_id) DO UPDATE
+			SET
+				node_record = excluded.node_record,
+				ip_address = excluded.ip_address,
+				last_found = now()
+			WHERE last_found < (now() - INTERVAL '1 hour')  -- Only update once an hour
+		`,
+		pgx.NamedArgs{
+			"node_id":         node.ID().Bytes(),
+			"node_type":       common.ENRNodeType(node.Record()),
+			"node_pubkey":     common.PubkeyBytes(node.Pubkey()),
+			"node_record":     common.EncodeENR(bestRecord),
+			"ip_address":      ip.String(),
+			"city_geoname_id": location.cityGeoNameID,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("exec: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return nil
+}
+
+func (_ *DB) SelectDiscoveredNode(ctx context.Context, tx pgx.Tx) (*enode.Node, error) {
 	var err error
 
 	start := time.Now()
 	defer metrics.ObserveDBQuery("select_disc_node_slice", start, err)
 
-	rows, err := d.db.Query(
+	rows, err := tx.Query(
+		ctx,
 		`
 			SELECT
 				node_record
-			FROM discovered_nodes
+			FROM disc.nodes
 			WHERE
-				next_crawl < unixepoch()
-				AND node_type IN (0, 1)  -- Unknown or Execution
+				next_crawl < now()
+				AND node_type IN ('Unknown', 'Execution')
 			ORDER BY next_crawl ASC
-			LIMIT ?
+			LIMIT 1
+			FOR UPDATE SKIP LOCKED
 		`,
-		limit,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return nil, fmt.Errorf("query: %w", err)
 	}
 	defer rows.Close()
 
-	out := make([]*enode.Node, 0, limit)
-	for rows.Next() {
-		var enrBytes []byte
+	if !rows.Next() {
+		return nil, nil
+	}
 
-		err = rows.Scan(&enrBytes)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row failed: %w", err)
-		}
+	var enrBytes []byte
 
-		record, err := common.LoadENR(enrBytes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load enr: %w", err)
-		}
+	err = rows.Scan(&enrBytes)
+	if err != nil {
+		return nil, fmt.Errorf("scanning row: %w", err)
+	}
 
-		node, err := common.RecordToEnode(record)
-		if err != nil {
-			return nil, fmt.Errorf("parsing enr failed: %w, %s", err, enrBytes)
-		}
+	record, err := common.LoadENR(enrBytes)
+	if err != nil {
+		return nil, fmt.Errorf("load enr: %w", err)
+	}
 
-		out = append(out, node)
+	node, err := common.RecordToEnode(record)
+	if err != nil {
+		return nil, fmt.Errorf("record to enode: %w, %x", err, enrBytes)
 	}
 
 	err = rows.Err()
@@ -110,5 +214,5 @@ func (d *DB) SelectDiscoveredNodeSlice(limit int) ([]*enode.Node, error) {
 		return nil, fmt.Errorf("rows iteration failed: %w", err)
 	}
 
-	return out, nil
+	return node, nil
 }

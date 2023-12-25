@@ -459,13 +459,6 @@ func migrateExecutionNodesTable(
 				node_id,
 				updated_at,
 				client_identifier,
-				client_name,
-				client_user_data,
-				client_version,
-				client_build,
-				COALESCE(client_os, 'Unknown'),
-				COALESCE(client_arch, 'Unknown'),
-				client_language,
 				rlpx_version,
 				capabilities,
 				network_id,
@@ -495,13 +488,6 @@ func migrateExecutionNodesTable(
 		var nodeID []byte
 		var updatedAt int64
 		var clientIdentifier string
-		var clientName *string
-		var clientUserData *string
-		var clientVersion *string
-		var clientBuild *string
-		var clientOS string
-		var clientArch string
-		var clientLanguage *string
 		var rlpxVersion int64
 		var capabilities string
 		var networkID int64
@@ -513,13 +499,6 @@ func migrateExecutionNodesTable(
 			&nodeID,
 			&updatedAt,
 			&clientIdentifier,
-			&clientName,
-			&clientUserData,
-			&clientVersion,
-			&clientBuild,
-			&clientOS,
-			&clientArch,
-			&clientLanguage,
 			&rlpxVersion,
 			&capabilities,
 			&networkID,
@@ -536,29 +515,33 @@ func migrateExecutionNodesTable(
 		cID := clientIdentifiersMap[clientIdentifier]
 		capID := capabilitiesMap[capabilities]
 
-		if clientName != nil {
-			id := clientNamesMap[*clientName]
-			cnID = &id
-		}
+		client := common.ParseClientID(&clientIdentifier)
 
-		if clientUserData != nil {
-			id := clientUserDataMap[*clientUserData]
-			cudID = &id
-		}
+		if client != nil {
+			if client.Name != common.Unknown {
+				id := clientNamesMap[client.Name]
+				cnID = &id
+			}
 
-		if clientVersion != nil {
-			id := clientVersionsMap[*clientVersion]
-			cvID = &id
-		}
+			if client.UserData != common.Unknown {
+				id := clientUserDataMap[client.UserData]
+				cudID = &id
+			}
 
-		if clientBuild != nil {
-			id := clientBuildsMap[*clientBuild]
-			cbID = &id
-		}
+			if client.Version != common.Unknown {
+				id := clientVersionsMap[client.Version]
+				cvID = &id
+			}
 
-		if clientLanguage != nil {
-			id := clientLanguagesMap[*clientLanguage]
-			clID = &id
+			if client.Build != common.Unknown {
+				id := clientBuildsMap[client.Build]
+				cbID = &id
+			}
+
+			if client.Language != common.Unknown {
+				id := clientLanguagesMap[client.Language]
+				clID = &id
+			}
 		}
 
 		return []any{
@@ -575,8 +558,8 @@ func migrateExecutionNodesTable(
 			cudID,
 			cvID,
 			cbID,
-			clientOS,
-			clientArch,
+			client.OS.String(),
+			client.Arch.String(),
 			clID,
 		}, nil
 	})

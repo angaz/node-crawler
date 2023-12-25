@@ -1,6 +1,16 @@
 version: '3'
 
 services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    volumes:
+      - /var/lib/postgresql
+    ports:
+      - 5432:5432/tcp
+    shm_size: 4GB
+    environment:
+      - POSTGRES_PASSWORD=password
+
   crawler:
     build: ./
     volumes:

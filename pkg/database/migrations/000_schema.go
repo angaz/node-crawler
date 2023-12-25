@@ -280,7 +280,6 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 			);
 
 			SELECT create_hypertable('crawler.history', by_range('crawled_at'));
-			SELECT add_dimension('crawler.history', by_hash('node_id', 256));
 
 			CREATE INDEX crawler_history_crawled_at
 				ON crawler.history (crawled_at);
@@ -303,15 +302,16 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 }
 
 func createPartitions(ctx context.Context, tx pgx.Tx, table string) error {
-	for i := 0; i <= 0xff; i++ {
+	end := 0xff - 0x10
+	for i := 0; i <= end; i += 0x10 {
 		from := fmt.Sprintf("'\\x%02X'", i)
-		to := fmt.Sprintf("'\\x%02X'", i+1)
+		to := fmt.Sprintf("'\\x%02X'", i+16)
 
 		if i == 0 {
 			from = "MINVALUE"
 		}
 
-		if i == 0xff {
+		if i == end {
 			to = "MAXVALUE"
 		}
 

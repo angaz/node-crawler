@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"context"
 	"reflect"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -9,12 +10,15 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/node-crawler/pkg/common"
+	"github.com/jackc/pgx/v5"
 )
 
 func (conn *Conn) GetClientInfo(
+	ctx context.Context,
+	tx pgx.Tx,
 	node *enode.Node,
 	direction common.Direction,
-	getMissingBlock func(uint64) (*ethcommon.Hash, error),
+	getMissingBlock func(context.Context, pgx.Tx, uint64) (*ethcommon.Hash, error),
 ) common.NodeJSON {
 	err := conn.writeHello()
 	if err != nil {
@@ -61,7 +65,7 @@ func (conn *Conn) GetClientInfo(
 
 			nodeJSON.Info.Capabilities = msg.Caps
 			nodeJSON.Info.RLPxVersion = msg.Version
-			nodeJSON.Info.ClientName = msg.Name
+			nodeJSON.Info.ClientIdentifier = msg.Name
 
 			conn.NegotiateEthProtocol(nodeJSON.Info.Capabilities)
 
@@ -88,7 +92,7 @@ func (conn *Conn) GetClientInfo(
 				ForkID:          msg.ForkID,
 			})
 
-			getBlock, err := getMissingBlock(msg.NetworkID)
+			getBlock, err := getMissingBlock(ctx, tx, msg.NetworkID)
 			if err != nil {
 				log.Error("could not get missing block", "err", err)
 			}

@@ -598,5 +598,14 @@ func ParseClientID(clientName *string) *Client {
 		return nil
 	}
 
+	if client.Name == "reth" &&
+		(strings.HasPrefix(client.Build, "alpha") ||
+			strings.HasPrefix(client.Build, "beta")) {
+		buildParts := strings.Split(client.Build, "-")
+		client.Version += "-" + buildParts[0]
+
+		fmt.Println(client.Version)
+	}
+
 	return client
 }

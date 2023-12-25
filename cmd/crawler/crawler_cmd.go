@@ -45,6 +45,7 @@ var (
 			&busyTimeoutFlag,
 			&crawlerDBFlag,
 			&crawlerSnapshotFlag,
+			&discWorkersFlag,
 			&geoipdbFlag,
 			&githubTokenFileFlag,
 			&listenAddrFlag,
@@ -99,23 +100,13 @@ func crawlNodesV2(cCtx *cli.Context) error {
 	}
 	defer db.Close()
 
-	go db.TableStatsMetricsDaemon(5 * time.Minute)
-	go db.SnapshotDaemon(
-		"main",
-		snapshotDirFlag.Get(cCtx),
-		crawlerSnapshotFlag.Get(cCtx),
-	)
-	go db.SnapshotDaemon(
-		"stats",
-		snapshotDirFlag.Get(cCtx),
-		statsSnapshotFlag.Get(cCtx),
-	)
-	go db.CleanerDaemon(15 * time.Minute)
+	// go db.TableStatsMetricsDaemon(cCtx.Context, 5*time.Minute)
+	go db.CleanerDaemon(cCtx.Context, 3*time.Hour)
 	go db.CopyStatsDaemon(statsCopyFrequencyFlag.Get(cCtx))
 
 	nodeKeys, err := readNodeKeys(cCtx)
 	if err != nil {
-		return fmt.Errorf("node key failed: %w", err)
+		return fmt.Errorf("node key: %w", err)
 	}
 
 	listener := listener.New(
@@ -124,20 +115,24 @@ func crawlNodesV2(cCtx *cli.Context) error {
 		listenAddrFlag.Get(cCtx),
 		uint16(listenStartPortFlag.Get(cCtx)),
 	)
-	go listener.StartDaemon()
+	listener.StartDaemon(cCtx.Context)
+
+	listener.StartDiscCrawlers(cCtx.Context, discWorkersFlag.Get(cCtx))
 
 	crawler, err := crawler.New(
 		db,
 		nodeKeys,
+	)
+	if err != nil {
+		return fmt.Errorf("create crawler: %w", err)
+	}
+
+	err = crawler.StartDaemon(
+		cCtx.Context,
 		workersFlag.Get(cCtx),
 	)
 	if err != nil {
-		return fmt.Errorf("create crawler v2 failed: %w", err)
-	}
-
-	err = crawler.StartDaemon()
-	if err != nil {
-		return fmt.Errorf("start crawler v2 failed: %w", err)
+		return fmt.Errorf("start crawler: %w", err)
 	}
 
 	// Start metrics server
