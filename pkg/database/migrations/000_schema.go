@@ -86,7 +86,8 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				'network is unreachable',
 				'no route to host',
 				'protocol not available',
-				'rlp decode'
+				'rlp decode',
+				'broken pipe'
 			);
 
 			CREATE TYPE client.node_type AS ENUM (

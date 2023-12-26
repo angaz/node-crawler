@@ -105,6 +105,8 @@ func TranslateError(err error) (bool, string) {
 		return true, "corrupt input"
 	case strings.Contains(errStr, "could not rlp decode message"):
 		return true, "rlp decode"
+	case strings.Contains(errStr, "broken pipe"):
+		return true, "broken pipe"
 	default:
 		return false, errStr
 	}
