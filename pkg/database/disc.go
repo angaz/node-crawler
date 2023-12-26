@@ -11,10 +11,19 @@ import (
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/metrics"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func (db *DB) upsertCountryCity(ctx context.Context, tx pgx.Tx, location location) error {
-	_, err := tx.Exec(
+type execer interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+type querier interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+func (_ *DB) upsertCountryCity(ctx context.Context, db execer, location location) error {
+	_, err := db.Exec(
 		ctx,
 		`
 			WITH country AS (
@@ -74,13 +83,7 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 		return fmt.Errorf("ip to location: %w", err)
 	}
 
-	tx, err := db.pg.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	err = db.upsertCountryCity(ctx, tx, location)
+	err = db.upsertCountryCity(ctx, db.pg, location)
 	if err != nil {
 		return fmt.Errorf("upsert country city: %w", err)
 	}
@@ -88,7 +91,7 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 	var savedRecordBytes []byte
 	var savedRecord *enr.Record
 
-	row := tx.QueryRow(
+	row := db.pg.QueryRow(
 		ctx,
 		`
 			SELECT
@@ -115,7 +118,7 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 
 	bestRecord := common.BestRecord(savedRecord, node.Record())
 
-	_, err = tx.Exec(
+	_, err = db.pg.Exec(
 		ctx,
 		`
 			INSERT INTO disc.nodes (
@@ -157,11 +160,6 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 	)
 	if err != nil {
 		return fmt.Errorf("exec: %w", err)
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("commit: %w", err)
 	}
 
 	return nil
