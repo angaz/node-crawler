@@ -61,7 +61,6 @@ func getEphemeryReleases(githubToken string, lastRelease time.Time) ([]*github.R
 }
 
 func ephemeryIterationName(release *github.RepositoryRelease) string {
-	fmt.Println(*release.Name)
 	split := strings.Split(*release.Name, "-")
 
 	if len(split) == 1 {

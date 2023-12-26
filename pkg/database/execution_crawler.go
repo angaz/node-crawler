@@ -211,8 +211,6 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 		return fmt.Errorf("geolocation: %w", err)
 	}
 
-	fmt.Printf("%#v\n%s\n", location, ip.String())
-
 	if len(node.BlockHeaders) != 0 {
 		err = db.InsertBlocks(ctx, tx, node.Info.NetworkID, node.BlockHeaders)
 		if err != nil {
@@ -235,69 +233,15 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 	_, err = tx.Exec(
 		ctx,
 		`
-			WITH client_identifier AS (
-				INSERT INTO client.identifiers (
-					client_identifier
+			WITH client_ids AS (
+				SELECT * FROM client.upsert(
+					client_identifier	=> @client_identifier,
+					client_name			=> @client_name,
+					client_user_data	=> @client_user_data,
+					client_version		=> @client_version,
+					client_build		=> @client_build,
+					client_language		=> @client_language
 				)
-				VALUES (
-					nullif(@client_identifier, 'Unknown')
-				)
-				ON CONFLICT DO NOTHING
-				RETURNING client_identifier_id
-			), client_name AS (
-				INSERT INTO client.names (
-					client_name
-				)
-				VALUES (
-					nullif(@client_name, 'Unknown')
-				)
-				ON CONFLICT DO NOTHING
-				RETURNING client_name_id
-			), client_user_data AS (
-				INSERT INTO client.user_data (
-					client_user_data
-				)
-				VALUES (
-					nullif(@client_user_data, 'Unknown')
-				)
-				ON CONFLICT DO NOTHING
-				RETURNING client_user_data_id
-			), client_version AS (
-				INSERT INTO client.versions (
-					client_version
-				)
-				VALUES (
-					nullif(@client_version, 'Unknown')
-				)
-				ON CONFLICT DO NOTHING
-				RETURNING client_version_id
-			), client_build AS (
-				INSERT INTO client.builds (
-					client_build
-				)
-				VALUES (
-					nullif(@client_build, 'Unknown')
-				)
-				ON CONFLICT DO NOTHING
-				RETURNING client_build_id
-			), client_language AS (
-				INSERT INTO client.languages (
-					client_language
-				)
-				VALUES (
-					nullif(@client_language, 'Unknown')
-				)
-				ON CONFLICT DO NOTHING
-				RETURNING client_language_id
-			), capabilities AS (
-				INSERT INTO execution.capabilities (
-					capabilities
-				)
-				VALUES (
-					nullif(@capabilities, 'Unknown')
-				)
-				ON CONFLICT DO NOTHING
-				RETURNING capabilities_id
 			), disc_node AS (
 				INSERT INTO disc.nodes (
 					node_id,
@@ -354,20 +298,20 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 				) VALUES (
 					@node_id,
 					now(),
-					(SELECT client_identifier_id FROM client_identifier),
+					(SELECT client_identifier_id FROM client_ids),
 					@rlpx_version,
-					(SELECT capabilities_id FROM capabilities),
+					execution.upsert_capabilities(@capabilities),
 					@network_id,
 					@fork_id,
 					@next_fork_id,
 					@head_hash,
-					(SELECT client_name_id FROM client_name),
-					(SELECT client_user_data_id FROM client_user_data),
-					(SELECT client_version_id FROM client_version),
-					(SELECT client_build_id FROM client_build),
+					(SELECT client_name_id FROM client_ids),
+					(SELECT client_user_data_id FROM client_ids),
+					(SELECT client_version_id FROM client_ids),
+					(SELECT client_build_id FROM client_ids),
 					@client_os,
 					@client_arch,
-					(SELECT client_language_id FROM client_language)
+					(SELECT client_language_id FROM client_ids)
 				)
 				ON CONFLICT (node_id) DO UPDATE
 				SET

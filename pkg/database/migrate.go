@@ -39,6 +39,8 @@ func (db *DB) Migrate() error {
 		func(ctx context.Context, tx pgx.Tx) error {
 			return migrations.InsertNetworks(ctx, tx, db.githubToken)
 		},
+		migrations.ClientUpsertStrings,
+		migrations.ExecutionCapabilitiesUpsert,
 	)
 }
 
