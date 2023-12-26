@@ -437,7 +437,10 @@
                 package = pkgs.postgresql_16;
                 extraPlugins = psql: with psql; [ timescaledb ];
                 settings = {
-                  shared_preload_libraries = "timescaledb";
+                  shared_preload_libraries = concatStringsSep "," [
+                    "pg_stat_statements"
+                    "timescaledb"
+                  ];
                 };
                 ensureDatabases = [ "nodecrawler" ];
                 ensureUsers = [
