@@ -164,13 +164,13 @@
 
             crawlerDatabaseName = mkOption {
               type = types.str;
-              default = "crawler.db";
+              default = "";
               description = "Name of the file within the `stateDir` for storing the data for the crawler.";
             };
 
             statsDatabaseName = mkOption {
               type = types.str;
-              default = "stats.db";
+              default = "";
               description = "Name of the file within the `stateDir` for storing the stats for the crawler.";
             };
 
@@ -178,18 +178,6 @@
               type = types.str;
               default = "snapshots";
               description = "Snapshots directory name.";
-            };
-
-            crawlerSnapshotFilename = mkOption {
-              type = types.str;
-              default = "crawler_20060102150405.db";
-              description = "Daily crawler database snapshot filename.";
-            };
-
-            statsSnapshotFilename = mkOption {
-              type = types.str;
-              default = "stats_20060102150405.db";
-              description = "Daily stats snapshot filename.";
             };
 
             user = mkOption {
@@ -371,7 +359,6 @@
                   let
                     args = [
                       "--crawler-db=${cfg.crawlerDatabaseName}"
-                      "--crawler-snapshot=${cfg.crawlerSnapshotFilename}"
                       "--geoipdb=${cfg.crawler.geoipdb}"
                       "--github-token=${cfg.crawler.githubTokenFile}"
                       "--listen-start-port=${toString cfg.crawler.listenPortStart}"
@@ -380,9 +367,7 @@
                       "--next-crawl-not-eth=${cfg.crawler.nextCrawlNotEth}"
                       "--next-crawl-success=${cfg.crawler.nextCrawlSuccess}"
                       "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler\""
-                      "--snapshot-dir=${cfg.snapshotDirname}"
                       "--stats-db=${cfg.statsDatabaseName}"
-                      "--stats-snapshot=${cfg.statsSnapshotFilename}"
                       "--workers=${toString cfg.crawler.workers}"
                     ];
                   in

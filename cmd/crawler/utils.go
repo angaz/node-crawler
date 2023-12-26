@@ -37,8 +37,14 @@ func readGithubTokenFile(cCtx *cli.Context) (string, error) {
 }
 
 func openSQLiteDB(cCtx *cli.Context, mode sqlu.Param) (*sql.DB, error) {
+	crawlerDBName := crawlerDBFlag.Get(cCtx)
+
+	if crawlerDBName == "" {
+		return nil, nil
+	}
+
 	dsn := sqlu.ConnParams{
-		Filename: crawlerDBFlag.Get(cCtx),
+		Filename: crawlerDBName,
 		Mode:     mode,
 		Pragma: []sqlu.Pragma{
 			sqlu.PragmaBusyTimeout(int64(busyTimeoutFlag.Get(cCtx))),

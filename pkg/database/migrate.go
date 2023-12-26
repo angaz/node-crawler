@@ -29,6 +29,10 @@ func (db *DB) Migrate() error {
 		[]migrationFn{
 			migrations.Migrate000Schema,
 			func(ctx context.Context, tx pgx.Tx) error {
+				if db.db == nil {
+					return nil
+				}
+
 				return migrations.Migrate001SqliteToPG(ctx, tx, db.db, db.geoipDB)
 			},
 		},

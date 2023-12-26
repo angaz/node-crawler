@@ -58,7 +58,10 @@ func NewDB(
 
 func (db *DB) Close() error {
 	db.pg.Close()
-	db.db.Close()
+
+	if db.db != nil {
+		db.db.Close()
+	}
 
 	return nil
 }

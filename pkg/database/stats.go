@@ -21,16 +21,16 @@ import (
 // Copies the stats into the stats table every `frequency` duration.
 func (db *DB) CopyStatsDaemon(frequency time.Duration) {
 	for {
-		// nextRun := time.Now().Truncate(frequency).Add(frequency)
-		// time.Sleep(time.Until(nextRun))
+		nextRun := time.Now().Truncate(frequency).Add(frequency)
+		time.Sleep(time.Until(nextRun))
 
 		err := db.CopyStats()
 		if err != nil {
 			log.Error("Copy stats failed", "err", err)
 		}
 
-		nextRun := time.Now().Truncate(frequency).Add(frequency)
-		time.Sleep(time.Until(nextRun))
+		// nextRun := time.Now().Truncate(frequency).Add(frequency)
+		// time.Sleep(time.Until(nextRun))
 	}
 }
 
@@ -39,8 +39,11 @@ func (db *DB) CopyStats() error {
 
 	defer metrics.ObserveDBQuery("copy_stats", time.Now(), err)
 
-	rows, err := db.db.Query(
+	_, err = db.pg.Exec(
+		context.Background(),
 		`
+			INSERT INTO stats.execution_nodes
+
 			SELECT
 				now() timestamp,
 				nodes.client_name_id,
@@ -97,164 +100,6 @@ func (db *DB) CopyStats() error {
 	)
 	if err != nil {
 		return fmt.Errorf("exec failed: %w", err)
-	}
-	defer rows.Close()
-
-	tx, err := db.pg.Begin(context.Background())
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback(context.Background())
-
-	stmt, err := tx.Prepare(
-		context.Background(),
-		"copy_stats",
-		`
-			WITH data AS (
-				SELECT
-					$1::TIMESTAMPTZ timestamp,
-					$2::TEXT client_name,
-					$3::TEXT client_user_data,
-					$4::TEXT client_version,
-					$5::INT client_os,
-					$6::INT client_arch,
-					$7::BIGINT network_id,
-					$8::BIGINT fork_id,
-					$9::BIGINT next_fork_id,
-					$10::INT country,
-					$11::BOOLEAN synced,
-					$12::BOOLEAN dial_success,
-					$13::BIGINT total
-			), client_names AS (
-				INSERT INTO stats.client_names (
-					client_name
-				)
-				SELECT DISTINCT client_name FROM data
-				WHERE client_name IS NOT NULL
-				ON CONFLICT DO NOTHING
-			), client_user_data AS (
-				INSERT INTO stats.client_user_data (
-					client_user_data
-				)
-				SELECT DISTINCT client_user_data FROM data
-				WHERE client_user_data IS NOT NULL
-				ON CONFLICT DO NOTHING
-			), client_versions AS (
-				INSERT INTO stats.client_versions (
-					client_version
-				)
-				SELECT DISTINCT client_version FROM data
-				WHERE client_version IS NOT NULL
-				ON CONFLICT DO NOTHING
-			)
-
-			INSERT INTO stats.crawled_nodes (
-				timestamp,
-				client_name_id,
-				client_user_data_id,
-				client_version_id,
-				client_os,
-				client_arch,
-				network_id,
-				fork_id,
-				next_fork_id,
-				country,
-				synced,
-				dial_success,
-				total
-			)
-			SELECT
-				data.timestamp,
-				client_names.client_name_id,
-				client_user_data.client_user_data_id,
-				client_versions.client_version_id,
-				data.client_os,
-				data.client_arch,
-				data.network_id,
-				data.fork_id,
-				data.next_fork_id,
-				data.country,
-				data.synced,
-				data.dial_success,
-				data.total
-			FROM data
-			LEFT JOIN stats.client_names
-				ON (data.client_name = client_names.client_name)
-			LEFT JOIN stats.client_user_data
-				ON (data.client_user_data = client_user_data.client_user_data)
-			LEFT JOIN stats.client_versions
-				ON (data.client_version = client_versions.client_version)
-		`,
-	)
-	if err != nil {
-		return fmt.Errorf("prepare: %w", err)
-	}
-
-	for rows.Next() {
-		var timestamp int64
-		var clientName string
-		var clientUserData *string
-		var clientVersion *string
-		var clientOS string
-		var clientArch string
-		var networkID int64
-		var forkID int64
-		var nextForkID uint64
-		var country string
-		var synced bool
-		var dialSuccess bool
-		var total int64
-
-		err := rows.Scan(
-			&timestamp,
-			&clientName,
-			&clientUserData,
-			&clientVersion,
-			&clientOS,
-			&clientArch,
-			&networkID,
-			&forkID,
-			&nextForkID,
-			&country,
-			&synced,
-			&dialSuccess,
-			&total,
-		)
-		if err != nil {
-			return fmt.Errorf("scan: %w", err)
-		}
-
-		_, err = tx.Exec(
-			context.Background(),
-			stmt.Name,
-
-			time.Unix(timestamp, 0),
-			clientName,
-			clientUserData,
-			clientVersion,
-			// TODO
-			// slices.Index(osStrings, clientOS),
-			// slices.Index(archStrings, clientArch),
-			0,
-			0,
-			networkID,
-			forkID,
-			nextForkID,
-			// TODO
-			// ParseCountryName(country),
-			0,
-			synced,
-			dialSuccess,
-			total,
-		)
-		if err != nil {
-			return fmt.Errorf("exec: %w", err)
-		}
-	}
-
-	err = tx.Commit(context.Background())
-	if err != nil {
-		return fmt.Errorf("commit: %w", err)
 	}
 
 	return nil

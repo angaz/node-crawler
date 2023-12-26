@@ -60,7 +60,7 @@ func (db *DB) historyCleaner(ctx context.Context) {
 
 	defer metrics.ObserveDBQuery("history_clean", time.Now(), err)
 
-	_, err = db.db.ExecContext(ctx, `
+	_, err = db.pg.Exec(ctx, `
 		DELETE FROM crawler.history
 		WHERE
 			crawled_at < (now() - INTERVAL '-14 days')

@@ -25,16 +25,6 @@ var (
 		Usage: "Snapshot directory.",
 		Value: "snapshots",
 	}
-	crawlerSnapshotFlag = cli.StringFlag{
-		Name:  "crawler-snapshot",
-		Usage: "Snapshot name for the crawler database. Passed to time.Format.",
-		Value: "crawler_20060102150405.db",
-	}
-	statsSnapshotFlag = cli.StringFlag{
-		Name:  "stats-snapshot",
-		Usage: "Snapshot name for the stats database. Passed to time.Format.",
-		Value: "stats_20060102150405.db",
-	}
 	bootnodesFlag = cli.StringSliceFlag{
 		Name: "bootnodes",
 		Usage: ("Comma separated nodes used for bootstrapping. " +
