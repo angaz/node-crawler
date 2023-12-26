@@ -73,6 +73,12 @@ func (l *Listener) StartDaemon(ctx context.Context) {
 }
 
 func (l *Listener) StartDiscCrawlers(ctx context.Context, crawlers int) {
+	if len(l.disc) == 0 {
+		log.Error("start disc crawlers: number of discovery servers running is zero")
+
+		return
+	}
+
 	for i := 0; i < crawlers; i++ {
 		disc := l.disc[i%len(l.disc)]
 

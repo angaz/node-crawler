@@ -112,7 +112,7 @@ var (
 	discWorkersFlag = cli.IntFlag{
 		Name:  "disc-workers",
 		Usage: "Number of discovery workers to start",
-		Value: 4,
+		Value: 1,
 	}
 	metricsAddressFlag = cli.StringFlag{
 		Name:  "metrics-addr",
