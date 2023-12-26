@@ -302,16 +302,17 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 }
 
 func createPartitions(ctx context.Context, tx pgx.Tx, table string) error {
-	end := 0xff - 0x10
-	for i := 0; i <= end; i += 0x10 {
+	end := 0x100
+	skip := 0x10
+	for i := 0; i < end; i += skip {
 		from := fmt.Sprintf("'\\x%02X'", i)
-		to := fmt.Sprintf("'\\x%02X'", i+16)
+		to := fmt.Sprintf("'\\x%02X'", i+skip)
 
 		if i == 0 {
 			from = "MINVALUE"
 		}
 
-		if i == end {
+		if i+skip >= end {
 			to = "MAXVALUE"
 		}
 

@@ -97,7 +97,7 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 				ON CONFLICT (node_id) DO UPDATE
 				SET
 					next_crawl = excluded.next_crawl
-				WHERE @direction == 'dial'
+				WHERE @direction = 'dial'::crawler.direction
 			)
 
 			INSERT INTO crawler.history (
@@ -115,14 +115,15 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 			ON CONFLICT (node_id, crawled_at) DO NOTHING;
 		`,
 		pgx.NamedArgs{
-			"node_id":     node.ID(),
-			"node_pubkey": common.PubkeyBytes(node.N.Pubkey()),
-			"node_type":   common.ENRNodeType(node.N.Record()).String(),
-			"node_record": common.EncodeENR(node.N.Record()),
-			"ip_address":  ip.String(),
-			"direction":   node.Direction.String(),
-			"error":       node.Error,
-			"next_crawl":  db.nextCrawlFail + randomHourSeconds(),
+			"node_id":         node.ID(),
+			"node_pubkey":     common.PubkeyBytes(node.N.Pubkey()),
+			"node_type":       common.ENRNodeType(node.N.Record()).String(),
+			"node_record":     common.EncodeENR(node.N.Record()),
+			"ip_address":      ip.String(),
+			"direction":       node.Direction.String(),
+			"error":           node.Error,
+			"next_crawl":      db.nextCrawlFail + randomHourSeconds(),
+			"city_geoname_id": location.cityGeoNameID,
 		},
 	)
 	if err != nil {
@@ -177,17 +178,17 @@ func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJ
 			ON CONFLICT (node_id) DO UPDATE
 			SET
 				next_crawl = excluded.next_crawl
-			WHERE @direction == 'dial'
+			WHERE @direction = 'dial'::crawler.direction
 		`,
 		pgx.NamedArgs{
-			"node_id":     node.ID(),
-			"node_pubkey": common.PubkeyBytes(node.N.Pubkey()),
-			"node_type":   common.ENRNodeType(node.N.Record()).String(),
-			"node_record": common.EncodeENR(node.N.Record()),
-			"ip_address":  ip.String(),
-			"direction":   node.Direction.String(),
-			"error":       node.Error,
-			"next_crawl":  db.nextCrawlNotEth + randomHourSeconds(),
+			"node_id":         node.ID(),
+			"node_pubkey":     common.PubkeyBytes(node.N.Pubkey()),
+			"node_type":       common.ENRNodeType(node.N.Record()).String(),
+			"node_record":     common.EncodeENR(node.N.Record()),
+			"ip_address":      ip.String(),
+			"direction":       node.Direction.String(),
+			"next_crawl":      db.nextCrawlNotEth + randomHourSeconds(),
+			"city_geoname_id": location.cityGeoNameID,
 		},
 	)
 	if err != nil {
@@ -209,6 +210,8 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 	if err != nil {
 		return fmt.Errorf("geolocation: %w", err)
 	}
+
+	fmt.Printf("%#v\n%s\n", location, ip.String())
 
 	if len(node.BlockHeaders) != 0 {
 		err = db.InsertBlocks(ctx, tx, node.Info.NetworkID, node.BlockHeaders)
@@ -239,7 +242,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 				VALUES (
 					nullif(@client_identifier, 'Unknown')
 				)
-				ON CONFLICT (client_identifier) DO NOTHING
+				ON CONFLICT DO NOTHING
 				RETURNING client_identifier_id
 			), client_name AS (
 				INSERT INTO client.names (
@@ -248,7 +251,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 				VALUES (
 					nullif(@client_name, 'Unknown')
 				)
-				ON CONFLICT (client_name) DO NOTHING
+				ON CONFLICT DO NOTHING
 				RETURNING client_name_id
 			), client_user_data AS (
 				INSERT INTO client.user_data (
@@ -257,7 +260,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 				VALUES (
 					nullif(@client_user_data, 'Unknown')
 				)
-				ON CONFLICT (client_user_data) DO NOTHING
+				ON CONFLICT DO NOTHING
 				RETURNING client_user_data_id
 			), client_version AS (
 				INSERT INTO client.versions (
@@ -266,7 +269,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 				VALUES (
 					nullif(@client_version, 'Unknown')
 				)
-				ON CONFLICT (client_version) DO NOTHING
+				ON CONFLICT DO NOTHING
 				RETURNING client_version_id
 			), client_build AS (
 				INSERT INTO client.builds (
@@ -275,7 +278,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 				VALUES (
 					nullif(@client_build, 'Unknown')
 				)
-				ON CONFLICT (client_build) DO NOTHING
+				ON CONFLICT DO NOTHING
 				RETURNING client_build_id
 			), client_language AS (
 				INSERT INTO client.languages (
@@ -284,7 +287,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 				VALUES (
 					nullif(@client_language, 'Unknown')
 				)
-				ON CONFLICT (client_language) DO NOTHING
+				ON CONFLICT DO NOTHING
 				RETURNING client_language_id
 			), capabilities AS (
 				INSERT INTO execution.capabilities (
@@ -293,7 +296,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 				VALUES (
 					nullif(@capabilities, 'Unknown')
 				)
-				ON CONFLICT (capabilities) DO NOTHING
+				ON CONFLICT DO NOTHING
 				RETURNING capabilities_id
 			), disc_node AS (
 				INSERT INTO disc.nodes (
@@ -320,15 +323,15 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 				)
 				ON CONFLICT (node_id) DO UPDATE
 				SET
-					last_found = unixepoch(),
+					last_found = now(),
 					-- Only update next_crawl if we initiated the connection.
 					-- Even if the peer initiated the the connection, we still
 					-- want to try dialing because we want to see if the node has
 					-- good inbound network configuration.
 					next_crawl = CASE
-						WHEN @direction == 'dial'
+						WHEN @direction = 'dial'::crawler.direction
 							THEN excluded.next_crawl
-							ELSE next_crawl
+							ELSE nodes.next_crawl
 						END
 			), crawled_node AS (
 				INSERT INTO execution.nodes (
@@ -448,7 +451,7 @@ func (db *DB) InsertBlocks(
 			) VALUES (
 				$1,
 				$2,
-				$3,
+				to_timestamp($3),
 				$4
 			)
 			ON CONFLICT (block_hash, network_id) DO NOTHING
@@ -467,8 +470,8 @@ func (db *DB) InsertBlocks(
 
 			block.Hash().Bytes(),
 			networkID,
-			block.Number.Uint64(),
 			block.Time,
+			block.Number.Uint64(),
 		)
 
 		metrics.ObserveDBQuery("insert_block", start, err)

@@ -21,10 +21,12 @@ func (db *DB) upsertCountryCity(ctx context.Context, tx pgx.Tx, location locatio
 				INSERT INTO geoname.countries (
 					country_geoname_id,
 					country_name
-				) VALUES (
+				)
+				VALUES (
 					@country_geoname_id,
 					@country_name
 				)
+				ON CONFLICT (country_geoname_id) DO NOTHING
 			)
 
 			INSERT INTO geoname.cities (
@@ -33,13 +35,15 @@ func (db *DB) upsertCountryCity(ctx context.Context, tx pgx.Tx, location locatio
 				country_geoname_id,
 				latitude,
 				longitude
-			) VALUES (
+			)
+			VALUES (
 				@city_geoname_id,
 				@city_name,
 				@country_geoname_id,
 				@latitude,
 				@longitude
 			)
+			ON CONFLICT (city_geoname_id) DO NOTHING
 		`,
 		pgx.NamedArgs{
 			"country_geoname_id": location.countryGeoNameID,
@@ -140,7 +144,7 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 				node_record = excluded.node_record,
 				ip_address = excluded.ip_address,
 				last_found = now()
-			WHERE last_found < (now() - INTERVAL '1 hour')  -- Only update once an hour
+			WHERE nodes.last_found < (now() - INTERVAL '1 hour')  -- Only update once an hour
 		`,
 		pgx.NamedArgs{
 			"node_id":         node.ID().Bytes(),

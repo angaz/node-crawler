@@ -55,15 +55,17 @@ func (l *Listener) Close() {
 	for _, listener := range l.listeners {
 		listener.Close()
 	}
+
+	for _, disc := range l.disc {
+		disc.Close()
+	}
 }
 
 func (l *Listener) StartDaemon(ctx context.Context) {
 	for i, nodeKey := range l.nodeKeys {
 		port := l.listenPortStart + uint16(i)
 
-		l.wg.Add(1)
-
-		go l.startListener(
+		l.startListener(
 			ctx,
 			nodeKey,
 			fmt.Sprintf("[%s]:%d", l.listenHost, port),
@@ -87,15 +89,12 @@ func (l *Listener) StartDiscCrawlers(ctx context.Context, crawlers int) {
 }
 
 func (l *Listener) startListener(ctx context.Context, nodeKey *ecdsa.PrivateKey, listenAddr string, port uint16) {
-	defer l.wg.Done()
-
 	disc, err := disc.New(l.db, nodeKey, listenAddr, port)
 	if err != nil {
 		log.Error("new discovery failed", "err", err, "addr", listenAddr)
 
 		return
 	}
-	defer disc.Close()
 
 	l.disc = append(l.disc, disc)
 
@@ -108,26 +107,32 @@ func (l *Listener) startListener(ctx context.Context, nodeKey *ecdsa.PrivateKey,
 
 	l.listeners = append(l.listeners, listener)
 
-	for ctx.Err() == nil {
-		var conn net.Conn
-		var err error
+	l.wg.Add(1)
 
-		for {
-			conn, err = listener.Accept()
-			if netutil.IsTemporaryError(err) {
-				time.Sleep(100 * time.Millisecond)
-				continue
-			} else if err != nil {
-				log.Error("crawler listener accept failed", "err", err)
+	go func() {
+		defer l.wg.Done()
+
+		for ctx.Err() == nil {
+			var conn net.Conn
+			var err error
+
+			for {
+				conn, err = listener.Accept()
+				if netutil.IsTemporaryError(err) {
+					time.Sleep(100 * time.Millisecond)
+					continue
+				} else if err != nil {
+					log.Error("crawler listener accept failed", "err", err)
+				}
+
+				break
 			}
 
-			break
+			metrics.AcceptedConnections.WithLabelValues(listenAddr).Inc()
+
+			go l.crawlPeer(ctx, nodeKey, conn)
 		}
-
-		metrics.AcceptedConnections.WithLabelValues(listenAddr).Inc()
-
-		go l.crawlPeer(ctx, nodeKey, conn)
-	}
+	}()
 }
 
 func (l *Listener) crawlPeer(ctx context.Context, nodeKey *ecdsa.PrivateKey, fd net.Conn) {
