@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/node-crawler/pkg/networks"
 	"github.com/jackc/pgx/v5"
 )
@@ -124,10 +125,15 @@ func InsertNetworks(ctx context.Context, tx pgx.Tx, githubToken string) error {
 		return fmt.Errorf("query last ephemery: %w", err)
 	}
 
+	startEphemery := time.Now()
+	log.Info("fetch ephemery networks", "last release", lastEphemery)
+
 	ephemeryNetworks, err := networks.GetEphemeryNetworks(githubToken, lastEphemery)
 	if err != nil {
 		return fmt.Errorf("get ephemerey networks: %w", err)
 	}
+
+	log.Info("fetch ephemery networks done", "duration", time.Since(startEphemery))
 
 	for _, network := range ephemeryNetworks {
 		forks = append(forks, network.Forks...)

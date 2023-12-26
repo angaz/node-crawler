@@ -36,18 +36,20 @@ func (db *DB) Migrate() error {
 				return migrations.Migrate001SqliteToPG(ctx, tx, db.db, db.geoipDB)
 			},
 		},
-		func(ctx context.Context, tx pgx.Tx) error {
-			return migrations.InsertNetworks(ctx, tx, db.githubToken)
+		map[string]migrationFn{
+			"insert networks": func(ctx context.Context, tx pgx.Tx) error {
+				return migrations.InsertNetworks(ctx, tx, db.githubToken)
+			},
+			"function client.upsert":                 migrations.ClientUpsertStrings,
+			"function execution.capabilities_upsert": migrations.ExecutionCapabilitiesUpsert,
 		},
-		migrations.ClientUpsertStrings,
-		migrations.ExecutionCapabilitiesUpsert,
 	)
 }
 
 func (db *DB) migrate(
 	ctx context.Context,
 	migrations []migrationFn,
-	staticObjects ...migrationFn,
+	staticObjects map[string]migrationFn,
 ) error {
 	tx, err := db.pg.Begin(ctx)
 	if err != nil {
@@ -91,7 +93,7 @@ func (db *DB) migrate(
 		}
 
 		start := time.Now()
-		log.Info("running migration", "version", version)
+		log.Info("migration start", "version", version)
 
 		err := migration(ctx, tx)
 		if err != nil {
@@ -120,11 +122,16 @@ func (db *DB) migrate(
 		)
 	}
 
-	for i, fn := range staticObjects {
+	for name, fn := range staticObjects {
+		start := time.Now()
+		log.Info("migration start", "name", name)
+
 		err = fn(ctx, tx)
 		if err != nil {
-			return fmt.Errorf("static object: %d failed: %w", i, err)
+			return fmt.Errorf("static object: %s failed: %w", name, err)
 		}
+
+		log.Info("migration complete", "name", name, "duration", time.Since(start))
 	}
 
 	err = tx.Commit(ctx)
