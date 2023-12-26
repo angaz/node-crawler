@@ -77,6 +77,7 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				'DISCONNECT_REASONS',
 	
 				'EOF',
+				'unknown',
 				'connection refused',
 				'connection reset by peer',
 				'corrupt input',

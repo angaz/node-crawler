@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/rlpx"
@@ -108,6 +109,7 @@ func TranslateError(err error) (bool, string) {
 	case strings.Contains(errStr, "broken pipe"):
 		return true, "broken pipe"
 	default:
-		return false, errStr
+		log.Info("Unknown error", "err", errStr)
+		return false, "unknown error"
 	}
 }
