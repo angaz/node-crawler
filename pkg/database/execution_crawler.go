@@ -88,7 +88,7 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 					@node_type,
 					now(),
 					now(),
-					now() + INTERVAL @next_crawl,
+					now() + make_interval(secs => @next_crawl),
 					@node_pubkey,
 					@node_record,
 					@ip_address,
@@ -122,7 +122,7 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 			"ip_address":  ip.String(),
 			"direction":   node.Direction.String(),
 			"error":       node.Error,
-			"next_crawl":  fmt.Sprintf("%d seconds", db.nextCrawlFail+randomHourSeconds()),
+			"next_crawl":  db.nextCrawlFail + randomHourSeconds(),
 		},
 	)
 	if err != nil {
@@ -168,7 +168,7 @@ func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJ
 				@node_type,
 				now(),
 				now(),
-				now() + INTERVAL @next_crawl,
+				now() + make_interval(secs => @next_crawl),
 				@node_pubkey,
 				@node_record,
 				@ip_address,
@@ -187,7 +187,7 @@ func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJ
 			"ip_address":  ip.String(),
 			"direction":   node.Direction.String(),
 			"error":       node.Error,
-			"next_crawl":  fmt.Sprintf("%d seconds", db.nextCrawlNotEth+randomHourSeconds()),
+			"next_crawl":  db.nextCrawlNotEth + randomHourSeconds(),
 		},
 	)
 	if err != nil {
@@ -312,7 +312,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 					@node_type,
 					now(),
 					now(),
-					now() + INTERVAL @next_crawl,
+					now() + make_interval(secs => @next_crawl),
 					@node_pubkey,
 					@node_record,
 					@ip_address,
@@ -420,7 +420,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 			"node_type":         common.ENRNodeType(node.N.Record()),
 			"node_record":       common.EncodeENR(node.N.Record()),
 			"direction":         node.Direction,
-			"next_crawl":        fmt.Sprintf("%d seconds", db.nextCrawlSucces+randomHourSeconds()),
+			"next_crawl":        db.nextCrawlSucces + randomHourSeconds(),
 		},
 	)
 	if err != nil {
@@ -446,10 +446,10 @@ func (db *DB) InsertBlocks(
 				timestamp,
 				block_number
 			) VALUES (
-				@block_hash,
-				@network_id,
-				@block_number,
-				@timestamp
+				$1,
+				$2,
+				$3,
+				$4
 			)
 			ON CONFLICT (block_hash, network_id) DO NOTHING
 		`,
@@ -465,12 +465,10 @@ func (db *DB) InsertBlocks(
 			ctx,
 			stmt.Name,
 
-			pgx.NamedArgs{
-				"block_hash":   block.Hash().Bytes(),
-				"network_id":   networkID,
-				"block_number": block.Number.Uint64(),
-				"timestamp":    block.Time,
-			},
+			block.Hash().Bytes(),
+			networkID,
+			block.Number.Uint64(),
+			block.Time,
 		)
 
 		metrics.ObserveDBQuery("insert_block", start, err)
