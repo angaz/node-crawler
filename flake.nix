@@ -373,7 +373,7 @@
                       "--crawler-db=${cfg.crawlerDatabaseName}"
                       "--crawler-snapshot=${cfg.crawlerSnapshotFilename}"
                       "--geoipdb=${cfg.crawler.geoipdb}"
-                      "--github-token-file=${cfg.crawler.githubTokenFile}"
+                      "--github-token=${cfg.crawler.githubTokenFile}"
                       "--listen-start-port=${toString cfg.crawler.listenPortStart}"
                       "--metrics-addr=${cfg.crawler.metricsAddress}"
                       "--next-crawl-fail=${cfg.crawler.nextCrawlFail}"
