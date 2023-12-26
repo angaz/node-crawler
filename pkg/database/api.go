@@ -585,13 +585,11 @@ func statsInstant(
 					%s key,
 					SUM(total) total
 				FROM timeseries
-				JOIN client.client_names USING (client_name_id)
-				JOIN client.client_versions USING (client_version_id)
-				JOIN client.os USING (client_os_id)
-				JOIN client_arch USING (client_arch_id)
+				JOIN client.names USING (client_name_id)
+				JOIN client.versions USING (client_version_id)
 				JOIN geoname.countries USING (country_geoname_id)
 				WHERE
-					bucket = MAX(SELECT bucket FROM timeseries)
+					bucket = (SELECT MAX(bucket) FROM timeseries)
 				GROUP BY
 					key,
 					total
@@ -648,14 +646,14 @@ func statsGraph(
 						%s key,
 						SUM(total) total
 					FROM timeseries
-					JOIN client.client_names USING (client_name_id)
-					JOIN client.client_versions USING (client_version_id)
+					JOIN client.names USING (client_name_id)
+					JOIN client.versions USING (client_version_id)
 					GROUP BY
 						bucket,
 						key
 				)
 				GROUP BY key
-				ORDER BY totals[array_lenth(totals)] DESC NULLS LAST  -- Sort by last element
+				-- ORDER BY totals[array_lenth(totals)] DESC NULLS LAST  -- Sort by last element
 			`,
 			column,
 		),
@@ -708,20 +706,25 @@ func (db *DB) GetStats(
 	}
 	defer tx.Rollback(ctx)
 
+	bucketWidth := max(
+		before.Sub(after)/64,
+		30*time.Minute,
+	)
+
 	_, err = tx.Exec(
 		ctx,
 		`
 			SELECT
 				time_bucket_gapfill(
-					GREATEST($3::TIMESTAMPTZ - $2::TIMESTAMP / 64, '30 minutes'),
+					@bucket_width,
 					timestamp,
-					$2,
-					$3
+					@after::TIMESTAMPTZ,
+					@before::TIMESTAMPTZ
 				) bucket,
 				client_name_id,
 				client_version_id,
-				client_os_id,
-				client_arch_id,
+				client_os,
+				client_arch,
 				network_id,
 				fork_id,
 				next_fork_id,
@@ -729,31 +732,30 @@ func (db *DB) GetStats(
 				synced,
 				dial_success,
 				avg(total)::INT total
-			INTO TEMPORARY UNLOGGED TABLE timeseries
+			INTO TEMPORARY TABLE timeseries
 			FROM stats.execution_nodes
-			JOIN client.client_names USING (client_name_id)
+			JOIN client.names USING (client_name_id)
 			WHERE
-				client_type = $1
-				AND timestamp >= $2
-				AND timestamp < $3
+				timestamp >= @after::TIMESTAMPTZ
+				AND timestamp < @before::TIMESTAMPTZ
 				AND (
-					$4 = -1
-					OR network_id = $4
+					@network_id = -1
+					OR network_id = @network_id
 				)
 				AND (
-					$5 = -1
-					OR synced = ($5 = 1)
+					@syned = -1
+					OR synced = (@syned = 1)
 				)
 				AND (
-					$6 = ''
-					OR client_names.client_name = $6
+					@client_name = ''
+					OR names.client_name = @client_name
 				)
 			GROUP BY
 				bucket,
 				client_name_id,
 				client_version_id,
-				client_os_id,
-				client_arch_id,
+				client_os,
+				client_arch,
 				network_id,
 				fork_id,
 				next_fork_id,
@@ -763,12 +765,14 @@ func (db *DB) GetStats(
 			ORDER BY
 				bucket ASC
 		`,
-		common.NodeTypeExecution,
-		after,
-		before,
-		networkID,
-		synced,
-		clientName,
+		pgx.NamedArgs{
+			"bucket_width": bucketWidth,
+			"after":        after,
+			"before":       before,
+			"client_name":  clientName,
+			"network_id":   networkID,
+			"synced":       synced,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create temp table: %w", err)
@@ -830,8 +834,8 @@ func (db *DB) GetStats(
 	osArchInstant, err := statsInstant(
 		ctx,
 		tx,
-		("COALESCE(client_os_name, 'Unknown') || " +
-			"' / ' || COALESCE(client_arch_name, 'Unknown')"),
+		("COALESCE(client_os, 'Unknown') || " +
+			"' / ' || COALESCE(client_arch, 'Unknown')"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("os/arch instant: %w", err)

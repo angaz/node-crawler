@@ -22,7 +22,6 @@ var apiCommand = &cli.Command{
 	Flags: []cli.Flag{
 		&apiListenAddrFlag,
 		&busyTimeoutFlag,
-		&crawlerDBFlag,
 		&dropNodesTimeFlag,
 		&enodeAddrFlag,
 		&listenStartPortFlag,
@@ -30,7 +29,6 @@ var apiCommand = &cli.Command{
 		&nodeKeysFileFlag,
 		&postgresFlag,
 		&snapshotDirFlag,
-		&statsDBFlag,
 		&statsUpdateFrequencyFlag,
 	},
 }

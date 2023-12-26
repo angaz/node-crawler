@@ -394,11 +394,9 @@
                   let
                     args = [
                       "--api-addr=${apiAddress}"
-                      "--crawler-db=${cfg.crawlerDatabaseName}"
                       "--enode-addr=${cfg.api.enodeAddr}"
                       "--metrics-addr=${cfg.api.metricsAddress}"
                       "--snapshot-dir=${cfg.snapshotDirname}"
-                      "--stats-db=${cfg.statsDatabaseName}"
                       "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler\""
                     ];
                   in

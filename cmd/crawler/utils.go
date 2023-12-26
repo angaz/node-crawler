@@ -110,14 +110,9 @@ func openDBWriter(cCtx *cli.Context, geoipDB *geoip2.Reader) (*database.DB, erro
 }
 
 func openDBReader(cCtx *cli.Context) (*database.DB, error) {
-	sqlite, err := openSQLiteDB(cCtx, sqlu.ParamModeRO)
-	if err != nil {
-		return nil, fmt.Errorf("opening database failed: %w", err)
-	}
-
 	db, err := database.NewAPIDB(
 		cCtx.Context,
-		sqlite,
+		nil,
 		postgresFlag.Get(cCtx),
 	)
 	if err != nil {
