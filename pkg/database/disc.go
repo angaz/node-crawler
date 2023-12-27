@@ -22,6 +22,10 @@ type querier interface {
 	Query(context.Context, string, ...any) (pgx.Rows, error)
 }
 
+type rowQuerier interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
 func (_ *DB) upsertCountryCity(ctx context.Context, db execer, location location) error {
 	_, err := db.Exec(
 		ctx,
@@ -70,6 +74,40 @@ func (_ *DB) upsertCountryCity(ctx context.Context, db execer, location location
 	return nil
 }
 
+func (_ *DB) selectBestRecord(ctx context.Context, db rowQuerier, node *enode.Node) (*enr.Record, error) {
+	var savedRecordBytes []byte
+	var savedRecord *enr.Record
+
+	row := db.QueryRow(
+		ctx,
+		`
+			SELECT
+				node_record
+			FROM disc.nodes
+			WHERE node_id = @node_id
+		`,
+		pgx.NamedArgs{
+			"node_id": node.ID(),
+		},
+	)
+
+	err := row.Scan(&savedRecordBytes)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("query node_record: %w", err)
+	}
+
+	if savedRecordBytes != nil {
+		savedRecord, err = common.LoadENR(savedRecordBytes)
+		if err != nil {
+			return nil, fmt.Errorf("load saved record: %w", err)
+		}
+	}
+
+	bestRecord := common.BestRecord(savedRecord, node.Record())
+
+	return bestRecord, nil
+}
+
 func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 	var err error
 
@@ -83,42 +121,23 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 		return fmt.Errorf("ip to location: %w", err)
 	}
 
-	err = db.upsertCountryCity(ctx, db.pg, location)
+	tx, err := db.pg.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("start tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	err = db.upsertCountryCity(ctx, tx, location)
 	if err != nil {
 		return fmt.Errorf("upsert country city: %w", err)
 	}
 
-	var savedRecordBytes []byte
-	var savedRecord *enr.Record
-
-	row := db.pg.QueryRow(
-		ctx,
-		`
-			SELECT
-				node_record
-			FROM disc.nodes
-			WHERE node_id = @node_id
-		`,
-		pgx.NamedArgs{
-			"node_id": node.ID(),
-		},
-	)
-
-	err = row.Scan(&savedRecordBytes)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("query node_record: %w", err)
+	bestRecord, err := db.selectBestRecord(ctx, tx, node)
+	if err != nil {
+		return fmt.Errorf("select best record: %w", err)
 	}
 
-	if savedRecordBytes != nil {
-		savedRecord, err = common.LoadENR(savedRecordBytes)
-		if err != nil {
-			return fmt.Errorf("load saved record: %w", err)
-		}
-	}
-
-	bestRecord := common.BestRecord(savedRecord, node.Record())
-
-	_, err = db.pg.Exec(
+	_, err = tx.Exec(
 		ctx,
 		`
 			INSERT INTO disc.nodes (
@@ -162,6 +181,11 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 	)
 	if err != nil {
 		return fmt.Errorf("exec: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
 	}
 
 	return nil
