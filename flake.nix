@@ -240,6 +240,12 @@
                 description = "Address to use for displaying the enodes on the help page";
                 example = "127.0.0.1";
               };
+
+              maxPoolConns = mkOption {
+                type = types.int;
+                default = 16;
+                description = "Max number of open connections to the database.";
+              };
             };
 
             crawler = {
@@ -280,6 +286,12 @@
                 type = types.int;
                 default = 16;
                 description = "Number of crawler workers to start.";
+              };
+
+              maxPoolConns = mkOption {
+                type = types.int;
+                default = cfg.crawler.workers * 2;
+                description = "Max number of open connections to the database.";
               };
 
               metricsAddress = mkOption {
@@ -366,7 +378,7 @@
                       "--next-crawl-fail=${cfg.crawler.nextCrawlFail}"
                       "--next-crawl-not-eth=${cfg.crawler.nextCrawlNotEth}"
                       "--next-crawl-success=${cfg.crawler.nextCrawlSuccess}"
-                      "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler\""
+                      "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler pool_max_conns=${toString cfg.crawler.maxPoolConns}\""
                       "--stats-db=${cfg.statsDatabaseName}"
                       "--workers=${toString cfg.crawler.workers}"
                     ];
@@ -397,7 +409,7 @@
                       "--enode-addr=${cfg.api.enodeAddr}"
                       "--metrics-addr=${cfg.api.metricsAddress}"
                       "--snapshot-dir=${cfg.snapshotDirname}"
-                      "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler\""
+                      "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler pool_max_conns=${toString cfg.api.maxPoolConns}\""
                     ];
                   in
                   "${pkgs.nodeCrawler}/bin/crawler --pprof=${if cfg.api.pprof then "true" else "false"} api ${concatStringsSep " " args}";
