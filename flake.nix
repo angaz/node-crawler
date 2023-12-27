@@ -288,6 +288,12 @@
                 description = "Number of crawler workers to start.";
               };
 
+              discWorkers = mkOption {
+                type = types.int;
+                default = 2;
+                description = "Number of discovery crawler workers to start.";
+              };
+
               maxPoolConns = mkOption {
                 type = types.int;
                 default = cfg.crawler.workers * 2;
@@ -381,6 +387,7 @@
                       "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler pool_max_conns=${toString cfg.crawler.maxPoolConns}\""
                       "--stats-db=${cfg.statsDatabaseName}"
                       "--workers=${toString cfg.crawler.workers}"
+                      "--disc-workers=${toString cfg.crawler.discWorkers}"
                     ];
                   in
                   "${pkgs.nodeCrawler}/bin/crawler --pprof=${if cfg.crawler.pprof then "true" else "false"} crawl ${concatStringsSep " " args}";
