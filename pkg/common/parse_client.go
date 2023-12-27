@@ -603,8 +603,6 @@ func ParseClientID(clientName *string) *Client {
 			strings.HasPrefix(client.Build, "beta")) {
 		buildParts := strings.Split(client.Build, "-")
 		client.Version += "-" + buildParts[0]
-
-		fmt.Println(client.Version)
 	}
 
 	return client
