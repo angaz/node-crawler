@@ -296,7 +296,7 @@
 
               maxPoolConns = mkOption {
                 type = types.int;
-                default = cfg.crawler.workers * 2;
+                default = (cfg.crawler.workers) + (cfg.crawler.discWorkers) + (cfg.crawler.listenerCount * 8);
                 description = "Max number of open connections to the database.";
               };
 
@@ -454,6 +454,7 @@
                 package = pkgs.postgresql_16;
                 extraPlugins = psql: with psql; [ timescaledb ];
                 settings = {
+                  max_connections = (cfg.crawler.maxPoolConns + cfg.api.maxPoolConns) * 1.15;
                   shared_preload_libraries = concatStringsSep "," [
                     "pg_stat_statements"
                     "timescaledb"
