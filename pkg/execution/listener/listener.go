@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/node-crawler/pkg/execution/disc"
 	"github.com/ethereum/node-crawler/pkg/execution/p2p"
 	"github.com/ethereum/node-crawler/pkg/metrics"
+	"github.com/jackc/pgx"
 )
 
 type Listener struct {
@@ -147,37 +148,27 @@ func (l *Listener) crawlPeer(ctx context.Context, nodeKey *ecdsa.PrivateKey, fd 
 	}
 	defer conn.Close()
 
-	tx, err := l.db.Begin(ctx)
+	err = l.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		node := conn.GetClientInfo(
+			ctx,
+			tx,
+			l.nodeFromConn(pubKey, fd),
+			common.DirectionAccept,
+			l.db.GetMissingBlock,
+		)
+
+		err = l.db.UpsertCrawledNode(ctx, tx, node)
+		if err != nil {
+			return fmt.Errorf("upsert: %s: %w", node.TerminalString(), err)
+		}
+
+		metrics.NodeUpdateInc(string(node.Direction), node.Error)
+
+		return nil
+	})
 	if err != nil {
-		log.Error("accept crawl peer begin failed", "err", err)
-
-		return
+		log.Error("accept peer failed", "err", err)
 	}
-	defer tx.Rollback(ctx)
-
-	node := conn.GetClientInfo(
-		ctx,
-		tx,
-		l.nodeFromConn(pubKey, fd),
-		common.DirectionAccept,
-		l.db.GetMissingBlock,
-	)
-
-	err = l.db.UpsertCrawledNode(ctx, tx, node)
-	if err != nil {
-		log.Error("accept crawl peer upsert failed", "err", err, "node_id", node.TerminalString())
-
-		return
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
-		log.Error("accept crawl peer commit failed", "err", err, "node_id", node.TerminalString())
-
-		return
-	}
-
-	metrics.NodeUpdateInc(string(node.Direction), node.Error)
 }
 
 func (l *Listener) nodeFromConn(pubkey *ecdsa.PublicKey, conn net.Conn) *enode.Node {

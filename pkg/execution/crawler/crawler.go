@@ -101,32 +101,23 @@ func (c *Crawler) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) er
 }
 
 func (c *Crawler) crawlAndUpdateNode(ctx context.Context) error {
-	tx, err := c.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback(ctx)
+	return c.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		node, err := c.db.SelectDiscoveredNode(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("select node: %w", err)
+		}
 
-	node, err := c.db.SelectDiscoveredNode(ctx, tx)
-	if err != nil {
-		return fmt.Errorf("select node: %w", err)
-	}
+		if node == nil {
+			return ErrNothingToCrawl
+		}
 
-	if node == nil {
-		return ErrNothingToCrawl
-	}
+		err = c.crawlNode(ctx, tx, node)
+		if err != nil {
+			return fmt.Errorf("crawl node: %w", err)
+		}
 
-	err = c.crawlNode(ctx, tx, node)
-	if err != nil {
-		return fmt.Errorf("crawl node: %w", err)
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("commit: %w", err)
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // Meant to be run as a goroutine

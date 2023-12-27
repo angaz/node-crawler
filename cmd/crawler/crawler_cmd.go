@@ -100,6 +100,7 @@ func crawlNodesV2(cCtx *cli.Context) error {
 	go db.TableStatsMetricsDaemon(cCtx.Context, 5*time.Minute)
 	go db.CleanerDaemon(cCtx.Context, 3*time.Hour)
 	go db.CopyStatsDaemon(statsCopyFrequencyFlag.Get(cCtx))
+	go db.EphemeryInsertDaemon(cCtx.Context, time.Hour)
 
 	nodeKeys, err := readNodeKeys(cCtx)
 	if err != nil {

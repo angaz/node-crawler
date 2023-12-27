@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/node-crawler/pkg/database/migrations"
 	"github.com/ethereum/node-crawler/pkg/metrics"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -73,10 +74,6 @@ type tableStats struct {
 	totalToCrawl         int64
 }
 
-func (db *DB) Begin(ctx context.Context) (pgx.Tx, error) {
-	return db.pg.Begin(ctx)
-}
-
 func (db *DB) getTableStats(ctx context.Context) (*tableStats, error) {
 	var err error
 
@@ -140,5 +137,44 @@ func (db *DB) TableStatsMetricsDaemon(ctx context.Context, frequency time.Durati
 		metrics.DBStatsCrawledNodes.Set(float64(stats.totalCrawledNodes))
 		metrics.DBStatsDiscNodes.Set(float64(stats.totalDiscoveredNodes))
 		metrics.DBStatsNodesToCrawl.Set(float64(stats.totalToCrawl))
+	}
+}
+
+func (db *DB) WithTx(ctx context.Context, fn func(context.Context, pgx.Tx) error) error {
+	tx, err := db.pg.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("start tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	err = fn(ctx, tx)
+	if err != nil {
+		return fmt.Errorf("fn: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return nil
+}
+
+func (db *DB) EphemeryInsertDaemon(ctx context.Context, frequency time.Duration) {
+	for ctx.Err() == nil {
+		next := time.Now().Truncate(frequency).Add(frequency)
+		time.Sleep(time.Until(next))
+
+		err := db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			err := migrations.InsertNewEphemeryNetworks(ctx, tx, db.githubToken)
+			if err != nil {
+				return fmt.Errorf("new ephemery: %w", err)
+			}
+
+			return nil
+		})
+		if err != nil {
+			log.Error("ephemery daemon failed", "err", err)
+		}
 	}
 }
