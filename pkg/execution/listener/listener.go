@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum/node-crawler/pkg/execution/disc"
 	"github.com/ethereum/node-crawler/pkg/execution/p2p"
 	"github.com/ethereum/node-crawler/pkg/metrics"
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v5"
 )
 
 type Listener struct {
