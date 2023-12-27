@@ -19,9 +19,9 @@ type DB struct {
 	pg      *pgxpool.Pool
 	geoipDB *geoip2.Reader
 
-	nextCrawlSucces int64
-	nextCrawlFail   int64
-	nextCrawlNotEth int64
+	nextCrawlSucces time.Duration
+	nextCrawlFail   time.Duration
+	nextCrawlNotEth time.Duration
 	githubToken     string
 }
 
@@ -49,9 +49,9 @@ func NewDB(
 		pg:      pg,
 		geoipDB: geoipDB,
 
-		nextCrawlSucces: int64(nextCrawlSucces.Seconds()),
-		nextCrawlFail:   int64(nextCrawlFail.Seconds()),
-		nextCrawlNotEth: int64(nextCrawlNotEth.Seconds()),
+		nextCrawlSucces: nextCrawlSucces,
+		nextCrawlFail:   nextCrawlFail,
+		nextCrawlNotEth: nextCrawlNotEth,
 		githubToken:     githubToken,
 	}, nil
 }

@@ -46,8 +46,8 @@ func (db *DB) IPToLocation(ip net.IP) (location, error) {
 	}, nil
 }
 
-func randomHourSeconds() int64 {
-	return rand.Int63n(3600)
+func randomHourSeconds() time.Duration {
+	return time.Duration(rand.Int63n(3600)) * time.Second
 }
 
 func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.NodeJSON) error {
@@ -88,7 +88,7 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 					@node_type,
 					now(),
 					now(),
-					now() + make_interval(secs => @next_crawl),
+					@next_crawl,
 					@node_pubkey,
 					@node_record,
 					@ip_address,
@@ -122,7 +122,7 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 			"ip_address":      ip.String(),
 			"direction":       node.Direction.String(),
 			"error":           node.Error,
-			"next_crawl":      db.nextCrawlFail + randomHourSeconds(),
+			"next_crawl":      time.Now().Add(db.nextCrawlFail + randomHourSeconds()),
 			"city_geoname_id": location.cityGeoNameID,
 		},
 	)
@@ -169,7 +169,7 @@ func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJ
 				@node_type,
 				now(),
 				now(),
-				now() + make_interval(secs => @next_crawl),
+				@next_crawl,
 				@node_pubkey,
 				@node_record,
 				@ip_address,
@@ -187,7 +187,7 @@ func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJ
 			"node_record":     common.EncodeENR(node.N.Record()),
 			"ip_address":      ip.String(),
 			"direction":       node.Direction.String(),
-			"next_crawl":      db.nextCrawlNotEth + randomHourSeconds(),
+			"next_crawl":      time.Now().Add(db.nextCrawlNotEth + randomHourSeconds()),
 			"city_geoname_id": location.cityGeoNameID,
 		},
 	)
@@ -259,7 +259,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 					@node_type,
 					now(),
 					now(),
-					now() + make_interval(secs => @next_crawl),
+					@next_crawl,
 					@node_pubkey,
 					@node_record,
 					@ip_address,
@@ -367,7 +367,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 			"node_type":         common.ENRNodeType(node.N.Record()),
 			"node_record":       common.EncodeENR(node.N.Record()),
 			"direction":         node.Direction,
-			"next_crawl":        db.nextCrawlSucces + randomHourSeconds(),
+			"next_crawl":        time.Now().Add(db.nextCrawlSucces + randomHourSeconds()),
 		},
 	)
 	if err != nil {

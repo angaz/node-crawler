@@ -144,10 +144,12 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 			)
 			ON CONFLICT (node_id) DO UPDATE
 			SET
+				node_type = excluded.node_type,
+				last_found = now(),
 				node_record = excluded.node_record,
 				ip_address = excluded.ip_address,
-				last_found = now()
-			WHERE nodes.last_found < (now() - INTERVAL '1 hour')  -- Only update once an hour
+				city_geoname_id = excluded.city_geoname_id
+			WHERE nodes.last_found < (now() - INTERVAL '6 hours')  -- Only update once every 6 hours
 		`,
 		pgx.NamedArgs{
 			"node_id":         node.ID().Bytes(),
