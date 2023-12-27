@@ -195,7 +195,7 @@ func (_ *DB) SelectDiscoveredNode(ctx context.Context, tx pgx.Tx) (*enode.Node, 
 	var err error
 
 	start := time.Now()
-	defer metrics.ObserveDBQuery("select_disc_node_slice", start, err)
+	defer metrics.ObserveDBQuery("select_disc_node", start, err)
 
 	rows, err := tx.Query(
 		ctx,
@@ -206,7 +206,6 @@ func (_ *DB) SelectDiscoveredNode(ctx context.Context, tx pgx.Tx) (*enode.Node, 
 			WHERE
 				next_crawl < now()
 				AND node_type IN ('Unknown', 'Execution')
-			ORDER BY next_crawl ASC
 			LIMIT 1
 			FOR UPDATE SKIP LOCKED
 		`,
