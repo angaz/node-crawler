@@ -86,15 +86,15 @@ func (db *DB) getTableStats(ctx context.Context) (*tableStats, error) {
 		ctx,
 		`
 			SELECT
-				(SELECT COUNT(*) FROM discovered_nodes),
+				(SELECT COUNT(*) FROM disc.nodes),
 				(
-					SELECT COUNT(*) FROM discovered_nodes
+					SELECT COUNT(*) FROM disc.nodes
 					WHERE
-						next_crawl < unixepoch()
-						AND node_type IN (0, 1)
+						next_crawl < now()
+						AND node_type IN ('Unknown', 'Execution')
 				),
-				(SELECT COUNT(*) FROM crawled_nodes),
-				(SELECT COUNT(*) FROM blocks)
+				(SELECT COUNT(*) FROM execution.nodes),
+				(SELECT COUNT(*) FROM execution.blocks)
 		`,
 	)
 	if err != nil {

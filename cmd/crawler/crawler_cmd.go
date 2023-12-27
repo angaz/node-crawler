@@ -97,7 +97,7 @@ func crawlNodesV2(cCtx *cli.Context) error {
 	}
 	defer db.Close()
 
-	// go db.TableStatsMetricsDaemon(cCtx.Context, 5*time.Minute)
+	go db.TableStatsMetricsDaemon(cCtx.Context, 5*time.Minute)
 	go db.CleanerDaemon(cCtx.Context, 3*time.Hour)
 	go db.CopyStatsDaemon(statsCopyFrequencyFlag.Get(cCtx))
 
