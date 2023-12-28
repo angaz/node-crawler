@@ -314,7 +314,7 @@
 
               nextCrawlFail = mkOption {
                 type = types.str;
-                default = "36h";
+                default = "48h";
                 description = "Next crawl value if the crawl was unsuccessful.";
               };
 

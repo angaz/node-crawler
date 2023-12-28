@@ -137,7 +137,7 @@ var (
 	nextCrawlFailFlag = cli.DurationFlag{
 		Name:  "next-crawl-fail",
 		Usage: "Next crawl value if the crawl was unsuccessful",
-		Value: 36 * time.Hour,
+		Value: 48 * time.Hour,
 	}
 	nextCrawlNotEthFlag = cli.DurationFlag{
 		Name:  "next-crawl-not-eth",
