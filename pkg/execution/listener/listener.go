@@ -162,8 +162,6 @@ func (l *Listener) crawlPeer(ctx context.Context, nodeKey *ecdsa.PrivateKey, fd 
 			return fmt.Errorf("upsert: %s: %w", node.TerminalString(), err)
 		}
 
-		metrics.NodeUpdateInc(string(node.Direction), node.Error)
-
 		return nil
 	})
 	if err != nil {
