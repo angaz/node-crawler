@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/node-crawler/pkg/common"
@@ -191,55 +192,85 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 	return nil
 }
 
-func (_ *DB) SelectDiscoveredNode(ctx context.Context, tx pgx.Tx) (*enode.Node, error) {
+type NodeToCrawl struct {
+	NextCrawl time.Time
+	Enode     *enode.Node
+}
+
+func (db *DB) fetchNodesToCrawl(ctx context.Context) error {
 	var err error
 
 	start := time.Now()
 	defer metrics.ObserveDBQuery("select_disc_node", start, err)
 
-	rows, err := tx.Query(
+	rows, err := db.pg.Query(
 		ctx,
 		`
 			SELECT
+				next_crawl,
 				node_record
 			FROM disc.nodes
 			WHERE
-				next_crawl < now()
-				AND node_type IN ('Unknown', 'Execution')
-			LIMIT 1
-			FOR UPDATE SKIP LOCKED
+				node_type IN ('Unknown', 'Execution')
+			ORDER BY next_crawl
+			LIMIT 8196
 		`,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query: %w", err)
+		return fmt.Errorf("query: %w", err)
 	}
 	defer rows.Close()
 
-	if !rows.Next() {
-		return nil, nil
-	}
-
+	var nextCrawl time.Time
 	var enrBytes []byte
 
-	err = rows.Scan(&enrBytes)
+	_, err = pgx.ForEachRow(rows, []any{&nextCrawl, &enrBytes}, func() error {
+		record, err := common.LoadENR(enrBytes)
+		if err != nil {
+			return fmt.Errorf("load enr: %w", err)
+		}
+
+		node, err := common.RecordToEnode(record)
+		if err != nil {
+			return fmt.Errorf("record to enode: %w, %x", err, enrBytes)
+		}
+
+		db.nodesToCrawlCache <- &NodeToCrawl{
+			NextCrawl: nextCrawl,
+			Enode:     node,
+		}
+
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("scanning row: %w", err)
+		return fmt.Errorf("collect rows: %w", err)
 	}
 
-	record, err := common.LoadENR(enrBytes)
-	if err != nil {
-		return nil, fmt.Errorf("load enr: %w", err)
+	return nil
+}
+
+func (db *DB) NodesToCrawl(ctx context.Context) (*enode.Node, error) {
+	db.nodesToCrawlLock.Lock()
+	defer db.nodesToCrawlLock.Unlock()
+
+	for ctx.Err() == nil {
+		select {
+		case nextNode := <-db.nodesToCrawlCache:
+			if nextNode == nil {
+				continue
+			}
+
+			time.Sleep(time.Until(nextNode.NextCrawl))
+
+			return nextNode.Enode, nil
+		default:
+			err := db.fetchNodesToCrawl(ctx)
+			if err != nil {
+				log.Error("fetch nodes to crawl failed", "err", err)
+				time.Sleep(time.Minute)
+			}
+		}
 	}
 
-	node, err := common.RecordToEnode(record)
-	if err != nil {
-		return nil, fmt.Errorf("record to enode: %w, %x", err, enrBytes)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("rows iteration failed: %w", err)
-	}
-
-	return node, nil
+	return nil, ctx.Err()
 }

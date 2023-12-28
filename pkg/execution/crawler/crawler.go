@@ -101,12 +101,12 @@ func (c *Crawler) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) er
 }
 
 func (c *Crawler) crawlAndUpdateNode(ctx context.Context) error {
-	return c.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		node, err := c.db.SelectDiscoveredNode(ctx, tx)
-		if err != nil {
-			return fmt.Errorf("select node: %w", err)
-		}
+	node, err := c.db.NodesToCrawl(ctx)
+	if err != nil {
+		return fmt.Errorf("select node: %w", err)
+	}
 
+	return c.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		if node == nil {
 			return ErrNothingToCrawl
 		}

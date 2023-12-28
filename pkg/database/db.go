@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -24,6 +25,9 @@ type DB struct {
 	nextCrawlFail   time.Duration
 	nextCrawlNotEth time.Duration
 	githubToken     string
+
+	nodesToCrawlCache chan *NodeToCrawl
+	nodesToCrawlLock  *sync.Mutex
 }
 
 func NewAPIDB(ctx context.Context, db *sql.DB, pgConnString string) (*DB, error) {
@@ -54,6 +58,9 @@ func NewDB(
 		nextCrawlFail:   nextCrawlFail,
 		nextCrawlNotEth: nextCrawlNotEth,
 		githubToken:     githubToken,
+
+		nodesToCrawlCache: make(chan *NodeToCrawl, 16384),
+		nodesToCrawlLock:  new(sync.Mutex),
 	}, nil
 }
 
