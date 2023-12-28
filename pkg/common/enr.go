@@ -37,23 +37,55 @@ import (
 
 type NodeType int
 
-var (
+const (
 	NodeTypeUnknown   NodeType = 0
 	NodeTypeExecution NodeType = 1
 	NodeTypeConsensus NodeType = 2
 )
 
-func (n NodeType) String() string {
-	switch n {
-	case NodeTypeUnknown:
-		return "Unknown"
-	case NodeTypeExecution:
-		return "Execution"
-	case NodeTypeConsensus:
-		return "Consensus"
-	default:
-		return "Not valid type"
+var (
+	nodeTypeStrings = [...]string{
+		NodeTypeUnknown:   "Unknown",
+		NodeTypeExecution: "Execution",
+		NodeTypeConsensus: "Consensus",
 	}
+	stringToNodeTypes = map[string]NodeType{
+		"Unknown":   NodeTypeUnknown,
+		"Execution": NodeTypeExecution,
+		"Consensus": NodeTypeConsensus,
+	}
+)
+
+func (n NodeType) String() string {
+	if int(n) >= len(nodeTypeStrings) {
+		return "Invalid type"
+	}
+
+	return nodeTypeStrings[n]
+}
+
+func ParseNodeType(s string) NodeType {
+	nodeType, ok := stringToNodeTypes[s]
+	if !ok {
+		return NodeTypeUnknown
+	}
+
+	return nodeType
+}
+
+func (dst *NodeType) Scan(src any) error {
+	if src == nil {
+		return nil
+	}
+
+	switch src := src.(type) {
+	case string:
+		*dst = ParseNodeType(src)
+
+		return nil
+	}
+
+	return fmt.Errorf("cannot scan %T", src)
 }
 
 func IsEnodeV4(source string) bool {

@@ -41,7 +41,7 @@ func (a *API) nodesListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nodeType, ok := parseNumberParam(w, r, "node-type", false, -1)
+	nodeType, ok := parseNodeType(w, r)
 	if !ok {
 		return
 	}

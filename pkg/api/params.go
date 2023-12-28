@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/ethereum/node-crawler/pkg/common"
 )
 
 func parseAllYesNoParam(
@@ -64,6 +66,34 @@ func parseTimeParam(w http.ResponseWriter, param string, str string) (time.Time,
 	}
 
 	return t, true
+}
+
+func parseNodeType(
+	w http.ResponseWriter,
+	r *http.Request,
+) (*string, bool) {
+	query := r.URL.Query()
+	str := query.Get("node-type")
+
+	if str == "all" {
+		return nil, true
+	}
+
+	if str == "" {
+		res := common.NodeTypeExecution.String()
+		return &res, true
+	}
+
+	nodeType := common.ParseNodeType(str)
+	if nodeType == common.NodeTypeUnknown {
+		_, _ = fmt.Fprintf(w, "bad node-type value: %s.", str)
+
+		res := common.NodeTypeUnknown.String()
+		return &res, false
+	}
+
+	res := nodeType.String()
+	return &res, true
 }
 
 func parseNumberParam(

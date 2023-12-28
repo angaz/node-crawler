@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/hex"
 	"fmt"
+	"net"
 	"strconv"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 type NodeTableHistory struct {
 	CrawledAt time.Time
 	Direction common.Direction
-	Error     string
+	Error     *string
 }
 
 func (h NodeTableHistory) CrawledAtLine() string {
@@ -41,11 +42,12 @@ type NodeTable struct {
 	Capabilities   *string
 	networkID      *int64
 	ForkID         *common.ForkID
+	ForkName       *string
 	NextForkID     *uint64
+	NextForkName   *string
 	HeadHash       *[]byte
 	HeadHashTime   *time.Time
-	IP             *string
-	ConnectionType *string
+	IP             net.IP
 	Country        *string
 	City           *string
 	Latitude       *float64

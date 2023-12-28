@@ -29,17 +29,17 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 		return nil, fmt.Errorf("decoding node id failed: %w", err)
 	}
 
-	row := db.db.QueryRowContext(
+	row := db.pg.QueryRow(
 		ctx,
 		`
 			SELECT
-				disc.node_id,
-				disc.node_pubkey,
-				disc.node_type,
-				disc.first_found,
-				disc.last_found,
-				crawled.updated_at,
-				disc.node_record,
+				node_id,
+				node_pubkey,
+				node_type,
+				first_found,
+				last_found,
+				updated_at,
+				node_record,
 				client_identifier,
 				client_name,
 				client_user_data,
@@ -50,71 +50,37 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 				client_language,
 				rlpx_version,
 				capabilities,
-				crawled.network_id,
+				network_id,
 				fork_id,
+				fork_name,
 				next_fork_id,
+				next_fork_name,
 				head_hash,
-				blocks.timestamp,
-				disc.ip_address,
-				connection_type,
-				country,
-				city,
+				timestamp,
+				ip_address,
+				country_name,
+				city_name,
 				latitude,
 				longitude,
 				next_crawl,
-				EXISTS (
-					SELECT 1
-					FROM crawl_history history
-					WHERE
-						history.node_id = crawled.node_id
-						AND history.direction = 'dial'
-						AND (
-							history.crawled_at > unixepoch('now', '-7 days')
-							AND (
-								history.error IS NULL
-								OR history.error IN (  -- Disconnect Reasons
-									'disconnect requested',
-									'network error',
-									'breach of protocol',
-									'useless peer',
-									'too many peers',
-									'already connected',
-									'incompatible p2p protocol version',
-									'invalid node identity',
-									'client quitting',
-									'unexpected identity',
-									'connected to self',
-									'read timeout',
-									'subprotocol error'
-								)
-							)
-						)
-				) dial_success
-			FROM discovered_nodes AS disc
-			LEFT JOIN crawled_nodes AS crawled ON (disc.node_id = crawled.node_id)
-			LEFT JOIN blocks ON (
-				crawled.head_hash = blocks.block_hash
-				AND crawled.network_id = blocks.network_id
-			)
-			WHERE disc.node_id = ?;
+				dial_success
+			FROM execution.node_view AS disc
+			WHERE node_id = $1
 		`,
 		nodeIDBytes,
 	)
 
 	nodePage := new(NodeTable)
 
-	var firstFound, lastFound int64
-	var updatedAtInt, headHashTimeInt, nextCrawlInt *int64
-	var forkIDInt *uint32
 	var nodeRecord []byte
 
 	err = row.Scan(
 		&nodePage.nodeID,
 		&nodePage.nodePubKey,
 		&nodePage.NodeType,
-		&firstFound,
-		&lastFound,
-		&updatedAtInt,
+		&nodePage.firstFound,
+		&nodePage.lastFound,
+		&nodePage.updatedAt,
 		&nodeRecord,
 		&nodePage.ClientID,
 		&nodePage.ClientName,
@@ -127,42 +93,32 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 		&nodePage.RlpxVersion,
 		&nodePage.Capabilities,
 		&nodePage.networkID,
-		&forkIDInt,
+		&nodePage.ForkID,
+		&nodePage.ForkName,
 		&nodePage.NextForkID,
+		&nodePage.NextForkName,
 		&nodePage.HeadHash,
-		&headHashTimeInt,
+		&nodePage.HeadHashTime,
 		&nodePage.IP,
-		&nodePage.ConnectionType,
 		&nodePage.Country,
 		&nodePage.City,
 		&nodePage.Latitude,
 		&nodePage.Longitude,
-		&nextCrawlInt,
+		&nodePage.nextCrawl,
 		&nodePage.DialSuccess,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("row scan failed: %w", err)
-	}
-
-	nodePage.firstFound = time.Unix(firstFound, 0)
-	nodePage.lastFound = time.Unix(lastFound, 0)
-	nodePage.updatedAt = int64PrtToTimePtr(updatedAtInt)
-	nodePage.HeadHashTime = int64PrtToTimePtr(headHashTimeInt)
-	nodePage.nextCrawl = int64PrtToTimePtr(nextCrawlInt)
-
-	if forkIDInt != nil {
-		fid := common.Uint32ToForkID(*forkIDInt)
-		nodePage.ForkID = &fid
+		return nil, fmt.Errorf("row scan: %w", err)
 	}
 
 	record, err := common.LoadENR(nodeRecord)
 	if err != nil {
-		return nil, fmt.Errorf("loading node record failed: %w", err)
+		return nil, fmt.Errorf("loading node record: %w", err)
 	}
 
 	nodePage.NodeRecord = record
 
-	rows, err := db.db.QueryContext(
+	rows, err := db.pg.Query(
 		ctx,
 		`
 			SELECT
@@ -173,14 +129,14 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 				SELECT
 					crawled_at,
 					direction,
-					coalesce(error, '') AS error,
+					error,
 					row_number() OVER (
 						PARTITION BY direction
 						ORDER BY crawled_at DESC
 					) AS row
-				FROM crawl_history
+				FROM crawler.history
 				WHERE
-					node_id = ?
+					node_id = $1
 				ORDER BY crawled_at DESC
 			)
 			WHERE row <= 10
@@ -188,24 +144,21 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 		nodeIDBytes,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("history query failed: %w", err)
+		return nil, fmt.Errorf("history query: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		history := NodeTableHistory{} //nolint:exhaustruct
-		var crawledAtInt int64
+		var history NodeTableHistory
 
 		err = rows.Scan(
-			&crawledAtInt,
+			&history.CrawledAt,
 			&history.Direction,
 			&history.Error,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("history row scan failed: %w", err)
+			return nil, fmt.Errorf("history row scan: %w", err)
 		}
-
-		history.CrawledAt = time.Unix(crawledAtInt, 0)
 
 		if history.Direction == common.DirectionAccept {
 			nodePage.HistoryAccept = append(nodePage.HistoryAccept, history)
@@ -214,9 +167,11 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 		}
 	}
 
+	rows.Close()
+
 	err = rows.Err()
 	if err != nil {
-		return nil, fmt.Errorf("history rows iteration failed: %w", err)
+		return nil, fmt.Errorf("history rows iteration: %w", err)
 	}
 
 	return nodePage, nil
@@ -224,7 +179,7 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 
 type NodeListQuery struct {
 	Query       string
-	IP          string
+	IP          net.IP
 	NodeIDStart []byte
 	NodeIDEnd   []byte
 }
@@ -232,16 +187,14 @@ type NodeListQuery struct {
 var maxNodeID = bytes.Repeat([]byte{0xff}, 32)
 
 func ParseNodeListQuery(query string) (*NodeListQuery, error) {
-	queryIP := ""
+	var ip net.IP
 	var nodeIDStart []byte = nil
 	var nodeIDEnd []byte = nil
 
 	if query != "" {
-		ip := net.ParseIP(query)
+		ip = net.ParseIP(query)
 
-		if ip != nil {
-			queryIP = query
-		} else {
+		if ip == nil {
 			nodeIDFilter := query
 
 			if len(query)%2 == 1 {
@@ -279,7 +232,7 @@ func ParseNodeListQuery(query string) (*NodeListQuery, error) {
 
 	return &NodeListQuery{
 		Query:       query,
-		IP:          queryIP,
+		IP:          ip,
 		NodeIDStart: nodeIDStart,
 		NodeIDEnd:   nodeIDEnd,
 	}, nil
@@ -293,7 +246,7 @@ func (db *DB) GetNodeList(
 	query NodeListQuery,
 	clientName string,
 	clientUserData string,
-	nodeType int,
+	nodeType *string,
 ) (*NodeList, error) {
 	var err error
 
@@ -303,118 +256,76 @@ func (db *DB) GetNodeList(
 	pageSize := 20
 	offset := (pageNumber - 1) * pageSize
 
-	hint := ""
-	if query.IP != "" {
-		hint = "INDEXED BY discovered_nodes_ip_address_node_id"
-	}
-
-	rows, err := db.db.QueryContext(
+	rows, err := db.pg.Query(
 		ctx,
-		fmt.Sprintf(`
+		`
 			SELECT
-				disc.node_id,
-				disc.node_pubkey,
-				disc.node_type,
-				crawled.updated_at,
-				crawled.client_name,
-				crawled.client_user_data,
-				crawled.client_version,
-				crawled.client_build,
-				crawled.client_os,
-				crawled.client_arch,
-				crawled.country,
-				blocks.timestamp,
-				EXISTS (
-					SELECT 1
-					FROM crawl_history history
-					WHERE
-						history.node_id = crawled.node_id
-						AND history.direction = 'dial'
-						AND (
-							history.crawled_at > unixepoch('now', '-7 days')
-							AND (
-								history.error IS NULL
-								OR history.error IN (  -- Disconnect Reasons
-									'disconnect requested',
-									'network error',
-									'breach of protocol',
-									'useless peer',
-									'too many peers',
-									'already connected',
-									'incompatible p2p protocol version',
-									'invalid node identity',
-									'client quitting',
-									'unexpected identity',
-									'connected to self',
-									'read timeout',
-									'subprotocol error'
-								)
-							)
-						)
-				) dial_success
-			FROM discovered_nodes AS disc
-				%s
-			LEFT JOIN crawled_nodes AS crawled ON (
-				disc.node_id = crawled.node_id
-			)
-			LEFT JOIN blocks ON (
-				crawled.head_hash = blocks.block_hash
-				AND crawled.network_id = blocks.network_id
-			)
+				node_id,
+				node_pubkey,
+				node_type,
+				updated_at,
+				client_name,
+				client_user_data,
+				client_version,
+				client_build,
+				client_os,
+				client_arch,
+				country_name,
+				timestamp,
+				dial_success
+			FROM execution.node_view
 			WHERE
 				(      -- Network ID filter
-					?1 = -1
-					OR crawled.network_id = ?1
+					@network_id = -1
+					OR network_id = @network_id
 				)
 				AND (  -- Synced filter
-					?2 = -1  -- All
-					OR (     -- Not synced
-						?2 = 0
-						AND (
-							blocks.timestamp IS NULL
-							OR abs(crawled.updated_at - blocks.timestamp) >= 60
-						)
-					)
-					OR (     -- Synced
-						?2 = 1
-						AND abs(crawled.updated_at - blocks.timestamp) < 60
-					)
+					CASE
+						WHEN @synced = -1 THEN
+							TRUE
+						WHEN @synced = 0 THEN
+							synced IS FALSE
+						WHEN @synced = 1 THEN
+							synced IS TRUE
+					END
 				)
 				AND (  -- Node ID filter
-					?3 IS NULL
-					OR (disc.node_id >= ?3 AND disc.node_id <= ?4)
-					OR (disc.node_pubkey >= ?3 AND disc.node_pubkey <= ?4)
+					@node_id_start::BYTEA IS NULL
+					OR (node_id >= @node_id_start AND node_id <= @node_id_end)
+					OR (node_pubkey >= @node_id_start AND node_pubkey <= @node_id_end)
 				)
 				AND (  -- IP address filter
-					?5 = ''
-					OR disc.ip_address = ?5
+					@ip_address::INET IS NULL
+					OR ip_address = @ip_address
 				)
 				AND (  -- Client Name filter
-					?6 = ''
-					OR crawled.client_name = LOWER(?6)
+					@client_name = ''
+					OR client_name = LOWER(@client_name)
 				)
 				AND (
-					?7 = ''
-					OR crawled.client_user_data = LOWER(?7)
+					@client_user_data = ''
+					OR client_user_data = LOWER(@client_user_data)
 				)
 				AND (
-					?8 = -1
-					OR disc.node_type = ?8
+					@node_type::TEXT IS NULL
+					OR node_type = @node_type::client.node_type
 				)
-			ORDER BY disc.node_id
-			LIMIT ?9 + 1
-			OFFSET ?10
-		`, hint),
-		networkID,
-		synced,
-		query.NodeIDStart,
-		query.NodeIDEnd,
-		query.IP,
-		clientName,
-		clientUserData,
-		nodeType,
-		pageSize,
-		offset,
+			ORDER BY node_id
+			LIMIT @limit + 1
+			OFFSET @offset
+		`,
+		pgx.NamedArgs{
+			"network_id":       networkID,
+			"synced":           synced,
+			"node_id_start":    query.NodeIDStart,
+			"node_id_end":      query.NodeIDEnd,
+			"ip_address":       query.IP,
+			"client_name":      clientName,
+			"client_user_data": clientUserData,
+			"node_type":        nodeType,
+			"limit":            pageSize,
+			"offset":           offset,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -447,14 +358,13 @@ func (db *DB) GetNodeList(
 		}
 
 		row := NodeListRow{} //nolint:exhaustruct
-		var updatedAtInt, headHashTimeInt *int64
 		var userData *string
 
 		err = rows.Scan(
 			&row.nodeID,
 			&row.nodePubKey,
 			&row.NodeType,
-			&updatedAtInt,
+			&row.UpdatedAt,
 			&row.ClientName,
 			&userData,
 			&row.ClientVersion,
@@ -462,15 +372,12 @@ func (db *DB) GetNodeList(
 			&row.ClientOS,
 			&row.ClientArch,
 			&row.Country,
-			&headHashTimeInt,
+			&row.HeadHashTimestamp,
 			&row.DialSuccess,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan row failed: %w", err)
 		}
-
-		row.UpdatedAt = int64PrtToTimePtr(updatedAtInt)
-		row.HeadHashTimestamp = int64PrtToTimePtr(headHashTimeInt)
 
 		if row.ClientName != nil && userData != nil {
 			newName := *row.ClientName + "/" + *userData
@@ -583,17 +490,16 @@ func statsInstant(
 			`
 				SELECT
 					%s key,
-					SUM(total) total
+					SUM(total)::INTEGER total
 				FROM timeseries
 				JOIN client.names USING (client_name_id)
 				JOIN client.versions USING (client_version_id)
 				JOIN geoname.countries USING (country_geoname_id)
 				WHERE
 					bucket = (SELECT MAX(bucket) FROM timeseries)
+					AND total IS NOT NULL
 				GROUP BY
-					key,
-					total
-				HAVING total IS NOT NULL
+					key
 				ORDER BY total DESC
 			`,
 			key,
@@ -625,6 +531,8 @@ func statsInstant(
 		return nil, fmt.Errorf("rows: %w", err)
 	}
 
+	fmt.Println(stats)
+
 	return stats, nil
 }
 
@@ -644,7 +552,7 @@ func statsGraph(
 				FROM (
 					SELECT
 						%s key,
-						SUM(total) total
+						SUM(total)::INTEGER total
 					FROM timeseries
 					JOIN client.names USING (client_name_id)
 					JOIN client.versions USING (client_version_id)
@@ -711,12 +619,14 @@ func (db *DB) GetStats(
 		30*time.Minute,
 	)
 
+	fmt.Println(bucketWidth.Seconds(), after, before, networkID, synced, clientName)
+
 	_, err = tx.Exec(
 		ctx,
 		`
 			SELECT
 				time_bucket_gapfill(
-					@bucket_width,
+					make_interval(secs => @bucket_width),
 					timestamp,
 					@after::TIMESTAMPTZ,
 					@before::TIMESTAMPTZ
@@ -731,12 +641,33 @@ func (db *DB) GetStats(
 				country_geoname_id,
 				synced,
 				dial_success,
-				avg(total)::INT total
+				avg(total) total
 			INTO TEMPORARY TABLE timeseries
-			FROM stats.execution_nodes
-			JOIN client.names USING (client_name_id)
+			FROM stats.execution_nodes nodes
+			LEFT JOIN client.names USING (client_name_id)
 			WHERE
-				timestamp >= @after::TIMESTAMPTZ
+				-- If we are filtering by a network ID, and we have the network
+				-- in the forks table, the fork ID should exist. If we don't
+				-- have the network, keep the record.
+				CASE
+					WHEN @network_id = -1
+						TRUE
+					WHEN EXISTS (
+						SELECT 1
+						FROM network.forks
+						WHERE forks.network_id = nodes.network_id
+					) THEN
+						EXISTS (
+							SELECT 1
+							FROM network.forks
+							WHERE
+								forks.network_id = nodes.network_id
+								AND forks.fork_id = nodes.fork_id
+							)
+					ELSE
+						TRUE
+				END
+				AND timestamp >= @after::TIMESTAMPTZ
 				AND timestamp < @before::TIMESTAMPTZ
 				AND (
 					@network_id = -1
@@ -766,7 +697,7 @@ func (db *DB) GetStats(
 				bucket ASC
 		`,
 		pgx.NamedArgs{
-			"bucket_width": bucketWidth,
+			"bucket_width": bucketWidth.Seconds(),
 			"after":        after,
 			"before":       before,
 			"client_name":  clientName,
@@ -778,7 +709,7 @@ func (db *DB) GetStats(
 		return nil, fmt.Errorf("create temp table: %w", err)
 	}
 
-	rows, err := tx.Query(ctx, `SELECT bucket FROM timeseries`)
+	rows, err := tx.Query(ctx, `SELECT bucket FROM timeseries GROUP BY bucket`)
 	if err != nil {
 		return nil, fmt.Errorf("query buckets: %w", err)
 	}
@@ -802,6 +733,8 @@ func (db *DB) GetStats(
 		return nil, fmt.Errorf("rows buckets: %w", err)
 	}
 
+	fmt.Println(buckets)
+
 	var clientNameGraph []StatsGraphSeries
 
 	if clientName == "" {
@@ -816,7 +749,7 @@ func (db *DB) GetStats(
 		}
 	}
 
-	dialSuccessGraph, err := statsGraph(ctx, tx, "dial_success")
+	dialSuccessGraph, err := statsGraph(ctx, tx, "CASE WHEN dial_success THEN 'Success' ELSE 'Fail' END")
 	if err != nil {
 		return nil, fmt.Errorf("dial_success graph: %w", err)
 	}

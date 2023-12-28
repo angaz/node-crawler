@@ -42,6 +42,7 @@ func (db *DB) Migrate() error {
 			},
 			"function client.upsert":                 migrations.ClientUpsertStrings,
 			"function execution.capabilities_upsert": migrations.ExecutionCapabilitiesUpsert,
+			"execution.node_view":                    migrations.ExecutionNodeView,
 		},
 	)
 }

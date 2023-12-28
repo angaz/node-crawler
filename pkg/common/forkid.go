@@ -3,6 +3,7 @@ package common
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 )
 
 type ForkID [4]byte
@@ -33,4 +34,19 @@ func Uint32ToForkID(i uint32) ForkID {
 	binary.BigEndian.PutUint32(fid[:], i)
 
 	return fid
+}
+
+func (dst *ForkID) Scan(src any) error {
+	if src == nil {
+		return nil
+	}
+
+	switch src := src.(type) {
+	case int64:
+		*dst = Uint32ToForkID(uint32(src))
+
+		return nil
+	}
+
+	return fmt.Errorf("cannot scan %T", src)
 }

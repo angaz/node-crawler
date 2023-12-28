@@ -104,11 +104,7 @@ templ NodeTable(nt database.NodeTable) {
 				</tr>
 				<tr>
 					<td>IP Address</td>
-					<td>{ database.StringOrEmpty(nt.IP) }</td>
-				</tr>
-				<tr>
-					<td>Connection Type</td>
-					<td>{ database.StringOrEmpty(nt.ConnectionType) }</td>
+					<td>{ nt.IP.String() }</td>
 				</tr>
 				<tr>
 					<td>Country</td>
@@ -154,7 +150,7 @@ templ NodeTable(nt database.NodeTable) {
 							<tr>
 								<td>{ row.CrawledAt.UTC().Format(database.DateFormat) }</td>
 								<td>{ row.CrawledAtLine() }</td>
-								<td>{ row.Error }</td>
+								<td>{ database.StringOrEmpty(row.Error) }</td>
 							</tr>
 						}
 					</tbody>
@@ -176,7 +172,7 @@ templ NodeTable(nt database.NodeTable) {
 							<tr>
 								<td>{ row.CrawledAt.UTC().Format(database.DateFormat) }</td>
 								<td>{ row.CrawledAtLine() }</td>
-								<td>{ row.Error }</td>
+								<td>{ database.StringOrEmpty(row.Error) }</td>
 							</tr>
 						}
 					</tbody>
