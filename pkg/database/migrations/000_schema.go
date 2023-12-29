@@ -203,7 +203,7 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				client_arch			client.arch	NOT NULL,
 				network_id			BIGINT		NOT NULL,
 				fork_id				BIGINT		NOT NULL,
-				next_fork_id		BIGINT		DEFAULT NULL,
+				next_fork_id		BIGINT		NOT NULL,  -- 0 means no next fork
 				country_geoname_id	INTEGER		NOT NULL REFERENCES geoname.countries(country_geoname_id),
 				synced				BOOLEAN		NOT NULL,
 				dial_success		BOOLEAN 	NOT NULL,
@@ -247,7 +247,7 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				capabilities_id			INTEGER		NOT NULL REFERENCES execution.capabilities(capabilities_id),
 				network_id				BIGINT		NOT NULL,
 				fork_id					BIGINT		NOT NULL,
-				next_fork_id			BIGINT		DEFAULT NULL,
+				next_fork_id			BIGINT		NOT NULL,  -- 0 means no next fork
 				head_hash				BYTEA		NOT NULL,
 				client_name_id			INTEGER		DEFAULT NULL REFERENCES client.names(client_name_id),
 				client_user_data_id		INTEGER		DEFAULT NULL REFERENCES client.user_data(client_user_data_id),

@@ -235,12 +235,12 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 		`
 			WITH client_ids AS (
 				SELECT * FROM client.upsert(
-					client_identifier	=> @client_identifier,
-					client_name			=> @client_name,
-					client_user_data	=> @client_user_data,
-					client_version		=> @client_version,
-					client_build		=> @client_build,
-					client_language		=> @client_language
+					client_identifier	=> nullif(@client_identifier, 'Unknown'),
+					client_name			=> nullif(@client_name, 'Unknown'),
+					client_user_data	=> nullif(@client_user_data, 'Unknown'),
+					client_version		=> nullif(@client_version, 'Unknown'),
+					client_build		=> nullif(@client_build, 'Unknown'),
+					client_language		=> nullif(@client_language, 'Unknown')
 				)
 			), disc_node AS (
 				INSERT INTO disc.nodes (

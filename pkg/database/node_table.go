@@ -43,7 +43,7 @@ type NodeTable struct {
 	networkID      *int64
 	ForkID         *common.ForkID
 	ForkName       *string
-	NextForkID     *uint64
+	NextForkID     uint64
 	NextForkName   *string
 	HeadHash       *[]byte
 	HeadHashTime   *time.Time
@@ -74,67 +74,25 @@ func (n NodeTable) ForkIDStr() string {
 
 	name := common.Unknown
 
-	if n.networkID != nil {
-		forkData, ok := common.Forks[*n.networkID]
-		if ok {
-			forkName, ok := forkData.Hash[n.ForkID.Uint32()]
-			if ok {
-				name = forkName
-			}
-		}
+	if n.ForkName != nil {
+		name = *n.ForkName
 	}
 
 	return fmt.Sprintf("%s (%s)", name, n.ForkID.Hex())
 }
 
 func (n NodeTable) NextForkIDStr() string {
-	if n.NextForkID == nil {
+	if n.NextForkID == 0 {
 		return ""
 	}
 
 	name := common.Unknown
 
-	if n.networkID != nil {
-		forkData, ok := common.Forks[*n.networkID]
-		if ok {
-			forkName, ok := forkData.BlockTime[*n.NextForkID]
-			if ok {
-				name = forkName
-			}
-		}
+	if n.NextForkName != nil {
+		name = *n.NextForkName
 	}
 
-	return fmt.Sprintf("%s (%d)", name, *n.NextForkID)
-}
-
-func isReadyForCancun(networkID *int64, forkID *uint32, nextForkID *uint64) int {
-	if networkID == nil || nextForkID == nil {
-		return -1
-	}
-
-	chain, ok := common.Chains[*networkID]
-	if !ok {
-		return -1
-	}
-
-	if nextForkID == chain.CancunTime {
-		return 1
-	}
-
-	if forkID == nil {
-		return -1
-	}
-
-	forks, ok := common.Forks[*networkID]
-	if !ok {
-		return -1
-	}
-
-	if forks.Hash[*forkID] == common.ForkNameCancun {
-		return 1
-	}
-
-	return 0
+	return fmt.Sprintf("%s (%d)", name, n.NextForkID)
 }
 
 func StringOrEmpty(v *string) string {

@@ -35,6 +35,7 @@ func (db *DB) Migrate() error {
 
 				return migrations.Migrate001SqliteToPG(ctx, tx, db.db, db.geoipDB)
 			},
+			migrations.Migrate002StatsViews,
 		},
 		map[string]migrationFn{
 			"insert networks": func(ctx context.Context, tx pgx.Tx) error {

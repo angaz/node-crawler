@@ -4,58 +4,40 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/a-h/templ"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/ethereum/node-crawler/public"
 )
 
 type statsParams struct {
-	clientName string
-	networkID  int64
-	nextFork   int
-	synced     int
+	clientName    string
+	networkID     int64
+	nextFork      int
+	nextForkName  string
+	synced        int
+	graphInterval time.Duration
 }
 
 func (p statsParams) cacheKey() string {
 	return fmt.Sprintf(
-		"%s,%d,%d,%d",
+		"%s,%d,%d,%d,%s,%d",
 		p.clientName,
 		p.networkID,
 		p.synced,
 		p.nextFork,
+		p.nextForkName,
+		int(p.graphInterval.Seconds()),
 	)
-}
-
-func parseCancunParam(w http.ResponseWriter, query url.Values, networkID int64) (int, bool) {
-	cancun, ok := parseAllYesNoParam(w, query.Get("cancun"), "cancun", -1)
-	if !ok {
-		return 0, false
-	}
-
-	if cancun == -1 {
-		return -1, true
-	}
-
-	chain, ok := common.Chains[networkID]
-	if !ok || chain.CancunTime == nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = fmt.Fprintf(w, "cancun timestamp is unknown for this chain: %d", networkID)
-
-		return 0, false
-	}
-
-	return int(*chain.CancunTime), true
 }
 
 func parseStatsParams(w http.ResponseWriter, r *http.Request) *statsParams {
 	query := r.URL.Query()
 	clientName := query.Get("client-name")
+	nextForkName := query.Get("next-fork-name")
 
 	networkID, ok := parseNetworkID(w, query.Get("network"))
 	if !ok {
@@ -72,29 +54,33 @@ func parseStatsParams(w http.ResponseWriter, r *http.Request) *statsParams {
 		return nil
 	}
 
-	cancunTime, ok := parseCancunParam(w, query, networkID)
+	graphInterval, ok := parseGraphInterval(w, query.Get("interval"))
 	if !ok {
 		return nil
 	}
 
-	if cancunTime != -1 {
-		nextFork = cancunTime
+	if nextForkName != "" && nextFork != -1 {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprint(w, "next-fork and next-fork-name are mutually exclusive. Only one can be set.")
+
+		return nil
 	}
 
 	return &statsParams{
-		clientName: clientName,
-		networkID:  networkID,
-		nextFork:   nextFork,
-		synced:     synced,
+		clientName:    clientName,
+		networkID:     networkID,
+		nextFork:      nextFork,
+		nextForkName:  nextForkName,
+		synced:        synced,
+		graphInterval: graphInterval,
 	}
 }
 
 func (a *API) getFilterStats(
 	ctx context.Context,
-	params *statsParams,
-	before time.Time,
 	after time.Time,
-	interval time.Duration,
+	before time.Time,
+	params *statsParams,
 ) (*database.StatsResult, error) {
 	allStats, err := a.db.GetStats(
 		ctx,
@@ -102,7 +88,10 @@ func (a *API) getFilterStats(
 		before,
 		params.networkID,
 		params.synced,
+		params.nextFork,
+		params.nextForkName,
 		params.clientName,
+		params.graphInterval,
 	)
 	if err != nil {
 		log.Error("GetStats failed", "err", err)
@@ -157,10 +146,7 @@ func (a *API) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	interval := 30 * time.Minute
-
-	// TODO: Put this back
-	_, err := a.getFilterStats(r.Context(), params, before, after, interval)
+	_, err := a.getFilterStats(r.Context(), after, before, params)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
@@ -189,20 +175,17 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	// 	return
 	// }
 
-	days := 7
-	graphInterval := 3 * time.Hour
+	before := time.Now().Truncate(30 * time.Minute).Add(-30 * time.Minute)
+	after := before.Add(3 * 24 * time.Hour)
 
-	// All network ids has so much data, so we're prioritizing speed over days
-	// of data.
-	if params.networkID == -1 || params.synced == -1 {
-		days = 1
-		graphInterval = 30 * time.Minute
+	switch params.graphInterval {
+	case database.GraphInterval30Min:
+		after = before.Add(-3 * 24 * time.Hour)
+	case database.GraphInterval6Hour:
+		after = before.Add(-14 * 24 * time.Hour)
 	}
 
-	before := time.Now().Truncate(graphInterval).Add(graphInterval)
-	after := before.AddDate(0, 0, -days)
-
-	allStats, err := a.getFilterStats(r.Context(), params, before, after, graphInterval)
+	allStats, err := a.getFilterStats(r.Context(), after, before, params)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
@@ -219,7 +202,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		graphs = append(
 			graphs,
 			public.StatsGraph(
-				fmt.Sprintf("Client Names (%dd)", days),
+				"Client Names",
 				"client_names",
 				allStats.ClientNamesTimeseries().Percentage(),
 			),
@@ -242,7 +225,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		graphs = append(
 			graphs,
 			public.StatsGraph(
-				fmt.Sprintf("Client Versions (%dd)", days),
+				"Client Versions",
 				"client_versions",
 				allStats.ClientNamesTimeseries().Percentage(),
 			),
@@ -275,7 +258,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	graphs = append(
 		graphs,
 		public.StatsGraph(
-			fmt.Sprintf("Dial Success (%dd)", days),
+			"Dial Success",
 			"dial_success",
 			allStats.DialSuccessTimeseries().Percentage().Colours("#05c091", "#ff6e76"),
 		),
@@ -303,5 +286,9 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	// Cache the result until 1 minute after the end timestamp.
 	// The new stats should have been generated by then.
-	a.setCache(params.cacheKey(), []byte(out), before.Add(5*time.Minute))
+	a.setCache(
+		params.cacheKey(),
+		[]byte(out),
+		time.Now().Truncate(30*time.Minute).Add(35*time.Minute),
+	)
 }

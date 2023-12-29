@@ -615,7 +615,10 @@ func (db *DB) GetStats(
 	before time.Time,
 	networkID int64,
 	synced int,
+	nextFork int,
+	nextForkName string,
 	clientName string,
+	graphInterval time.Duration,
 ) (*StatsResult, error) {
 	var err error
 
@@ -628,94 +631,97 @@ func (db *DB) GetStats(
 	}
 	defer tx.Rollback(ctx)
 
-	bucketWidth := max(
-		(before.Sub(after) / 64).Round(30*time.Minute),
-		30*time.Minute,
+	escapedClientName, err := tx.Conn().PgConn().EscapeString(clientName)
+	if err != nil {
+		return nil, fmt.Errorf("escape client_name: %w", err)
+	}
+
+	sql := fmt.Sprintf(
+		`
+				CREATE TEMPORARY VIEW timeseries AS
+				SELECT
+					time_bucket_gapfill(
+						make_interval(secs => %[2]d),
+						bucket,
+						'%[3]s'::TIMESTAMPTZ,
+						'%[4]s'::TIMESTAMPTZ
+					) bucket,
+					client_name_id,
+					client_version_id,
+					client_os,
+					client_arch,
+					network_id,
+					fork_id,
+					next_fork_id,
+					country_geoname_id,
+					synced,
+					dial_success,
+					avg(total) total
+				FROM stats.execution_nodes_%[1]s nodes
+				LEFT JOIN client.names USING (client_name_id)
+				WHERE
+					-- If we are filtering by a network ID, and we have the network
+					-- in the forks table, the fork ID should exist. If we don't
+					-- have the network, keep the record.
+					CASE
+						WHEN %[5]d = -1 THEN
+							TRUE
+						WHEN %[5]d = 1 AND EXISTS (
+							SELECT 1
+							FROM network.forks
+							WHERE forks.network_id = nodes.network_id
+						) THEN
+							EXISTS (
+								SELECT 1
+								FROM network.forks
+								WHERE
+									forks.network_id = nodes.network_id
+									AND forks.fork_id = nodes.fork_id
+								)
+						ELSE
+							TRUE
+					END
+					AND bucket >= '%[3]s'::TIMESTAMPTZ
+					AND bucket < '%[4]s'::TIMESTAMPTZ
+					AND (
+						%[5]d = -1
+						OR network_id = %[5]d
+					)
+					AND (
+						%[6]d = -1
+						OR synced = (%[6]d = 1)
+					)
+					AND (
+						'%[7]s' = ''
+						OR names.client_name = '%[7]s'
+					)
+				GROUP BY
+					1,
+					client_name_id,
+					client_version_id,
+					client_os,
+					client_arch,
+					network_id,
+					fork_id,
+					next_fork_id,
+					country_geoname_id,
+					synced,
+					dial_success
+				ORDER BY
+					1 ASC
+			`,
+		graphInterval.String(),
+		int(graphInterval.Seconds()),
+		after.Format(time.RFC3339),
+		before.Format(time.RFC3339),
+		networkID,
+		synced,
+		escapedClientName,
 	)
 
 	_, err = tx.Exec(
 		ctx,
-		`
-			SELECT
-				time_bucket_gapfill(
-					make_interval(secs => @bucket_width),
-					timestamp,
-					@after::TIMESTAMPTZ,
-					@before::TIMESTAMPTZ
-				) bucket,
-				client_name_id,
-				client_version_id,
-				client_os,
-				client_arch,
-				network_id,
-				fork_id,
-				next_fork_id,
-				country_geoname_id,
-				synced,
-				dial_success,
-				avg(total) total
-			INTO TEMPORARY TABLE timeseries
-			FROM stats.execution_nodes nodes
-			LEFT JOIN client.names USING (client_name_id)
-			WHERE
-				-- If we are filtering by a network ID, and we have the network
-				-- in the forks table, the fork ID should exist. If we don't
-				-- have the network, keep the record.
-				CASE
-					WHEN @network_id = -1 THEN
-						TRUE
-					WHEN EXISTS (
-						SELECT 1
-						FROM network.forks
-						WHERE forks.network_id = nodes.network_id
-					) THEN
-						EXISTS (
-							SELECT 1
-							FROM network.forks
-							WHERE
-								forks.network_id = nodes.network_id
-								AND forks.fork_id = nodes.fork_id
-							)
-					ELSE
-						TRUE
-				END
-				AND timestamp >= @after::TIMESTAMPTZ
-				AND timestamp < @before::TIMESTAMPTZ
-				AND (
-					@network_id = -1
-					OR network_id = @network_id
-				)
-				AND (
-					@synced = -1
-					OR synced = (@synced = 1)
-				)
-				AND (
-					@client_name = ''
-					OR names.client_name = @client_name
-				)
-			GROUP BY
-				bucket,
-				client_name_id,
-				client_version_id,
-				client_os,
-				client_arch,
-				network_id,
-				fork_id,
-				next_fork_id,
-				country_geoname_id,
-				synced,
-				dial_success
-			ORDER BY
-				bucket ASC
-		`,
-		pgx.NamedArgs{
-			"bucket_width": bucketWidth.Seconds(),
-			"after":        after,
-			"before":       before,
-			"client_name":  clientName,
-			"network_id":   networkID,
-			"synced":       synced,
-		},
+		sql,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create temp table: %w", err)

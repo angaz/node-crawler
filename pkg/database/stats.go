@@ -16,6 +16,18 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const (
+	GraphInterval30Min = 30 * time.Minute
+	GraphInterval6Hour = 6 * time.Hour
+)
+
+var (
+	GraphIntervalValues = map[string]time.Duration{
+		GraphInterval30Min.String(): GraphInterval30Min,
+		GraphInterval6Hour.String(): GraphInterval6Hour,
+	}
+)
+
 // Meant to be run as a goroutine.
 //
 // Copies the stats into the stats table every `frequency` duration.

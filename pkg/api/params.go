@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum/node-crawler/pkg/common"
+	"github.com/ethereum/node-crawler/pkg/database"
 )
 
 func parseAllYesNoParam(
@@ -54,6 +56,31 @@ func parseErrorParam(w http.ResponseWriter, str string) (int, bool) {
 
 func parseNextForkParam(w http.ResponseWriter, str string) (int, bool) {
 	return parseAllYesNoParam(w, str, "next-fork", -1)
+}
+
+func parseGraphInterval(w http.ResponseWriter, str string) (time.Duration, bool) {
+	if str == "" {
+		return database.GraphInterval30Min, true
+	}
+
+	dur, ok := database.GraphIntervalValues[str]
+	if ok {
+		return dur, true
+	}
+
+	values := make([]string, 0, len(database.GraphIntervalValues))
+	for key := range database.GraphIntervalValues {
+		values = append(values, key)
+	}
+
+	w.WriteHeader(http.StatusBadRequest)
+	_, _ = fmt.Fprintf(
+		w,
+		"interval must be one of: %s",
+		strings.Join(values, ","),
+	)
+
+	return time.Duration(0), false
 }
 
 func parseTimeParam(w http.ResponseWriter, param string, str string) (time.Time, bool) {
