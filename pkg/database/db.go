@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/node-crawler/pkg/database/migrations"
+	"github.com/ethereum/node-crawler/pkg/fifomemory"
 	"github.com/ethereum/node-crawler/pkg/metrics"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,6 +30,7 @@ type DB struct {
 
 	nodesToCrawlCache chan *NodeToCrawl
 	nodesToCrawlLock  *sync.Mutex
+	recentlyCrawled   *fifomemory.FIFOMemory[enode.ID]
 }
 
 func NewAPIDB(ctx context.Context, db *sql.DB, pgConnString string) (*DB, error) {
@@ -61,6 +64,7 @@ func NewDB(
 
 		nodesToCrawlCache: make(chan *NodeToCrawl, 16384),
 		nodesToCrawlLock:  new(sync.Mutex),
+		recentlyCrawled:   fifomemory.New[enode.ID](256),
 	}, nil
 }
 

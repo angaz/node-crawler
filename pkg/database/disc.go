@@ -260,6 +260,10 @@ func (db *DB) NodesToCrawl(ctx context.Context) (*enode.Node, error) {
 				continue
 			}
 
+			if db.recentlyCrawled.ContainsOrPush(nextNode.Enode.ID()) {
+				continue
+			}
+
 			time.Sleep(time.Until(nextNode.NextCrawl))
 
 			return nextNode.Enode, nil
