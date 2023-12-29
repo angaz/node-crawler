@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/metrics"
+	"github.com/jackc/pgx/v5"
 )
 
 type HistoryListRow struct {
@@ -106,51 +107,53 @@ func (db *DB) GetHistoryList(
 		queryOrderDirection = "DESC"
 	}
 
-	rows, err := db.db.QueryContext(
+	rows, err := db.pg.Query(
 		ctx,
 		// Don't ever do this, but we have no other choice because I could not
 		// find another way to conditionally set the order direction. :(
 		fmt.Sprintf(`
 			SELECT
 				history.node_id,
-				crawled.client_identifier,
+				client_identifier,
 				crawled.network_id,
 				history.crawled_at,
 				history.direction,
 				history.error
-			FROM crawl_history AS history
-			LEFT JOIN crawled_nodes AS crawled ON (history.node_id = crawled.node_id)
+			FROM crawler.history
+			LEFT JOIN execution.nodes AS crawled USING (node_id)
+			LEFT JOIN client.identifiers USING (client_identifier_id)
 			WHERE
 				(
-					?1 IS NULL
-					OR history.crawled_at >= ?1
+					@before::TIMESTAMPTZ IS NULL
+					OR history.crawled_at >= @before
 				)
 				AND (
-					?2 IS NULL
-					OR history.crawled_at <= ?2
+					@after::TIMESTAMPTZ IS NULL
+					OR history.crawled_at <= @after
 				)
 				AND (
-					?3 = -1
-					OR crawled.network_id = ?3
+					@network_id = -1
+					OR crawled.network_id = @network_id
 				)
 				AND (
-					?4 = -1
-					OR (
-						?4 = 0
-						AND history.error IS NULL
-					)
-					OR (
-						?4 = 1
-						AND history.error IS NOT NULL
-					)
+					CASE
+						WHEN @error = -1 THEN
+							TRUE
+						WHEN @error = 0 THEN
+							history.error IS NULL
+						ELSE
+							history.error IS NOT NULL
+					END
 				)
 			ORDER BY history.crawled_at %s
 			LIMIT 50
 		`, queryOrderDirection),
-		timePtrToUnixPtr(before),
-		timePtrToUnixPtr(after),
-		networkID,
-		isError,
+		pgx.NamedArgs{
+			"before":     before,
+			"after":      after,
+			"network_id": networkID,
+			"error":      isError,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -168,15 +171,14 @@ func (db *DB) GetHistoryList(
 	}
 
 	for rows.Next() {
-		row := HistoryListRow{} //nolint:exhaustruct
+		var row HistoryListRow
 		nodeIDBytes := make([]byte, 32)
-		var crawledAtInt int64
 
 		err := rows.Scan(
 			&nodeIDBytes,
 			&row.ClientIdentifier,
 			&row.NetworkID,
-			&crawledAtInt,
+			&row.CrawledAt,
 			&row.Direction,
 			&row.Error,
 		)
@@ -185,7 +187,7 @@ func (db *DB) GetHistoryList(
 		}
 
 		row.NodeID = hex.EncodeToString(nodeIDBytes[:])
-		row.CrawledAt = time.Unix(crawledAtInt, 0)
+
 		historyList.Rows = append(historyList.Rows, row)
 	}
 
