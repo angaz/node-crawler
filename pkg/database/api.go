@@ -496,7 +496,7 @@ func statsInstant(
 				JOIN client.versions USING (client_version_id)
 				JOIN geoname.countries USING (country_geoname_id)
 				WHERE
-					bucket = (SELECT MAX(bucket) FROM timeseries)
+					bucket = (SELECT MAX(bucket) FROM timeseries WHERE total IS NOT NULL)
 					AND total IS NOT NULL
 				GROUP BY
 					key
@@ -531,8 +531,6 @@ func statsInstant(
 		return nil, fmt.Errorf("rows: %w", err)
 	}
 
-	fmt.Println(stats)
-
 	return stats, nil
 }
 
@@ -546,22 +544,38 @@ func statsGraph(
 		ctx,
 		fmt.Sprintf(
 			`
-				SELECT
-					key,
-					array_agg(total) totals
-				FROM (
+				WITH instant AS (
 					SELECT
-						%s key,
+						%[1]s key,
 						SUM(total)::INTEGER total
 					FROM timeseries
-					JOIN client.names USING (client_name_id)
-					JOIN client.versions USING (client_version_id)
+					LEFT JOIN client.names USING (client_name_id)
+					LEFT JOIN client.versions USING (client_version_id)
+					LEFT JOIN geoname.countries USING (country_geoname_id)
+					WHERE
+						bucket = (SELECT MAX(bucket) FROM timeseries WHERE total IS NOT NULL)
+					GROUP BY
+						key
+					ORDER BY total DESC
+				), grouped AS (
+					SELECT
+						bucket,
+						%[1]s key,
+						SUM(total)::INTEGER total
+					FROM timeseries
+					LEFT JOIN client.names USING (client_name_id)
+					LEFT JOIN client.versions USING (client_version_id)
 					GROUP BY
 						bucket,
 						key
 				)
+				SELECT
+					grouped.key,
+					array_agg(grouped.total ORDER BY grouped.bucket) totals
+				FROM grouped
+				LEFT JOIN instant USING (key)
 				GROUP BY key
-				-- ORDER BY totals[array_lenth(totals)] DESC NULLS LAST  -- Sort by last element
+				ORDER BY MAX(instant.total) ASC NULLS FIRST
 			`,
 			column,
 		),
@@ -615,11 +629,9 @@ func (db *DB) GetStats(
 	defer tx.Rollback(ctx)
 
 	bucketWidth := max(
-		before.Sub(after)/64,
+		(before.Sub(after) / 64).Round(30*time.Minute),
 		30*time.Minute,
 	)
-
-	fmt.Println(bucketWidth.Seconds(), after, before, networkID, synced, clientName)
 
 	_, err = tx.Exec(
 		ctx,
@@ -650,7 +662,7 @@ func (db *DB) GetStats(
 				-- in the forks table, the fork ID should exist. If we don't
 				-- have the network, keep the record.
 				CASE
-					WHEN @network_id = -1
+					WHEN @network_id = -1 THEN
 						TRUE
 					WHEN EXISTS (
 						SELECT 1
@@ -674,8 +686,8 @@ func (db *DB) GetStats(
 					OR network_id = @network_id
 				)
 				AND (
-					@syned = -1
-					OR synced = (@syned = 1)
+					@synced = -1
+					OR synced = (@synced = 1)
 				)
 				AND (
 					@client_name = ''
@@ -709,7 +721,7 @@ func (db *DB) GetStats(
 		return nil, fmt.Errorf("create temp table: %w", err)
 	}
 
-	rows, err := tx.Query(ctx, `SELECT bucket FROM timeseries GROUP BY bucket`)
+	rows, err := tx.Query(ctx, `SELECT DISTINCT bucket FROM timeseries`)
 	if err != nil {
 		return nil, fmt.Errorf("query buckets: %w", err)
 	}
@@ -732,8 +744,6 @@ func (db *DB) GetStats(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows buckets: %w", err)
 	}
-
-	fmt.Println(buckets)
 
 	var clientNameGraph []StatsGraphSeries
 
