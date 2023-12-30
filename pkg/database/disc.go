@@ -111,6 +111,31 @@ func (_ *DB) selectBestRecord(ctx context.Context, db rowQuerier, node *enode.No
 	return bestRecord, nil
 }
 
+func (db *DB) UpdateDiscNodeFailed(ctx context.Context, nodeID enode.ID) error {
+	var err error
+
+	defer metrics.ObserveDBQuery("disc_update_node_failed", time.Now(), err)
+
+	_, err = db.pg.Exec(
+		ctx,
+		`
+			UPDATE disc.nodes
+			SET
+				next_disc_crawl = now() + INTERVAL '48 hours'
+			WHERE
+				node_id = @node_id
+		`,
+		pgx.NamedArgs{
+			"node_id": nodeID.Bytes(),
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("exec: %w", err)
+	}
+
+	return nil
+}
+
 func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 	var err error
 

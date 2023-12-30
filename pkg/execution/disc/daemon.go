@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/ethereum/node-crawler/pkg/metrics"
-	"github.com/jackc/pgx/v5"
 )
 
 type Discovery struct {
@@ -140,34 +139,39 @@ func (d *Discovery) crawlNodeV4(ctx context.Context, node *enode.Node) error {
 
 	resp, err := d.v4.RequestENR(node)
 	if err == nil {
-		log.Info("request enr v4 successful", "id", resp.ID().TerminalString())
+		err = d.db.UpsertNode(ctx, resp)
+		if err != nil {
+			return fmt.Errorf("upsert node v4 request enr: %w", err)
+		}
 
 		return nil
 	}
 
 	var key enode.Secp256k1
 	if node.Load(&key) != nil {
-		log.Info("disc crawl node v4 failed", "err", "no secp256k1 key")
+		log.Error("disc crawl node v4 failed", "err", "no secp256k1 key")
 
 		return nil
 	}
 
-	// log.Info("request enr v4 failed", "err", err)
-
 	id := node.ID()
 
 	result := d.v4.LookupPubkey((*ecdsa.PublicKey)(&key))
-	// log.Info("lookup v4", "result", result, "len", len(result))
-
 	for _, rn := range result {
 		if rn.ID() == id {
-			log.Info("lookup v4 successful", "id", id.TerminalString())
+			err = d.db.UpsertNode(ctx, rn)
+			if err != nil {
+				return fmt.Errorf("upsert node v4 lookup: %w", err)
+			}
 
 			return nil
 		}
 	}
 
-	// log.Info("disc node v4 not found", "id", id.TerminalString())
+	err = d.db.UpdateDiscNodeFailed(ctx, node.ID())
+	if err != nil {
+		return fmt.Errorf("update failed: %w", err)
+	}
 
 	return nil
 }
@@ -177,27 +181,32 @@ func (d *Discovery) crawlNodeV5(ctx context.Context, node *enode.Node) error {
 
 	resp, err := d.v5.RequestENR(node)
 	if err == nil {
-		log.Info("request enr v5 successful", "id", resp.ID().TerminalString())
+		err = d.db.UpsertNode(ctx, resp)
+		if err != nil {
+			return fmt.Errorf("upsert node request enr: %w", err)
+		}
 
 		return nil
 	}
 
-	// log.Info("request enr v5 failed", "err", err)
-
 	id := node.ID()
 
 	result := d.v5.Lookup(id)
-	// log.Info("lookup v5", "result", result, "len", len(result))
-
 	for _, rn := range result {
 		if rn.ID() == id {
-			log.Info("lookup v5 successful", "id", id.TerminalString())
+			err = d.db.UpsertNode(ctx, rn)
+			if err != nil {
+				return fmt.Errorf("upsert node lookup: %w", err)
+			}
 
 			return nil
 		}
 	}
 
-	// log.Info("disc node v5 not found", "id", id.TerminalString())
+	err = d.db.UpdateDiscNodeFailed(ctx, node.ID())
+	if err != nil {
+		return fmt.Errorf("update failed: %w", err)
+	}
 
 	return nil
 }
@@ -208,19 +217,20 @@ func (d *Discovery) crawlNode(ctx context.Context) error {
 		return fmt.Errorf("select node: %w", err)
 	}
 
-	err = d.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		if node == nil {
-			return nil
-		}
+	if node == nil {
+		return nil
+	}
 
-		if common.IsEnode(node.Record()) {
-			return d.crawlNodeV4(ctx, node)
+	if common.IsEnode(node.Record()) {
+		err = d.crawlNodeV4(ctx, node)
+		if err != nil {
+			return fmt.Errorf("crawl node v4: %w", err)
 		}
+	}
 
-		return d.crawlNodeV5(ctx, node)
-	})
+	err = d.crawlNodeV5(ctx, node)
 	if err != nil {
-		return fmt.Errorf("crawl node: %w", err)
+		return fmt.Errorf("crawl node v5: %w", err)
 	}
 
 	return nil
