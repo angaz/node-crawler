@@ -94,7 +94,6 @@ func denormalizeClient(ctx context.Context, tx pgx.Tx, sqlite *sql.DB, column st
 			) VALUES (
 				$1
 			)
-			ON CONFLICT (%[1]s) DO NOTHING
 			RETURNING %[1]s_id
 		`, column, table),
 	)
@@ -112,13 +111,50 @@ func copySqliteToPGClientName(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (m
 }
 
 func copySqliteToPGClientVersion(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
-	return denormalizeClient(
+	column := "client_version"
+	table := "client.versions"
+	schema := "stats"
+
+	log.Info("migration start", "name", column)
+	start := time.Now()
+	defer func() {
+		log.Info("migration end", "name", column, "duration", time.Since(start))
+	}()
+
+	return denormalizeString(
 		ctx,
 		tx,
 		sqlite,
-		"client_version",
-		"client.versions",
-		"stats",
+		fmt.Sprintf(`
+			SELECT DISTINCT CASE
+				WHEN client_name = 'reth' THEN
+					CASE WHEN instr(client_build, '-') != 0 THEN
+						client_version || '-' || substr(client_build, 0, instr(client_build, '-'))
+					WHEN client_build IS NOT NULL AND client_build != '' THEN
+						client_version || '-' || client_build
+					ELSE
+						client_version
+					END
+				ELSE
+					client_version
+			END
+			FROM main.crawled_nodes
+			WHERE %[1]s IS NOT NULL
+
+			UNION
+
+			SELECT DISTINCT client_version
+			FROM stats.crawled_nodes
+			WHERE %[1]s IS NOT NULL
+		`, column, schema),
+		fmt.Sprintf(`
+			INSERT INTO %[2]s (
+				%[1]s
+			) VALUES (
+				$1
+			)
+			RETURNING %[1]s_id
+		`, column, table),
 	)
 }
 
@@ -321,7 +357,7 @@ func migrateStatsTable(
 				COALESCE(client_arch, 'Unknown'),
 				network_id,
 				fork_id,
-				next_fork_id,
+				coalesce(next_fork_id, 0),
 				country,
 				synced,
 				dial_success,
@@ -348,7 +384,7 @@ func migrateStatsTable(
 		var clientArch string
 		var networkID int64
 		var forkID int64
-		var nextForkID *uint64
+		var nextForkID uint64
 		var country string
 		var synced bool
 		var dialSuccess bool
@@ -463,7 +499,7 @@ func migrateExecutionNodesTable(
 				capabilities,
 				network_id,
 				fork_id,
-				next_fork_id,
+				coalesce(next_fork_id, 0),
 				head_hash
 			FROM crawled_nodes
 			WHERE
@@ -492,7 +528,7 @@ func migrateExecutionNodesTable(
 		var capabilities string
 		var networkID int64
 		var forkID int64
-		var nextForkID *int64
+		var nextForkID int64
 		var headHash []byte
 
 		err := rows.Scan(
@@ -511,6 +547,8 @@ func migrateExecutionNodesTable(
 		}
 
 		var cnID, cudID, cvID, cbID, clID *int64
+		var os common.OS
+		var arch common.Arch
 
 		cID := clientIdentifiersMap[clientIdentifier]
 		capID := capabilitiesMap[capabilities]
@@ -519,29 +557,50 @@ func migrateExecutionNodesTable(
 
 		if client != nil {
 			if client.Name != common.Unknown {
-				id := clientNamesMap[client.Name]
+				id, ok := clientNamesMap[client.Name]
+				if !ok {
+					return nil, fmt.Errorf("client not found: %s, %s", client.Name, clientIdentifier)
+				}
 				cnID = &id
 			}
 
 			if client.UserData != common.Unknown {
-				id := clientUserDataMap[client.UserData]
+				id, ok := clientUserDataMap[client.UserData]
+				if !ok {
+					return nil, fmt.Errorf("user data not found: %s, %s", client.UserData, clientIdentifier)
+				}
 				cudID = &id
 			}
 
 			if client.Version != common.Unknown {
-				id := clientVersionsMap[client.Version]
+				id, ok := clientVersionsMap[client.Version]
+				if !ok {
+					return nil, fmt.Errorf("version not found: %s, %s", client.Version, clientIdentifier)
+				}
 				cvID = &id
 			}
 
 			if client.Build != common.Unknown {
-				id := clientBuildsMap[client.Build]
+				id, ok := clientBuildsMap[client.Build]
+				if !ok {
+					return nil, fmt.Errorf("build not found: %s, %s", client.Build, clientIdentifier)
+				}
 				cbID = &id
 			}
 
 			if client.Language != common.Unknown {
-				id := clientLanguagesMap[client.Language]
+				id, ok := clientLanguagesMap[client.Language]
+				if !ok {
+					return nil, fmt.Errorf("language not found: %s, %s", client.Language, clientIdentifier)
+				}
 				clID = &id
 			}
+
+			os = client.OS
+			arch = client.Arch
+		} else {
+			os = common.OSUnknown
+			arch = common.ArchUnknown
 		}
 
 		return []any{
@@ -558,8 +617,8 @@ func migrateExecutionNodesTable(
 			cudID,
 			cvID,
 			cbID,
-			client.OS.String(),
-			client.Arch.String(),
+			os.String(),
+			arch.String(),
 			clID,
 		}, nil
 	})

@@ -181,8 +181,8 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	switch params.graphInterval {
 	case database.GraphInterval30Min:
 		after = before.Add(-3 * 24 * time.Hour)
-	case database.GraphInterval6Hour:
-		after = before.Add(-14 * 24 * time.Hour)
+	case database.GraphInterval24Hour:
+		after = before.Add(-28 * 24 * time.Hour)
 	}
 
 	allStats, err := a.getFilterStats(r.Context(), after, before, params)

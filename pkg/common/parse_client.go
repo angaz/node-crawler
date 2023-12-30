@@ -456,8 +456,8 @@ func handleLen4(parts []string) (*Client, error) {
 
 func handleLen5(parts []string) (*Client, error) {
 	var versionStr, lang string
-	os := OSUnknown
-	arch := ArchUnknown
+	var os OS
+	var arch Arch
 	userData := Unknown
 
 	// handle geth/v1.2.11-e3acd735-20231031/linux-amd64/go1.20.5/{d+}

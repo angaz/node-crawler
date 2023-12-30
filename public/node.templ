@@ -947,10 +947,10 @@ templ StatsGroup(name string, instant database.StatsInstant, hrefFn func(string)
 			for _, stat := range instant.Series {
 				<div STYLE_REPLACE={ fmt.Sprintf("background-color: #333; padding: 0.5em 0; width: %d%%", stat.Total*100/instant.Total) }>
 					<span style="padding-inline-start: 0.5em; white-space: nowrap;">
-						if hrefFn(stat.Key) == "" {
-							{ stat.Key } ({ strconv.FormatInt(stat.Total, 10) })
+						if hrefFn(stat.Key()) == "" {
+							{ stat.Key() } ({ strconv.FormatInt(stat.Total, 10) })
 						} else {
-							<a href={hrefFn(stat.Key)}>{ stat.Key } ({ strconv.FormatInt(stat.Total, 10) })</a>
+							<a href={hrefFn(stat.Key())}>{ stat.Key() } ({ strconv.FormatInt(stat.Total, 10) })</a>
 						}
 					</span>
 				</div>

@@ -96,13 +96,13 @@ func Migrate002StatsViews(ctx context.Context, tx pgx.Tx) error {
 	err = createStatsView(
 		ctx,
 		tx,
-		"stats.execution_nodes_6_hour",
-		6*time.Hour,
+		"stats.execution_nodes",
 		24*time.Hour,
+		3*24*time.Hour,
 		32*24*time.Hour,
 	)
 	if err != nil {
-		return fmt.Errorf("create view 30 minute: %w", err)
+		return fmt.Errorf("create view daily: %w", err)
 	}
 
 	return nil

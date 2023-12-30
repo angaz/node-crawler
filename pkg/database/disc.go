@@ -169,7 +169,9 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 				node_record = excluded.node_record,
 				ip_address = excluded.ip_address,
 				city_geoname_id = excluded.city_geoname_id
-			WHERE nodes.last_found < (now() - INTERVAL '6 hours')  -- Only update once every 6 hours
+			WHERE
+				nodes.last_found < (now() - INTERVAL '6 hours')  -- Only update once every 6 hours
+				OR nodes.node_record != excluded.node_record
 		`,
 		pgx.NamedArgs{
 			"node_id":         node.ID().Bytes(),
@@ -257,14 +259,23 @@ func (db *DB) NodesToCrawl(ctx context.Context) (*enode.Node, error) {
 		select {
 		case nextNode := <-db.nodesToCrawlCache:
 			if nextNode == nil {
+				log.Info("next node is null")
+
 				continue
 			}
 
 			if db.recentlyCrawled.ContainsOrPush(nextNode.Enode.ID()) {
+				log.Info("recently crawled", "node", nextNode.Enode.ID().TerminalString())
+
 				continue
 			}
 
-			time.Sleep(time.Until(nextNode.NextCrawl))
+			sleepDur := time.Until(nextNode.NextCrawl)
+			if sleepDur > 0 {
+				log.Info("sleeping", "until", nextNode.NextCrawl)
+
+				time.Sleep(sleepDur)
+			}
 
 			return nextNode.Enode, nil
 		default:

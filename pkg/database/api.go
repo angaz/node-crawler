@@ -395,15 +395,31 @@ func (db *DB) GetNodeList(
 }
 
 type StatsGraphSeries struct {
-	Key    string
+	key    *string
 	Totals []*float64
+}
+
+func (s StatsGraphSeries) Key() string {
+	if s.key == nil {
+		return common.Unknown
+	}
+
+	return *s.key
 }
 
 type StatsGraph []StatsGraphSeries
 
 type StatsSeriesInstant struct {
-	Key   string
+	key   *string
 	Total int64
+}
+
+func (i StatsSeriesInstant) Key() string {
+	if i.key == nil {
+		return common.Unknown
+	}
+
+	return *i.key
 }
 
 type StatsInstant struct {
@@ -444,7 +460,7 @@ func (stats StatsResult) toTimeseries(series []StatsGraphSeries) Timeseries {
 
 	for i, series := range series {
 		chartSeries[i] = ChartSeries{
-			Name:      series.Key,
+			Name:      series.Key(),
 			Type:      "line",
 			Colour:    "",
 			Stack:     "Total",
@@ -492,9 +508,9 @@ func statsInstant(
 					%s key,
 					SUM(total)::INTEGER total
 				FROM timeseries
-				JOIN client.names USING (client_name_id)
-				JOIN client.versions USING (client_version_id)
-				JOIN geoname.countries USING (country_geoname_id)
+				LEFT JOIN client.names USING (client_name_id)
+				LEFT JOIN client.versions USING (client_version_id)
+				LEFT JOIN geoname.countries USING (country_geoname_id)
 				WHERE
 					bucket = (SELECT MAX(bucket) FROM timeseries WHERE total IS NOT NULL)
 					AND total IS NOT NULL
@@ -516,7 +532,7 @@ func statsInstant(
 		var row StatsSeriesInstant
 
 		err := rows.Scan(
-			&row.Key,
+			&row.key,
 			&row.Total,
 		)
 		if err != nil {
@@ -591,7 +607,7 @@ func statsGraph(
 		var series StatsGraphSeries
 
 		err := rows.Scan(
-			&series.Key,
+			&series.key,
 			&series.Totals,
 		)
 		if err != nil {
@@ -638,11 +654,10 @@ func (db *DB) GetStats(
 
 	sql := fmt.Sprintf(
 		`
-				CREATE TEMPORARY VIEW timeseries AS
 				SELECT
 					time_bucket_gapfill(
 						make_interval(secs => %[2]d),
-						bucket,
+						nodes.bucket,
 						'%[3]s'::TIMESTAMPTZ,
 						'%[4]s'::TIMESTAMPTZ
 					) bucket,
@@ -657,6 +672,7 @@ func (db *DB) GetStats(
 					synced,
 					dial_success,
 					avg(total) total
+				INTO TEMPORARY TABLE timeseries
 				FROM stats.execution_nodes_%[1]s nodes
 				LEFT JOIN client.names USING (client_name_id)
 				WHERE
@@ -719,6 +735,8 @@ func (db *DB) GetStats(
 		escapedClientName,
 	)
 
+	fmt.Println(sql)
+
 	_, err = tx.Exec(
 		ctx,
 		sql,
@@ -727,7 +745,7 @@ func (db *DB) GetStats(
 		return nil, fmt.Errorf("create temp table: %w", err)
 	}
 
-	rows, err := tx.Query(ctx, `SELECT DISTINCT bucket FROM timeseries`)
+	rows, err := tx.Query(ctx, `SELECT DISTINCT bucket FROM timeseries ORDER BY bucket`)
 	if err != nil {
 		return nil, fmt.Errorf("query buckets: %w", err)
 	}
