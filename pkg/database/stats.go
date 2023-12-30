@@ -17,14 +17,14 @@ import (
 )
 
 const (
-	GraphInterval30Min  = 30 * time.Minute
+	GraphInterval3Hour  = 3 * time.Hour
 	GraphInterval24Hour = 24 * time.Hour
 )
 
 var (
 	GraphIntervalValues = map[string]time.Duration{
-		GraphInterval30Min.String():  GraphInterval30Min,
-		GraphInterval24Hour.String(): GraphInterval24Hour,
+		"3h":  GraphInterval3Hour,
+		"24h": GraphInterval24Hour,
 	}
 )
 

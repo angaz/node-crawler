@@ -647,42 +647,45 @@ func (db *DB) GetStats(
 	}
 	defer tx.Rollback(ctx)
 
-	escapedClientName, err := tx.Conn().PgConn().EscapeString(clientName)
-	if err != nil {
-		return nil, fmt.Errorf("escape client_name: %w", err)
-	}
+	intervalHours := int(graphInterval.Hours())
 
-	sql := fmt.Sprintf(
-		`
+	_, err = tx.Exec(
+		ctx,
+		fmt.Sprintf(
+			`
 				SELECT
 					time_bucket_gapfill(
-						make_interval(secs => %[2]d),
+						make_interval(hours => @interval),
 						nodes.bucket,
-						'%[3]s'::TIMESTAMPTZ,
-						'%[4]s'::TIMESTAMPTZ
+						@after::TIMESTAMPTZ,
+						@before::TIMESTAMPTZ
 					) bucket,
 					client_name_id,
 					client_version_id,
 					client_os,
 					client_arch,
-					network_id,
-					fork_id,
+					nodes.network_id,
+					nodes.fork_id,
 					next_fork_id,
 					country_geoname_id,
 					synced,
 					dial_success,
 					avg(total) total
 				INTO TEMPORARY TABLE timeseries
-				FROM stats.execution_nodes_%[1]s nodes
+				FROM stats.execution_nodes_%dh nodes
 				LEFT JOIN client.names USING (client_name_id)
+				LEFT JOIN network.forks next_fork ON (
+					nodes.network_id = next_fork.network_id
+					AND nodes.next_fork_id = next_fork.block_time
+				)
 				WHERE
 					-- If we are filtering by a network ID, and we have the network
 					-- in the forks table, the fork ID should exist. If we don't
 					-- have the network, keep the record.
 					CASE
-						WHEN %[5]d = -1 THEN
+						WHEN @network_id = -1 THEN
 							TRUE
-						WHEN %[5]d = 1 AND EXISTS (
+						WHEN EXISTS (
 							SELECT 1
 							FROM network.forks
 							WHERE forks.network_id = nodes.network_id
@@ -697,19 +700,23 @@ func (db *DB) GetStats(
 						ELSE
 							TRUE
 					END
-					AND bucket >= '%[3]s'::TIMESTAMPTZ
-					AND bucket < '%[4]s'::TIMESTAMPTZ
+					AND bucket >= @after::TIMESTAMPTZ
+					AND bucket < @before::TIMESTAMPTZ
 					AND (
-						%[5]d = -1
-						OR network_id = %[5]d
+						@network_id = -1
+						OR nodes.network_id = @network_id
 					)
 					AND (
-						%[6]d = -1
-						OR synced = (%[6]d = 1)
+						@synced = -1
+						OR synced = (@synced = 1)
 					)
 					AND (
-						'%[7]s' = ''
-						OR names.client_name = '%[7]s'
+						@client_name = ''
+						OR names.client_name = @client_name
+					)
+					AND (
+						@next_fork_name = ''
+						OR next_fork.fork_name = @next_fork_name
 					)
 				GROUP BY
 					1,
@@ -717,8 +724,8 @@ func (db *DB) GetStats(
 					client_version_id,
 					client_os,
 					client_arch,
-					network_id,
-					fork_id,
+					nodes.network_id,
+					nodes.fork_id,
 					next_fork_id,
 					country_geoname_id,
 					synced,
@@ -726,20 +733,17 @@ func (db *DB) GetStats(
 				ORDER BY
 					1 ASC
 			`,
-		graphInterval.String(),
-		int(graphInterval.Seconds()),
-		after.Format(time.RFC3339),
-		before.Format(time.RFC3339),
-		networkID,
-		synced,
-		escapedClientName,
-	)
-
-	fmt.Println(sql)
-
-	_, err = tx.Exec(
-		ctx,
-		sql,
+			intervalHours,
+		),
+		pgx.NamedArgs{
+			"interval":       intervalHours,
+			"after":          after.Format(time.RFC3339),
+			"before":         before.Format(time.RFC3339),
+			"network_id":     networkID,
+			"synced":         synced,
+			"client_name":    clientName,
+			"next_fork_name": "",
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create temp table: %w", err)
@@ -770,27 +774,33 @@ func (db *DB) GetStats(
 	}
 
 	var clientNameGraph []StatsGraphSeries
+	var clientNameInstant []StatsSeriesInstant
 
 	if clientName == "" {
 		clientNameGraph, err = statsGraph(ctx, tx, "client_name")
 		if err != nil {
 			return nil, fmt.Errorf("client_name graph: %w", err)
 		}
+
+		clientNameInstant, err = statsInstant(ctx, tx, "client_name")
+		if err != nil {
+			return nil, fmt.Errorf("client_name instant: %w", err)
+		}
 	} else {
 		clientNameGraph, err = statsGraph(ctx, tx, "client_version")
 		if err != nil {
 			return nil, fmt.Errorf("client_version graph: %w", err)
+		}
+
+		clientNameInstant, err = statsInstant(ctx, tx, "client_version")
+		if err != nil {
+			return nil, fmt.Errorf("client_version instant: %w", err)
 		}
 	}
 
 	dialSuccessGraph, err := statsGraph(ctx, tx, "CASE WHEN dial_success THEN 'Success' ELSE 'Fail' END")
 	if err != nil {
 		return nil, fmt.Errorf("dial_success graph: %w", err)
-	}
-
-	clientNameInstant, err := statsInstant(ctx, tx, "client_name")
-	if err != nil {
-		return nil, fmt.Errorf("client_name instant: %w", err)
 	}
 
 	countriesInstant, err := statsInstant(ctx, tx, "country_name")

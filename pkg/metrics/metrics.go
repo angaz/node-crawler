@@ -92,6 +92,14 @@ var (
 			Help:      "Number of nodes to crawl",
 		},
 	)
+	DBStatsDiscNodesToCrawl = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: "database_stats",
+			Name:      "disc_nodes_to_crawl",
+			Help:      "Number of discovery nodes to crawl",
+		},
+	)
 	DBStatsBlocks = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: namespace,

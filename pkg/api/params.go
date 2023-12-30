@@ -60,7 +60,7 @@ func parseNextForkParam(w http.ResponseWriter, str string) (int, bool) {
 
 func parseGraphInterval(w http.ResponseWriter, str string) (time.Duration, bool) {
 	if str == "" {
-		return database.GraphInterval30Min, true
+		return database.GraphInterval24Hour, true
 	}
 
 	dur, ok := database.GraphIntervalValues[str]

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -37,7 +38,7 @@ func createStatsView(
 					country_geoname_id,
 					synced,
 					dial_success,
-					last(total, timestamp) total
+					avg(total) total
 				FROM stats.execution_nodes nodes
 				GROUP BY
 					bucket,
@@ -67,7 +68,7 @@ func createStatsView(
 					make_interval(secs => %[4]d)
 				);
 			`,
-			fmt.Sprintf("%s_%s", tableName, interval.String()),
+			tableName,
 			int(interval.Seconds()),
 			int(startOffset.Seconds()),
 			int(retention.Seconds()),
@@ -77,6 +78,15 @@ func createStatsView(
 		return fmt.Errorf("exec: %w", err)
 	}
 
+	log.Warn(
+		"Don't forget to add initial data",
+		"query", fmt.Sprintf(
+			"CALL refresh_continuous_aggregate('%s', '%s', INTERVAL '30 minutes');",
+			tableName,
+			time.Now().Add(-retention).Format("2006-01-02"),
+		),
+	)
+
 	return nil
 }
 
@@ -84,19 +94,19 @@ func Migrate002StatsViews(ctx context.Context, tx pgx.Tx) error {
 	err := createStatsView(
 		ctx,
 		tx,
-		"stats.execution_nodes",
-		30*time.Minute,
-		2*time.Hour,
-		6*24*time.Hour,
+		"stats.execution_nodes_3h",
+		3*time.Hour,
+		12*time.Hour,
+		14*24*time.Hour,
 	)
 	if err != nil {
-		return fmt.Errorf("create view 30 minute: %w", err)
+		return fmt.Errorf("create view 3 hourly: %w", err)
 	}
 
 	err = createStatsView(
 		ctx,
 		tx,
-		"stats.execution_nodes",
+		"stats.execution_nodes_24h",
 		24*time.Hour,
 		3*24*time.Hour,
 		32*24*time.Hour,

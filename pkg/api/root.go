@@ -179,8 +179,8 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	after := before.Add(3 * 24 * time.Hour)
 
 	switch params.graphInterval {
-	case database.GraphInterval30Min:
-		after = before.Add(-3 * 24 * time.Hour)
+	case database.GraphInterval3Hour:
+		after = before.Add(-7 * 24 * time.Hour)
 	case database.GraphInterval24Hour:
 		after = before.Add(-28 * 24 * time.Hour)
 	}

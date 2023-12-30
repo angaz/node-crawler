@@ -102,16 +102,22 @@ func (db *DB) tableStats(ctx context.Context) {
 						next_crawl < now()
 						AND node_type IN ('Unknown', 'Execution')
 				),
+				(
+					SELECT COUNT(*) FROM disc.nodes
+					WHERE
+						next_disc_crawl < now()
+				),
 				(SELECT COUNT(*) FROM execution.nodes),
 				(SELECT COUNT(*) FROM execution.blocks)
 		`,
 	)
 
-	var discoveredNodes, toCrawl, crawledNodes, blocks int64
+	var discoveredNodes, toCrawl, discToCrawl, crawledNodes, blocks int64
 
 	err = row.Scan(
 		&discoveredNodes,
 		&toCrawl,
+		&discToCrawl,
 		&crawledNodes,
 		&blocks,
 	)
@@ -125,6 +131,7 @@ func (db *DB) tableStats(ctx context.Context) {
 	metrics.DBStatsCrawledNodes.Set(float64(crawledNodes))
 	metrics.DBStatsDiscNodes.Set(float64(discoveredNodes))
 	metrics.DBStatsNodesToCrawl.Set(float64(toCrawl))
+	metrics.DBStatsDiscNodesToCrawl.Set(float64(discToCrawl))
 }
 
 func (db *DB) lastFoundStats(ctx context.Context) {

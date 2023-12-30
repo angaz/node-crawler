@@ -218,6 +218,7 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				first_found		TIMESTAMPTZ			NOT NULL,
 				last_found		TIMESTAMPTZ			NOT NULL,
 				next_crawl		TIMESTAMPTZ			NOT NULL,
+				next_disc_crawl	TIMESTAMPTZ			NOT NULL,
 				node_pubkey		BYTEA				NOT NULL,
 				node_record		BYTEA				NOT NULL,
 				ip_address		INET				NOT NULL,
@@ -226,6 +227,8 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 
 			CREATE INDEX disc_nodes_next_crawl_node_type_node_record ON
 				disc.nodes (next_crawl, node_type, node_record);
+			CREATE INDEX disc_nodes_next_disc_crawl_node_record ON
+				disc.nodes (next_disc_crawl, node_record);
 			CREATE INDEX disc_nodes_last_found ON
 				disc.nodes (last_found);
 			CREATE INDEX disc_nodes_ip_address ON
