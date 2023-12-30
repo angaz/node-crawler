@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -85,12 +86,12 @@ type tableStats struct {
 	totalToCrawl         int64
 }
 
-func (db *DB) getTableStats(ctx context.Context) (*tableStats, error) {
+func (db *DB) tableStats(ctx context.Context) {
 	var err error
 
 	defer metrics.ObserveDBQuery("table_stats", time.Now(), err)
 
-	rows, err := db.pg.Query(
+	row := db.pg.QueryRow(
 		ctx,
 		`
 			SELECT
@@ -105,28 +106,80 @@ func (db *DB) getTableStats(ctx context.Context) (*tableStats, error) {
 				(SELECT COUNT(*) FROM execution.blocks)
 		`,
 	)
+
+	var discoveredNodes, toCrawl, crawledNodes, blocks int64
+
+	err = row.Scan(
+		&discoveredNodes,
+		&toCrawl,
+		&crawledNodes,
+		&blocks,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("query: %w", err)
-	}
-	defer rows.Close()
+		log.Error("table stats scan failed", "err", err)
 
-	if rows.Next() {
-		var stats tableStats
-
-		err = rows.Scan(
-			&stats.totalDiscoveredNodes,
-			&stats.totalToCrawl,
-			&stats.totalCrawledNodes,
-			&stats.totalBlocks,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
-		}
-
-		return &stats, nil
+		return
 	}
 
-	return nil, sql.ErrNoRows
+	metrics.DBStatsBlocks.Set(float64(blocks))
+	metrics.DBStatsCrawledNodes.Set(float64(crawledNodes))
+	metrics.DBStatsDiscNodes.Set(float64(discoveredNodes))
+	metrics.DBStatsNodesToCrawl.Set(float64(toCrawl))
+}
+
+func (db *DB) lastFoundStats(ctx context.Context) {
+	var err error
+
+	defer metrics.ObserveDBQuery("last_found_stats", time.Now(), err)
+
+	rows, err := db.pg.Query(
+		ctx,
+		`
+			WITH last_found AS (
+				SELECT
+					time_bucket_gapfill(
+						INTERVAL '3 hour',
+						last_found,
+						now() - INTERVAL '72 hours',
+						now()
+					) bucket,
+					coalesce(COUNT(*), 0) count
+				FROM disc.nodes
+				WHERE last_found > now() - INTERVAL '72 hours'
+				GROUP BY bucket
+			)
+			SELECT
+				time_bucket(
+					INTERVAL '3 hours',
+					now()
+				) - time_bucket(
+					INTERVAL '3 hours',
+					bucket
+				) relative_bucket,
+				count
+			FROM last_found
+			ORDER BY bucket DESC
+		`,
+	)
+	if err != nil {
+		log.Error("get last found stats query failed", "err", err)
+
+		return
+	}
+
+	var bucket time.Duration
+	var count int64
+
+	_, err = pgx.ForEachRow(rows, []any{&bucket, &count}, func() error {
+		metrics.LastFound.
+			WithLabelValues(strconv.FormatInt(int64(bucket.Seconds()), 10)).
+			Set(float64(count))
+
+		return nil
+	})
+	if err != nil {
+		log.Error("get last found stats rows failed", "err", err)
+	}
 }
 
 // Meant to be run as a goroutine
@@ -137,17 +190,8 @@ func (db *DB) TableStatsMetricsDaemon(ctx context.Context, frequency time.Durati
 		next := time.Now().Truncate(frequency).Add(frequency)
 		time.Sleep(time.Until(next))
 
-		stats, err := db.getTableStats(ctx)
-		if err != nil {
-			log.Error("get table stats failed", "err", err)
-
-			continue
-		}
-
-		metrics.DBStatsBlocks.Set(float64(stats.totalBlocks))
-		metrics.DBStatsCrawledNodes.Set(float64(stats.totalCrawledNodes))
-		metrics.DBStatsDiscNodes.Set(float64(stats.totalDiscoveredNodes))
-		metrics.DBStatsNodesToCrawl.Set(float64(stats.totalToCrawl))
+		db.tableStats(ctx)
+		db.lastFoundStats(ctx)
 	}
 }
 

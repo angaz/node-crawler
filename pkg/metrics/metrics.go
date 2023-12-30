@@ -22,6 +22,16 @@ var (
 			"status",
 		},
 	)
+	LastFound = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "last_found",
+			Help:      "Number of nodes in each time bucket by last_found",
+		},
+		[]string{
+			"bucket",
+		},
+	)
 	DiscUpdateBacklog = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "disc_update_backlog",
