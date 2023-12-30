@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/node-crawler/pkg/common"
+	"github.com/ethereum/node-crawler/pkg/fifomemory"
 	"github.com/ethereum/node-crawler/pkg/metrics"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -202,6 +204,35 @@ type NodeToCrawl struct {
 	Enode     *enode.Node
 }
 
+func scanNodesToCrawl(rows pgx.Rows, ch chan<- *NodeToCrawl) error {
+	var nextCrawl time.Time
+	var enrBytes []byte
+
+	_, err := pgx.ForEachRow(rows, []any{&nextCrawl, &enrBytes}, func() error {
+		record, err := common.LoadENR(enrBytes)
+		if err != nil {
+			return fmt.Errorf("load enr: %w", err)
+		}
+
+		node, err := common.RecordToEnode(record)
+		if err != nil {
+			return fmt.Errorf("record to enode: %w, %x", err, enrBytes)
+		}
+
+		ch <- &NodeToCrawl{
+			NextCrawl: nextCrawl,
+			Enode:     node,
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("collect rows: %w", err)
+	}
+
+	return nil
+}
+
 func (db *DB) fetchNodesToCrawl(ctx context.Context) error {
 	var err error
 
@@ -226,63 +257,72 @@ func (db *DB) fetchNodesToCrawl(ctx context.Context) error {
 	}
 	defer rows.Close()
 
-	var nextCrawl time.Time
-	var enrBytes []byte
-
-	_, err = pgx.ForEachRow(rows, []any{&nextCrawl, &enrBytes}, func() error {
-		record, err := common.LoadENR(enrBytes)
-		if err != nil {
-			return fmt.Errorf("load enr: %w", err)
-		}
-
-		node, err := common.RecordToEnode(record)
-		if err != nil {
-			return fmt.Errorf("record to enode: %w, %x", err, enrBytes)
-		}
-
-		db.nodesToCrawlCache <- &NodeToCrawl{
-			NextCrawl: nextCrawl,
-			Enode:     node,
-		}
-
-		return nil
-	})
+	err = scanNodesToCrawl(rows, db.nodesToCrawlCache)
 	if err != nil {
-		return fmt.Errorf("collect rows: %w", err)
+		return fmt.Errorf("scan nodes: %w", err)
 	}
 
 	return nil
 }
 
-func (db *DB) NodesToCrawl(ctx context.Context) (*enode.Node, error) {
-	db.nodesToCrawlLock.Lock()
-	defer db.nodesToCrawlLock.Unlock()
+func (db *DB) fetchDiscNodesToCrawl(ctx context.Context) error {
+	var err error
+
+	defer metrics.ObserveDBQuery("select_disc_nodes", time.Now(), err)
+
+	rows, err := db.pg.Query(
+		ctx,
+		`
+			SELECT
+				next_disc_crawl,
+				node_record
+			FROM disc.nodes
+			ORDER BY next_disc_crawl
+			LIMIT 8196
+		`,
+	)
+	if err != nil {
+		return fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	err = scanNodesToCrawl(rows, db.discNodesToCrawlCache)
+	if err != nil {
+		return fmt.Errorf("scan nodes: %w", err)
+	}
+
+	return nil
+}
+
+func nodesToCrawl(
+	ctx context.Context,
+	lock *sync.Mutex,
+	ch <-chan *NodeToCrawl,
+	recentlyCrawled *fifomemory.FIFOMemory[enode.ID],
+	fetchNodesToCrawl func(context.Context) error,
+) (*enode.Node, error) {
+	lock.Lock()
+	defer lock.Unlock()
 
 	for ctx.Err() == nil {
 		select {
-		case nextNode := <-db.nodesToCrawlCache:
+		case nextNode := <-ch:
 			if nextNode == nil {
-				log.Info("next node is null")
-
 				continue
 			}
 
-			if db.recentlyCrawled.ContainsOrPush(nextNode.Enode.ID()) {
-				log.Info("recently crawled", "node", nextNode.Enode.ID().TerminalString())
-
+			if recentlyCrawled.ContainsOrPush(nextNode.Enode.ID()) {
 				continue
 			}
 
 			sleepDur := time.Until(nextNode.NextCrawl)
 			if sleepDur > 0 {
-				log.Info("sleeping", "until", nextNode.NextCrawl)
-
 				time.Sleep(sleepDur)
 			}
 
 			return nextNode.Enode, nil
 		default:
-			err := db.fetchNodesToCrawl(ctx)
+			err := fetchNodesToCrawl(ctx)
 			if err != nil {
 				log.Error("fetch nodes to crawl failed", "err", err)
 				time.Sleep(time.Minute)
@@ -291,4 +331,24 @@ func (db *DB) NodesToCrawl(ctx context.Context) (*enode.Node, error) {
 	}
 
 	return nil, ctx.Err()
+}
+
+func (db *DB) NodesToCrawl(ctx context.Context) (*enode.Node, error) {
+	return nodesToCrawl(
+		ctx,
+		db.nodesToCrawlLock,
+		db.nodesToCrawlCache,
+		db.recentlyCrawled,
+		db.fetchNodesToCrawl,
+	)
+}
+
+func (db *DB) DiscNodesToCrawl(ctx context.Context) (*enode.Node, error) {
+	return nodesToCrawl(
+		ctx,
+		db.discNodesToCrawlLock,
+		db.discNodesToCrawlCache,
+		db.discRecentlyCrawled,
+		db.fetchDiscNodesToCrawl,
+	)
 }

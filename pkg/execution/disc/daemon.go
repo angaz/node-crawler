@@ -12,8 +12,10 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/ethereum/node-crawler/pkg/metrics"
+	"github.com/jackc/pgx/v5"
 )
 
 type Discovery struct {
@@ -133,6 +135,108 @@ func (d *Discovery) Wait() {
 	d.wg.Wait()
 }
 
+func (d *Discovery) crawlNodeV4(ctx context.Context, node *enode.Node) error {
+	defer metrics.DiscCrawlCount.WithLabelValues("v4").Inc()
+
+	resp, err := d.v4.RequestENR(node)
+	if err == nil {
+		log.Info("request enr v4 successful", "id", resp.ID().TerminalString())
+
+		return nil
+	}
+
+	var key enode.Secp256k1
+	if node.Load(&key) != nil {
+		log.Info("disc crawl node v4 failed", "err", "no secp256k1 key")
+
+		return nil
+	}
+
+	// log.Info("request enr v4 failed", "err", err)
+
+	id := node.ID()
+
+	result := d.v4.LookupPubkey((*ecdsa.PublicKey)(&key))
+	// log.Info("lookup v4", "result", result, "len", len(result))
+
+	for _, rn := range result {
+		if rn.ID() == id {
+			log.Info("lookup v4 successful", "id", id.TerminalString())
+
+			return nil
+		}
+	}
+
+	// log.Info("disc node v4 not found", "id", id.TerminalString())
+
+	return nil
+}
+
+func (d *Discovery) crawlNodeV5(ctx context.Context, node *enode.Node) error {
+	defer metrics.DiscCrawlCount.WithLabelValues("v5").Inc()
+
+	resp, err := d.v5.RequestENR(node)
+	if err == nil {
+		log.Info("request enr v5 successful", "id", resp.ID().TerminalString())
+
+		return nil
+	}
+
+	// log.Info("request enr v5 failed", "err", err)
+
+	id := node.ID()
+
+	result := d.v5.Lookup(id)
+	// log.Info("lookup v5", "result", result, "len", len(result))
+
+	for _, rn := range result {
+		if rn.ID() == id {
+			log.Info("lookup v5 successful", "id", id.TerminalString())
+
+			return nil
+		}
+	}
+
+	// log.Info("disc node v5 not found", "id", id.TerminalString())
+
+	return nil
+}
+
+func (d *Discovery) crawlNode(ctx context.Context) error {
+	node, err := d.db.DiscNodesToCrawl(ctx)
+	if err != nil {
+		return fmt.Errorf("select node: %w", err)
+	}
+
+	err = d.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if node == nil {
+			return nil
+		}
+
+		if common.IsEnode(node.Record()) {
+			return d.crawlNodeV4(ctx, node)
+		}
+
+		return d.crawlNodeV5(ctx, node)
+	})
+	if err != nil {
+		return fmt.Errorf("crawl node: %w", err)
+	}
+
+	return nil
+}
+
+func (d *Discovery) discCrawler(ctx context.Context) {
+	defer d.wg.Done()
+
+	for ctx.Err() == nil {
+		err := d.crawlNode(ctx)
+		if err != nil {
+			log.Error("disc crawl node failed", "err", err)
+		}
+	}
+}
+
 func (d *Discovery) discLoop(ctx context.Context, iter enode.Iterator, discVersion string) {
 	defer d.wg.Done()
 
@@ -146,8 +250,14 @@ func (d *Discovery) discLoop(ctx context.Context, iter enode.Iterator, discVersi
 	}
 }
 
-// Starts a discovery crawler in a goroutine
 func (d *Discovery) StartDaemon(ctx context.Context) {
+	d.wg.Add(1)
+
+	go d.discCrawler(ctx)
+}
+
+// Starts a random discovery crawler in a goroutine
+func (d *Discovery) StartRandomDaemon(ctx context.Context) {
 	d.wg.Add(2)
 
 	go d.discLoop(ctx, d.v4.RandomNodes(), "v4")

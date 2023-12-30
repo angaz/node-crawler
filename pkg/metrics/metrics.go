@@ -47,6 +47,16 @@ var (
 			"disc_version",
 		},
 	)
+	DiscCrawlCount = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "disc_crawl_total",
+			Help:      "Number of discovery crawled nodes",
+		},
+		[]string{
+			"disc_version",
+		},
+	)
 	nodeUpdateBacklog = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,

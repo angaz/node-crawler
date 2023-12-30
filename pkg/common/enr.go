@@ -263,8 +263,13 @@ func RecordToEnodeV4(r *enr.Record) *enode.Node {
 	return enode.NewV4(&pkey, ip, int(tcp), int(udp))
 }
 
+func IsEnode(r *enr.Record) bool {
+	return r.IdentityScheme() == ""
+
+}
+
 func RecordToEnode(r *enr.Record) (*enode.Node, error) {
-	if r.IdentityScheme() == "" {
+	if IsEnode(r) {
 		return RecordToEnodeV4(r), nil
 	}
 
