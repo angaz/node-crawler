@@ -138,15 +138,15 @@ func (d *Discovery) Wait() {
 func (d *Discovery) crawlNodeV4(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
 	defer metrics.DiscCrawlCount.WithLabelValues("v4").Inc()
 
-	resp, err := d.v4.RequestENR(node)
-	if err == nil {
-		err = d.db.UpsertNode(ctx, tx, resp)
-		if err != nil {
-			return fmt.Errorf("upsert node v4 request enr: %w", err)
-		}
+	// resp, err := d.v4.RequestENR(node)
+	// if err == nil {
+	// 	err = d.db.UpsertNode(ctx, tx, resp)
+	// 	if err != nil {
+	// 		return fmt.Errorf("upsert node v4 request enr: %w", err)
+	// 	}
 
-		return nil
-	}
+	// 	return nil
+	// }
 
 	var key enode.Secp256k1
 	if node.Load(&key) != nil {
@@ -162,7 +162,7 @@ func (d *Discovery) crawlNodeV4(ctx context.Context, tx pgx.Tx, node *enode.Node
 	var found bool
 
 	for _, rn := range result {
-		err = d.db.UpsertNode(ctx, tx, rn)
+		err := d.db.UpsertNode(ctx, tx, rn)
 		if err != nil {
 			return fmt.Errorf("upsert node v4 lookup: %w", err)
 		}
@@ -176,7 +176,7 @@ func (d *Discovery) crawlNodeV4(ctx context.Context, tx pgx.Tx, node *enode.Node
 		return nil
 	}
 
-	err = d.db.UpdateDiscNodeFailed(ctx, tx, node.ID())
+	err := d.db.UpdateDiscNodeFailed(ctx, tx, node.ID())
 	if err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
@@ -187,15 +187,15 @@ func (d *Discovery) crawlNodeV4(ctx context.Context, tx pgx.Tx, node *enode.Node
 func (d *Discovery) crawlNodeV5(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
 	defer metrics.DiscCrawlCount.WithLabelValues("v5").Inc()
 
-	resp, err := d.v5.RequestENR(node)
-	if err == nil {
-		err = d.db.UpsertNode(ctx, tx, resp)
-		if err != nil {
-			return fmt.Errorf("upsert node request enr: %w", err)
-		}
+	// resp, err := d.v5.RequestENR(node)
+	// if err == nil {
+	// 	err = d.db.UpsertNode(ctx, tx, resp)
+	// 	if err != nil {
+	// 		return fmt.Errorf("upsert node request enr: %w", err)
+	// 	}
 
-		return nil
-	}
+	// 	return nil
+	// }
 
 	id := node.ID()
 
@@ -204,10 +204,11 @@ func (d *Discovery) crawlNodeV5(ctx context.Context, tx pgx.Tx, node *enode.Node
 	var found bool
 
 	for _, rn := range result {
-		err = d.db.UpsertNode(ctx, tx, rn)
+		err := d.db.UpsertNode(ctx, tx, rn)
 		if err != nil {
 			return fmt.Errorf("upsert node lookup: %w", err)
 		}
+
 		if rn.ID() == id {
 			found = true
 		}
@@ -217,7 +218,7 @@ func (d *Discovery) crawlNodeV5(ctx context.Context, tx pgx.Tx, node *enode.Node
 		return nil
 	}
 
-	err = d.db.UpdateDiscNodeFailed(ctx, tx, node.ID())
+	err := d.db.UpdateDiscNodeFailed(ctx, tx, node.ID())
 	if err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
