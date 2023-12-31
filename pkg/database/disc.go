@@ -121,12 +121,13 @@ func (db *DB) UpdateDiscNodeFailed(ctx context.Context, tx pgx.Tx, nodeID enode.
 		`
 			UPDATE disc.nodes
 			SET
-				next_disc_crawl = now() + INTERVAL '24 hours'
+				next_disc_crawl = @next_disc_crawl
 			WHERE
 				node_id = @node_id
 		`,
 		pgx.NamedArgs{
-			"node_id": nodeID.Bytes(),
+			"node_id":         nodeID.Bytes(),
+			"next_disc_crawl": time.Now().Add(24 * time.Hour).Add(randomHourSeconds()),
 		},
 	)
 	if err != nil {
@@ -179,7 +180,7 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 				now(),
 				now(),
 				now(),
-				now() + INTERVAL '6 hours',
+				@next_disc_crawl,
 				@node_pubkey,
 				@node_record,
 				@ip_address,
@@ -200,6 +201,7 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 		pgx.NamedArgs{
 			"node_id":         node.ID().Bytes(),
 			"node_type":       common.ENRNodeType(node.Record()),
+			"next_disc_crawl": time.Now().Add(6 * time.Hour).Add(randomHourSeconds()),
 			"node_pubkey":     common.PubkeyBytes(node.Pubkey()),
 			"node_record":     common.EncodeENR(bestRecord),
 			"ip_address":      ip.String(),
