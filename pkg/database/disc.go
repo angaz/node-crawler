@@ -111,12 +111,12 @@ func (_ *DB) selectBestRecord(ctx context.Context, db rowQuerier, node *enode.No
 	return bestRecord, nil
 }
 
-func (db *DB) UpdateDiscNodeFailed(ctx context.Context, nodeID enode.ID) error {
+func (db *DB) UpdateDiscNodeFailed(ctx context.Context, tx pgx.Tx, nodeID enode.ID) error {
 	var err error
 
 	defer metrics.ObserveDBQuery("disc_update_node_failed", time.Now(), err)
 
-	_, err = db.pg.Exec(
+	_, err = tx.Exec(
 		ctx,
 		`
 			UPDATE disc.nodes
@@ -136,7 +136,7 @@ func (db *DB) UpdateDiscNodeFailed(ctx context.Context, nodeID enode.ID) error {
 	return nil
 }
 
-func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
+func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
 	var err error
 
 	start := time.Now()
@@ -148,12 +148,6 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 	if err != nil {
 		return fmt.Errorf("ip to location: %w", err)
 	}
-
-	tx, err := db.pg.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("start tx: %w", err)
-	}
-	defer tx.Rollback(ctx)
 
 	err = db.upsertCountryCity(ctx, tx, location)
 	if err != nil {
@@ -214,11 +208,6 @@ func (db *DB) UpsertNode(ctx context.Context, node *enode.Node) error {
 	)
 	if err != nil {
 		return fmt.Errorf("exec: %w", err)
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("commit: %w", err)
 	}
 
 	return nil
