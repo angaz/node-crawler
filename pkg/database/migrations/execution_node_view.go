@@ -14,7 +14,7 @@ func ExecutionNodeView(ctx context.Context, tx pgx.Tx) error {
 			CREATE OR REPLACE VIEW execution.node_view AS
 				SELECT
 					-- disc.nodes
-					node_id,
+					disc.node_id,
 					node_type,
 					first_found,
 					last_found,

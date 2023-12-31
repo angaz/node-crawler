@@ -43,7 +43,7 @@ type NodeTable struct {
 	networkID      *int64
 	ForkID         *common.ForkID
 	ForkName       *string
-	NextForkID     uint64
+	NextForkID     *uint64
 	NextForkName   *string
 	HeadHash       *[]byte
 	HeadHashTime   *time.Time
@@ -82,7 +82,7 @@ func (n NodeTable) ForkIDStr() string {
 }
 
 func (n NodeTable) NextForkIDStr() string {
-	if n.NextForkID == 0 {
+	if n.NextForkID == nil {
 		return ""
 	}
 
@@ -92,7 +92,7 @@ func (n NodeTable) NextForkIDStr() string {
 		name = *n.NextForkName
 	}
 
-	return fmt.Sprintf("%s (%d)", name, n.NextForkID)
+	return fmt.Sprintf("%s (%d)", name, *n.NextForkID)
 }
 
 func StringOrEmpty(v *string) string {

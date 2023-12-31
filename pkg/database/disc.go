@@ -121,7 +121,7 @@ func (db *DB) UpdateDiscNodeFailed(ctx context.Context, nodeID enode.ID) error {
 		`
 			UPDATE disc.nodes
 			SET
-				next_disc_crawl = now() + INTERVAL '48 hours'
+				next_disc_crawl = now() + INTERVAL '24 hours'
 			WHERE
 				node_id = @node_id
 		`,
