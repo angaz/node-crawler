@@ -157,15 +157,22 @@ func (d *Discovery) crawlNodeV4(ctx context.Context, node *enode.Node) error {
 	id := node.ID()
 
 	result := d.v4.LookupPubkey((*ecdsa.PublicKey)(&key))
-	for _, rn := range result {
-		if rn.ID() == id {
-			err = d.db.UpsertNode(ctx, rn)
-			if err != nil {
-				return fmt.Errorf("upsert node v4 lookup: %w", err)
-			}
 
-			return nil
+	var found bool
+
+	for _, rn := range result {
+		err = d.db.UpsertNode(ctx, rn)
+		if err != nil {
+			return fmt.Errorf("upsert node v4 lookup: %w", err)
 		}
+
+		if rn.ID() == id {
+			found = true
+		}
+	}
+
+	if found {
+		return nil
 	}
 
 	err = d.db.UpdateDiscNodeFailed(ctx, node.ID())
@@ -192,15 +199,21 @@ func (d *Discovery) crawlNodeV5(ctx context.Context, node *enode.Node) error {
 	id := node.ID()
 
 	result := d.v5.Lookup(id)
-	for _, rn := range result {
-		if rn.ID() == id {
-			err = d.db.UpsertNode(ctx, rn)
-			if err != nil {
-				return fmt.Errorf("upsert node lookup: %w", err)
-			}
 
-			return nil
+	var found bool
+
+	for _, rn := range result {
+		err = d.db.UpsertNode(ctx, rn)
+		if err != nil {
+			return fmt.Errorf("upsert node lookup: %w", err)
 		}
+		if rn.ID() == id {
+			found = true
+		}
+	}
+
+	if found {
+		return nil
 	}
 
 	err = d.db.UpdateDiscNodeFailed(ctx, node.ID())
