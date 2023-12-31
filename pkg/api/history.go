@@ -70,7 +70,19 @@ func (a *API) handleHistoryList(w http.ResponseWriter, r *http.Request) {
 	historyList, err := a.db.GetHistoryList(r.Context(), before, after, networkID, isError)
 	if err != nil {
 		log.Error("get history list failed", "err", err)
+
 		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintln(w, "Internal Server Error")
+
+		return
+	}
+
+	ephemeryNetworks, err := a.db.EphemeryNetworks(r.Context())
+	if err != nil {
+		log.Error("get ephemery networks failed", "err", err)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintln(w, "Internal Server Error")
 
 		return
 	}
@@ -79,7 +91,7 @@ func (a *API) handleHistoryList(w http.ResponseWriter, r *http.Request) {
 
 	index := public.Index(
 		reqURL,
-		public.HistoryList(reqURL, *historyList),
+		public.HistoryList(reqURL, *historyList, ephemeryNetworks),
 		networkID,
 		1,
 	)

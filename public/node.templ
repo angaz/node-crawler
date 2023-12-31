@@ -477,11 +477,11 @@ css fieldSize() {
 	field-sizing: content;
 }
 
-templ NodeList(reqURL URL, nodes database.NodeList) {
+templ NodeList(reqURL URL, nodes database.NodeList, ephemeryNetworks []database.EphemeryNetwork) {
 	<div class={ nodeListClass() }>
 		<div style="width: 100%; display: flex; flex-direction: column; row-gap: 0.5em;">
 			<h3>Nodes</h3>
-			@NetworkFilterLinks(reqURL, nodes.NetworkFilter)
+			@NetworkFilterLinks(reqURL, nodes.NetworkFilter, ephemeryNetworks)
 			@SyncedFilterLinks(reqURL, nodes.Synced)
 			<form action="/nodes" method="get" styles="display: flex; flex-direction: row; gap: 0.5em; flex-wrap: wrap;">
 				<input name="network" type="hidden" value={ strconv.FormatInt(nodes.NetworkFilter, 10) }/>
@@ -601,11 +601,11 @@ func boolToStr(b bool) string {
 	return "false"
 }
 
-templ HistoryList(reqURL URL, history database.HistoryList) {
+templ HistoryList(reqURL URL, history database.HistoryList, ephemeryNetworks []database.EphemeryNetwork) {
 	<div class={ nodeListClass() }>
 		<div style="width: 100%; display: flex; flex-direction: column; row-gap: 0.5em;">
 			<h3>History</h3>
-			@NetworkFilterLinks(reqURL, history.NetworkID)
+			@NetworkFilterLinks(reqURL, history.NetworkID, ephemeryNetworks)
 			<div style="display: flex; flex-direction: row; gap: 0.5em;">
 				<a
  					class={
@@ -726,7 +726,45 @@ func networkName(networkID int64) string {
 	return name
 }
 
-templ NetworkFilterLinks(url URL, networkID int64) {
+templ NetworkFilterLinks(url URL, networkID int64, ephemeryNetworks []database.EphemeryNetwork) {
+	<style>
+		.dropdown-anchor ul {
+			list-style: none;
+			margin: 0;
+			padding-left: 0;
+			position: relative;
+		}
+
+		li:focus-within a {
+		  outline: none;
+		}
+
+		.dropdown {
+		  background: orange;
+		  visibility: hidden;
+		  opacity: 0;
+		  min-width: 5rem;
+		  position: absolute;
+		  transition: all 0.5s ease;
+		  margin-top: 1rem;
+		  left: 0;
+		  display: none;
+		}
+
+		.dropdown-anchor:hover > ul,
+		.dropdown-anchor:focus-within > ul,
+		.dropdown-anchor ul:hover,
+		.dropdown-anchor ul:focus {
+		   visibility: visible;
+		   opacity: 1;
+		   display: block;
+		}
+
+		.dropdown-anchor ul li {
+		  clear: both;
+		  width: 100%;
+		}
+	</style>
 	<div style="display: flex; flex-direction: row; gap: 0.5em;">
 		for _, netID := range []int64{-1, 1, 5, 17000, 11155111} {
 			<a
@@ -740,6 +778,25 @@ templ NetworkFilterLinks(url URL, networkID int64) {
 				{ networkName(netID) }
 			</a>
 		}
+		<div class="dropdown-anchor">
+			<a href="#" aria-haspopup="true">Ephemery</a>
+				<ul class="dropdown" aria-label="submenu">
+					for _, network := range ephemeryNetworks {
+						<li>
+							<a
+				 				class={
+									pageButton(),
+									templ.KV(pageButtonActive(), network.NetworkID == networkID),
+									templ.KV(pageButtonInactive(), network.NetworkID != networkID),
+								}
+				 				href={ url.WithInt64Param("network", network.NetworkID).SafeURL() }
+							>
+								{ network.Name }
+							</a>
+						</li>
+					}
+				</ul>
+		</div>
 	</div>
 }
 
@@ -832,9 +889,10 @@ templ Stats(
 	charts []templ.Component,
 	stats []templ.Component,
 	isLoading bool,
+	ephemeryNetworks []database.EphemeryNetwork,
 ) {
 	<div style="display: flex; flex-direction: column; padding: 1em; gap: 1em;">
-		@NetworkFilterLinks(reqURL.WithPath("/"), networkID)
+		@NetworkFilterLinks(reqURL.WithPath("/"), networkID, ephemeryNetworks)
 		@SyncedFilterLinks(reqURL, synced)
 		@ReadyForNextForkLinksDisabled(reqURL, networkID, nextFork)
 		if clientName != "" {

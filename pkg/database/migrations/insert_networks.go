@@ -43,10 +43,12 @@ func insertEphemeryReleases(ctx context.Context, tx pgx.Tx, networks []networks.
 		`
 			INSERT INTO network.ephemery_releases (
 				timestamp,
-				name
+				network_id,
+				network_name
 			) VALUES (
 				$1,
-				$2
+				$2,
+				$3
 			)
 		`,
 	)
@@ -60,6 +62,7 @@ func insertEphemeryReleases(ctx context.Context, tx pgx.Tx, networks []networks.
 			stmt.Name,
 
 			network.PublishedAt,
+			network.NetworkID,
 			network.Name,
 		)
 		if err != nil {

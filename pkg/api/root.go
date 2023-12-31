@@ -187,6 +187,18 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	allStats, err := a.getFilterStats(r.Context(), after, before, params)
 	if err != nil {
+		log.Error("get filter stats failed", "err", err)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintln(w, "Internal Server Error")
+
+		return
+	}
+
+	ephemeryNetworks, err := a.db.EphemeryNetworks(r.Context())
+	if err != nil {
+		log.Error("get ephemery networks failed", "err", err)
+
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
 
@@ -273,6 +285,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		graphs,
 		instant,
 		len(allStats.Buckets) == 0,
+		ephemeryNetworks,
 	)
 
 	index := public.Index(reqURL, statsPage, params.networkID, params.synced)

@@ -12,6 +12,7 @@ import (
 
 type EphemeryNetwork struct {
 	Name        string
+	NetworkID   uint64
 	PublishedAt time.Time
 	Forks       []Fork
 }
@@ -95,6 +96,7 @@ func releaseNetwork(release *github.RepositoryRelease) (*EphemeryNetwork, error)
 
 		return &EphemeryNetwork{
 			Name:        name,
+			NetworkID:   genesis.Config.ChainID.Uint64(),
 			PublishedAt: release.PublishedAt.Time,
 			Forks: Forks(
 				genesis,

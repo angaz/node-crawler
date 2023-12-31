@@ -72,9 +72,19 @@ func (a *API) nodesListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ephemeryNetworks, err := a.db.EphemeryNetworks(r.Context())
+	if err != nil {
+		log.Error("get ephemery networks failed", "err", err)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintln(w, "Internal Server Error")
+
+		return
+	}
+
 	reqURL := public.URLFromReq(r)
 
-	nodeList := public.NodeList(reqURL, *nodes)
+	nodeList := public.NodeList(reqURL, *nodes, ephemeryNetworks)
 	index := public.Index(reqURL, nodeList, networkID, synced)
 	_ = index.Render(r.Context(), w)
 }

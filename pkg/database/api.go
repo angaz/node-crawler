@@ -238,6 +238,50 @@ func ParseNodeListQuery(query string) (*NodeListQuery, error) {
 	}, nil
 }
 
+type EphemeryNetwork struct {
+	Name      string
+	NetworkID int64
+}
+
+func (db *DB) EphemeryNetworks(ctx context.Context) ([]EphemeryNetwork, error) {
+	var err error
+
+	defer metrics.ObserveDBQuery("get_ephemery_networks", time.Now(), err)
+
+	rows, err := db.pg.Query(
+		ctx,
+		`
+			SELECT
+				network_name,
+				network_id
+			FROM network.ephemery_releases
+			ORDER BY timestamp DESC
+		`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+
+	networks, err := pgx.CollectRows[EphemeryNetwork](rows, func(row pgx.CollectableRow) (EphemeryNetwork, error) {
+		var network EphemeryNetwork
+
+		err := row.Scan(
+			&network.Name,
+			&network.NetworkID,
+		)
+		if err != nil {
+			return network, fmt.Errorf("scan: %w", err)
+		}
+
+		return network, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+
+	return networks, nil
+}
+
 func (db *DB) GetNodeList(
 	ctx context.Context,
 	pageNumber int,

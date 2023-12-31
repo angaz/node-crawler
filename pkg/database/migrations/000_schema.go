@@ -190,8 +190,9 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 			);
 
 			CREATE TABLE network.ephemery_releases (
-				timestamp	TIMESTAMPTZ	NOT NULL UNIQUE,
-				name		TEXT		NOT NULL
+				timestamp		TIMESTAMPTZ	NOT NULL UNIQUE,
+				network_id		BIGINT		NOT NULL,
+				network_name	TEXT		NOT NULL
 			);
 
 			CREATE TABLE stats.execution_nodes (
