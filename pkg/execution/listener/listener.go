@@ -82,7 +82,7 @@ func (l *Listener) StartDiscCrawlers(ctx context.Context, crawlers int) {
 		return
 	}
 
-	l.disc[0].StartRandomDaemon(ctx)
+	// l.disc[0].StartRandomDaemon(ctx)
 
 	for i := 0; i < crawlers; i++ {
 		disc := l.disc[i%len(l.disc)]
