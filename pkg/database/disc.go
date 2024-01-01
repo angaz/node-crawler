@@ -138,6 +138,10 @@ func (db *DB) UpdateDiscNodeFailed(ctx context.Context, tx pgx.Tx, nodeID enode.
 }
 
 func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
+	if db.discRecentlyCrawled.ContainsOrPush(node.ID()) {
+		return nil
+	}
+
 	var err error
 
 	start := time.Now()

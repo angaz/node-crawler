@@ -36,6 +36,8 @@ type DB struct {
 	discNodesToCrawlCache chan *NodeToCrawl
 	discNodesToCrawlLock  *sync.Mutex
 	discRecentlyCrawled   *fifomemory.FIFOMemory[enode.ID]
+
+	discUpdateCache *fifomemory.FIFOMemory[enode.ID]
 }
 
 func NewAPIDB(ctx context.Context, db *sql.DB, pgConnString string) (*DB, error) {
@@ -74,6 +76,8 @@ func NewDB(
 		discNodesToCrawlCache: make(chan *NodeToCrawl, 16384),
 		discNodesToCrawlLock:  new(sync.Mutex),
 		discRecentlyCrawled:   fifomemory.New[enode.ID](256),
+
+		discUpdateCache: fifomemory.New[enode.ID](512),
 	}, nil
 }
 
