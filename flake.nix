@@ -177,7 +177,7 @@
             snapshotDirname = mkOption {
               type = types.str;
               default = "snapshots";
-              description = "Snapshots directory name.";
+              description = "Snapshots directory name within the `stateDir`";
             };
 
             user = mkOption {
@@ -200,6 +200,14 @@
                 It means SystenD will allocate the user at runtime, and enables
                 some other security features.
                 If you are not sure what this means, it's safe to leave it default.
+              '';
+            };
+
+            dailyBackup = mkOption {
+              type = types.bool;
+              default = true;
+              description = ''
+                Takes a daily backup of the Postgres database, saving it to the `snapshotDirname`.
               '';
             };
 
@@ -430,6 +438,42 @@
 
                   Restart = "on-failure";
                 };
+              };
+
+              node-crawler-daily-backup = mkIf cfg.dailyBackup {
+                enable = true;
+                description = ''Daily Postgres backup for the Node Crawler service.'';
+                requires = [ "postgresql.service" ];
+                startAt = "*-*-* 00:00:00";
+
+                serviceConfig = {
+                  Type = "oneshot";
+                  Group = cfg.group;
+                  User = cfg.user;
+                  WorkingDirectory = cfg.stateDir;
+                  DynamicUser = cfg.dynamicUser;
+                };
+
+                path = [
+                  pkgs.coreutils
+                  config.services.postgresql.package
+                ];
+
+                script = ''
+                  set -e -o pipefail
+
+                  dump_name="nodecrawler_$(date +%Y%m%d).pgdump"
+
+                  pg_dump \
+                    --data-only \
+                    --load-via-partition-root \
+                    --format custom \
+                    --file "${cfg.snapshotDirname}/''${dump_name}.part" \
+                    --host /var/run/postgresql \
+                    nodecrawler
+
+                  mv "''${dump_name}.part" "''${dump_name}"
+                '';
               };
             };
 
