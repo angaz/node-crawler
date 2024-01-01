@@ -75,7 +75,7 @@ func NewDB(
 
 		discNodesToCrawlCache: make(chan *NodeToCrawl, 16384),
 		discNodesToCrawlLock:  new(sync.Mutex),
-		discRecentlyCrawled:   fifomemory.New[enode.ID](256),
+		discRecentlyCrawled:   fifomemory.New[enode.ID](1024),
 
 		discUpdateCache: fifomemory.New[enode.ID](512),
 	}, nil
