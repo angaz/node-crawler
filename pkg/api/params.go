@@ -64,7 +64,7 @@ func parseGraphFormat(w http.ResponseWriter, str string) (string, bool) {
 		return "percent", true
 	}
 
-	if !slices.Contains([]string{"percent", "number"}, str) {
+	if !slices.Contains(database.GraphFormatValues, str) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = fmt.Fprint(w, "graph-interval must be one of: number, percent\n")
 

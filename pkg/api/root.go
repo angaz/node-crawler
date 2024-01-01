@@ -221,7 +221,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	if params.clientName == "" {
 		clientNamesTimeseries := allStats.ClientNamesTimeseries()
 
-		if params.graphFormat == "percent" {
+		if params.graphFormat == database.GraphFormatPercent {
 			clientNamesTimeseries = clientNamesTimeseries.Percentage()
 		}
 
@@ -255,7 +255,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	} else {
 		clientVersionsTimeseries := allStats.ClientNamesTimeseries()
 
-		if params.graphFormat == "percent" {
+		if params.graphFormat == database.GraphFormatPercent {
 			clientVersionsTimeseries = clientVersionsTimeseries.Percentage()
 		}
 
@@ -300,7 +300,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	clientDialSuccessTimeseries := allStats.DialSuccessTimeseries()
 
-	if params.graphFormat == "percent" {
+	if params.graphFormat == database.GraphFormatPercent {
 		clientDialSuccessTimeseries = clientDialSuccessTimeseries.Percentage()
 	}
 

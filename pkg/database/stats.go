@@ -19,12 +19,18 @@ import (
 const (
 	GraphInterval3Hour  = 3 * time.Hour
 	GraphInterval24Hour = 24 * time.Hour
+	GraphFormatPercent  = "percent"
+	GraphFormatNumber   = "number"
 )
 
 var (
 	GraphIntervalValues = map[string]time.Duration{
 		"3h":  GraphInterval3Hour,
 		"24h": GraphInterval24Hour,
+	}
+	GraphFormatValues = []string{
+		GraphFormatNumber,
+		GraphFormatPercent,
 	}
 )
 
