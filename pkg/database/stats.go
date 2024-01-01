@@ -496,9 +496,9 @@ func (s AllCountTotal) Timeseries(interval time.Duration) Timeseries {
 	}
 }
 
-func (t Timeseries) Colours(colours ...string) Timeseries {
-	for i := range t.Series {
-		t.Series[i].Colour = colours[i%len(colours)]
+func (t Timeseries) Colours(colours map[string]string) Timeseries {
+	for i, series := range t.Series {
+		t.Series[i].Colour = colours[series.Name]
 	}
 
 	return t

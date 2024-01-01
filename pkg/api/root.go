@@ -309,7 +309,10 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		public.StatsGraph(
 			"Dial Success",
 			"dial_success",
-			clientDialSuccessTimeseries.Colours("#05c091", "#ff6e76"),
+			clientDialSuccessTimeseries.Colours(map[string]string{
+				"Fail":    "#ff6e76",
+				"Success": "#05c091",
+			}),
 			params.graphFormat,
 			func(key string, value string) templ.SafeURL {
 				return reqURL.
