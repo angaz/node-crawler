@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -107,6 +108,8 @@ func (n *NodeJSON) CapsString() string {
 	for _, cap := range n.GetInfo().Capabilities {
 		caps = append(caps, cap.String())
 	}
+
+	slices.Sort(caps)
 
 	return strings.Join(caps, ", ")
 }

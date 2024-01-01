@@ -82,7 +82,7 @@ func (n NodeTable) ForkIDStr() string {
 }
 
 func (n NodeTable) NextForkIDStr() string {
-	if n.NextForkID == nil {
+	if n.NextForkID == nil || *n.NextForkID == 0 {
 		return ""
 	}
 
