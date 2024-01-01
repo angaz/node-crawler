@@ -20,17 +20,19 @@ type statsParams struct {
 	nextForkName  string
 	synced        int
 	graphInterval time.Duration
+	graphFormat   string
 }
 
 func (p statsParams) cacheKey() string {
 	return fmt.Sprintf(
-		"%s,%d,%d,%d,%s,%d",
+		"%s,%d,%d,%d,%s,%d,%s",
 		p.clientName,
 		p.networkID,
 		p.synced,
 		p.nextFork,
 		p.nextForkName,
 		int(p.graphInterval.Seconds()),
+		p.graphFormat,
 	)
 }
 
@@ -59,6 +61,11 @@ func parseStatsParams(w http.ResponseWriter, r *http.Request) *statsParams {
 		return nil
 	}
 
+	graphFormat, ok := parseGraphFormat(w, query.Get("graph-format"))
+	if !ok {
+		return nil
+	}
+
 	if nextForkName != "" && nextFork != -1 {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = fmt.Fprint(w, "next-fork and next-fork-name are mutually exclusive. Only one can be set.")
@@ -73,6 +80,7 @@ func parseStatsParams(w http.ResponseWriter, r *http.Request) *statsParams {
 		nextForkName:  nextForkName,
 		synced:        synced,
 		graphInterval: graphInterval,
+		graphFormat:   graphFormat,
 	}
 }
 
@@ -211,12 +219,24 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	instant := make([]templ.Component, 0, 4)
 
 	if params.clientName == "" {
+		clientNamesTimeseries := allStats.ClientNamesTimeseries()
+
+		if params.graphFormat == "percent" {
+			clientNamesTimeseries = clientNamesTimeseries.Percentage()
+		}
+
 		graphs = append(
 			graphs,
 			public.StatsGraph(
 				"Client Names",
 				"client_names",
-				allStats.ClientNamesTimeseries().Percentage(),
+				clientNamesTimeseries,
+				params.graphFormat,
+				func(key string, value string) templ.SafeURL {
+					return reqURL.
+						WithParam(key, value).
+						SafeURL()
+				},
 			),
 		)
 
@@ -227,19 +247,30 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 				database.ToInstant(allStats.ClientNamesInstant),
 				func(key string) templ.SafeURL {
 					return reqURL.
-						KeepParams("network", "synced", "next-fork").
 						WithParam("client-name", key).
 						SafeURL()
 				},
 			),
 		)
 	} else {
+		clientVersionsTimeseries := allStats.ClientNamesTimeseries()
+
+		if params.graphFormat == "percent" {
+			clientVersionsTimeseries = clientVersionsTimeseries.Percentage()
+		}
+
 		graphs = append(
 			graphs,
 			public.StatsGraph(
 				"Client Versions",
 				"client_versions",
-				allStats.ClientNamesTimeseries().Percentage(),
+				clientVersionsTimeseries,
+				params.graphFormat,
+				func(key string, value string) templ.SafeURL {
+					return reqURL.
+						WithParam(key, value).
+						SafeURL()
+				},
 			),
 		)
 
@@ -267,12 +298,24 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		),
 	)
 
+	clientDialSuccessTimeseries := allStats.DialSuccessTimeseries()
+
+	if params.graphFormat == "percent" {
+		clientDialSuccessTimeseries = clientDialSuccessTimeseries.Percentage()
+	}
+
 	graphs = append(
 		graphs,
 		public.StatsGraph(
 			"Dial Success",
 			"dial_success",
-			allStats.DialSuccessTimeseries().Percentage().Colours("#05c091", "#ff6e76"),
+			clientDialSuccessTimeseries.Colours("#05c091", "#ff6e76"),
+			params.graphFormat,
+			func(key string, value string) templ.SafeURL {
+				return reqURL.
+					WithParam(key, value).
+					SafeURL()
+			},
 		),
 	)
 
@@ -293,7 +336,11 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	sb := new(strings.Builder)
 	_ = index.Render(r.Context(), sb)
 
-	out := strings.ReplaceAll(sb.String(), "STYLE_REPLACE", "style")
+	out := strings.ReplaceAll(
+		sb.String(),
+		"STYLE_REPLACE",
+		"style",
+	)
 
 	_, _ = w.Write([]byte(out))
 

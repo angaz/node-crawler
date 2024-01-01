@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -56,6 +57,21 @@ func parseErrorParam(w http.ResponseWriter, str string) (int, bool) {
 
 func parseNextForkParam(w http.ResponseWriter, str string) (int, bool) {
 	return parseAllYesNoParam(w, str, "next-fork", -1)
+}
+
+func parseGraphFormat(w http.ResponseWriter, str string) (string, bool) {
+	if str == "" {
+		return "percent", true
+	}
+
+	if !slices.Contains([]string{"percent", "number"}, str) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprint(w, "graph-interval must be one of: number, percent\n")
+
+		return "", false
+	}
+
+	return str, true
 }
 
 func parseGraphInterval(w http.ResponseWriter, str string) (time.Duration, bool) {

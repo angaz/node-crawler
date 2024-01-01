@@ -724,6 +724,15 @@ css pageButton() {
 	user-select: none;
 }
 
+css graphButton() {
+	padding: 0.25em 0.5em;
+	border-radius: 0.2em;
+	background-color: inherit;
+	color: inherit;
+	user-select: none;
+	border: 2px solid #eee;
+}
+
 css pageButtonActive() {
 	border: 2px solid orange;
 }
@@ -974,16 +983,13 @@ templ GraphsDisabled() {
 	<span>Graphs disabled because there's too many series</span>
 }
 
-script statsGraph(title string, id string, ts database.Timeseries) {
+script statsGraph(id string, ts database.Timeseries, graphFormat string) {
 	const chartDiv = document.getElementById(id)
 	const chart = echarts.init(chartDiv, 'dark');
 
 	chart.setOption({
 		animation: false,
 		backgroundColor: '#111',
-		title: {
-			text: title,
-		},
 		tooltip: {
 		trigger: 'axis',
 			axisPointer: {
@@ -992,7 +998,10 @@ script statsGraph(title string, id string, ts database.Timeseries) {
 					backgroundColor: '#6a7985'
 				},
 			},
-			valueFormatter: value => value ? value.toFixed(2) + '%' : '',
+			valueFormatter:
+				graphFormat === 'number'
+					? value => value
+					: value => value ? value.toFixed(2) + '%' : '',
 			order: 'valueDesc',
 		},
 		legend: {
@@ -1023,9 +1032,19 @@ script statsGraph(title string, id string, ts database.Timeseries) {
 	ro.observe(chartDiv);
 }
 
-templ StatsGraph(title string, id string, ts database.Timeseries) {
-	<div class="chart" id={ id }></div>
-	@statsGraph(title, id, ts)
+templ StatsGraph(title string, id string, ts database.Timeseries, graphFormat string, hrefFn func(string, string) templ.SafeURL) {
+	<div class="chart">
+		<div style="display: flex; flex-direction: row; gap: 0.5em; align-items: center;">
+			<h3>{ title }</h3>
+			<a class={ graphButton() } href={ hrefFn("interval", "3h") }>3h</a>
+			<a class={ graphButton() } href={ hrefFn("interval", "24h") }>24h</a>
+			<a class={ graphButton() } href={ hrefFn("graph-format", "number") }>#</a>
+			<a class={ graphButton() } href={ hrefFn("graph-format", "percent") }>%</a>
+		</div>
+		<div style="height: 100%; width: 100%;" id={ id }></div>
+	</div>
+
+	@statsGraph(id, ts, graphFormat)
 }
 
 templ StatsGroup(name string, instant database.StatsInstant, hrefFn func(string) templ.SafeURL) {
@@ -1068,8 +1087,12 @@ templ Index(reqURL URL, main templ.Component, networkID int64, synced int) {
 					background-color: #111;
 					color: #eee;
 				}
+				.chart h3 {
+					margin: 0;
+				}
 				.chart {
 					display: flex;
+					flex-direction: column;
 					flex-grow: 1;
 					padding: 1em;
 					border: 1px solid orange;
