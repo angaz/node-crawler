@@ -64,7 +64,7 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 				longitude,
 				next_crawl,
 				dial_success
-			FROM execution.node_view AS disc
+			FROM execution.node_view
 			WHERE node_id = $1
 		`,
 		nodeIDBytes,
