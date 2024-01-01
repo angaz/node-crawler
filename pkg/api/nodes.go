@@ -1,23 +1,16 @@
 package api
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/a-h/templ"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/node-crawler/public"
+	"github.com/jackc/pgx/v5"
 )
-
-func mapPosition(x, y int) string {
-	return fmt.Sprintf(
-		`style="position: absolute; top: %d%%; left: %d%%; transform: translate(-50%%, -50%%)"`,
-		y,
-		x,
-	)
-}
 
 func (a *API) nodesHandler(w http.ResponseWriter, r *http.Request) {
 	pathParts := strings.Split(r.URL.Path, "/")
@@ -39,31 +32,34 @@ func (a *API) nodesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nodes, err := a.db.GetNodeTable(r.Context(), nodeID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			w.WriteHeader(http.StatusNotFound)
-
-			return
-		}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		log.Error("get node page failed", "err", err, "id", nodeID)
+
 		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintln(w, "Internal Server Error")
 
 		return
 	}
 
 	sb := new(strings.Builder)
 
-	nodeTable := public.NodeTable(*nodes)
-	index := public.Index(public.URLFromReq(r), nodeTable, 1, -1)
+	var page templ.Component
+
+	if nodes != nil {
+		page = public.NodeTable(*nodes)
+	} else {
+		page = public.NotFound()
+	}
+
+	index := public.Index(public.URLFromReq(r), page, 1, -1)
 	_ = index.Render(r.Context(), sb)
 
 	// This is the worst, but templating the style attribute is
 	// not allowed for security concerns.
-	out := strings.Replace(
+	out := strings.ReplaceAll(
 		sb.String(),
-		`style="REPLACE_THIS_ETH_LOGO"`,
-		mapPosition(nodes.XOffsetPercent(), nodes.YOffsetPercent()),
-		1,
+		"STYLE_REPLACE",
+		"style",
 	)
 
 	w.Write([]byte(out))

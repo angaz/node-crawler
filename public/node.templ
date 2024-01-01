@@ -9,6 +9,14 @@ import "net/url"
 import "net/http"
 import "github.com/ethereum/node-crawler/pkg/common"
 
+templ NotFound() {
+	<div style="margin: 1em;">
+		<h3>Node Not Found</h3>
+
+		<a href="/help/#add-your-node">How to your node</a>
+	</div>
+}
+
 templ NodeTable(nt database.NodeTable) {
 	<div style="margin: 1em;">
 		<h3>Node</h3>
@@ -130,7 +138,15 @@ templ NodeTable(nt database.NodeTable) {
 		</table>
 		<div style="position: relative; width: max-content; margin: 1em 0;">
 			<image width="800px" src="/static/blue-marble.png"></image>
-			<image style="REPLACE_THIS_ETH_LOGO" height="10%" src="/static/eth-diamond-purple.png"></image>
+			<image
+				STYLE_REPLACE={ fmt.Sprintf(
+					`position: absolute; top: %d%%; left: %d%%; transform: translate(-50%%, -50%%)`,
+					nt.YOffsetPercent(),
+					nt.XOffsetPercent(),
+				) }
+				height="10%"
+				src="/static/eth-diamond-purple.png"
+			></image>
 		</div>
 		<h3>Crawl History</h3>
 		<div style="display: flex; flex-wrap: wrap; column-gap: 2em;">
@@ -282,7 +298,7 @@ templ HelpPage(enodes []string, enode string) {
 					was able to connect to the node in the last 14 days.
 				</p>
 
-				<h3 id="#add-your-node">Add your node</h3>
+				<h3 id="add-your-node">Add your node</h3>
 				<p>If your node is not found, it can be easily added.</p>
 
 				<p>The crawler runs multiple nodes. You can select one to use at random:</p>
