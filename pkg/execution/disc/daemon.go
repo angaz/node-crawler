@@ -241,6 +241,8 @@ func (d *Discovery) crawlNode(ctx context.Context, tx pgx.Tx) error {
 		if err != nil {
 			return fmt.Errorf("crawl node v4: %w", err)
 		}
+
+		return nil
 	}
 
 	err = d.crawlNodeV5(ctx, tx, node)
