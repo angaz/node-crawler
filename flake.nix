@@ -433,6 +433,10 @@
               };
             };
 
+            environment.systemPackages = with pkgs; [
+              timescaledb-tune
+            ];
+
             services = {
               nginx = {
                 enable = true;
