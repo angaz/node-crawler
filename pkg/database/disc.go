@@ -205,7 +205,7 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 		pgx.NamedArgs{
 			"node_id":         node.ID().Bytes(),
 			"node_type":       common.ENRNodeType(node.Record()),
-			"next_disc_crawl": time.Now().Add(24 * time.Hour).Add(randomHourSeconds()),
+			"next_disc_crawl": time.Now().Add(12 * time.Hour).Add(randomHourSeconds()),
 			"node_pubkey":     common.PubkeyBytes(node.Pubkey()),
 			"node_record":     common.EncodeENR(bestRecord),
 			"ip_address":      ip.String(),
