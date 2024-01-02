@@ -184,7 +184,7 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 				now(),
 				now(),
 				now(),
-				@next_disc_crawl,
+				now(),
 				@node_pubkey,
 				@node_record,
 				@ip_address,
@@ -194,7 +194,7 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 			SET
 				node_type = excluded.node_type,
 				last_found = now(),
-				next_disc_crawl = excluded.next_disc_crawl,
+				next_disc_crawl = @next_disc_crawl,
 				node_record = excluded.node_record,
 				ip_address = excluded.ip_address,
 				city_geoname_id = excluded.city_geoname_id
