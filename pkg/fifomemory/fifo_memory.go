@@ -56,3 +56,7 @@ func (m *FIFOMemory[T]) ContainsOrPush(value T) bool {
 
 	return false
 }
+
+func (m *FIFOMemory[T]) IsFull() bool {
+	return m.full
+}

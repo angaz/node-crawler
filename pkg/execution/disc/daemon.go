@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
@@ -31,6 +32,9 @@ type Discovery struct {
 	v4 *discover.UDPv4
 	v5 *discover.UDPv5
 
+	v4RandomIterator enode.Iterator
+	v5RandomIterator enode.Iterator
+
 	wg *sync.WaitGroup
 }
 
@@ -50,7 +54,11 @@ func New(
 		localnode: &enode.LocalNode{},
 		v4:        &discover.UDPv4{},
 		v5:        &discover.UDPv5{},
-		wg:        &sync.WaitGroup{},
+
+		v4RandomIterator: nil,
+		v5RandomIterator: nil,
+
+		wg: &sync.WaitGroup{},
 	}
 
 	var err error
@@ -123,6 +131,9 @@ func (d *Discovery) setupDiscovery() error {
 		return fmt.Errorf("setting up discv5 failed: %w", err)
 	}
 
+	d.v4RandomIterator = d.v4.RandomNodes()
+	d.v5RandomIterator = d.v5.RandomNodes()
+
 	return nil
 }
 
@@ -138,26 +149,9 @@ func (d *Discovery) Wait() {
 func (d *Discovery) crawlNodeV4(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
 	defer metrics.DiscCrawlCount.WithLabelValues("v4").Inc()
 
-	// resp, err := d.v4.RequestENR(node)
-	// if err == nil {
-	// 	err = d.db.UpsertNode(ctx, tx, resp)
-	// 	if err != nil {
-	// 		return fmt.Errorf("upsert node v4 request enr: %w", err)
-	// 	}
-
-	// 	return nil
-	// }
-
-	var key enode.Secp256k1
-	if node.Load(&key) != nil {
-		log.Error("disc crawl node v4 failed", "err", "no secp256k1 key")
-
-		return nil
-	}
-
 	id := node.ID()
 
-	result := d.v4.LookupPubkey((*ecdsa.PublicKey)(&key))
+	result := d.v4.LookupPubkey(node.Pubkey())
 
 	var found bool
 
@@ -184,20 +178,8 @@ func (d *Discovery) crawlNodeV4(ctx context.Context, tx pgx.Tx, node *enode.Node
 	return nil
 }
 
-func (d *Discovery) crawlNodeV5(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
+func (d *Discovery) crawlNodeV5(ctx context.Context, tx pgx.Tx, id enode.ID) error {
 	defer metrics.DiscCrawlCount.WithLabelValues("v5").Inc()
-
-	// resp, err := d.v5.RequestENR(node)
-	// if err == nil {
-	// 	err = d.db.UpsertNode(ctx, tx, resp)
-	// 	if err != nil {
-	// 		return fmt.Errorf("upsert node request enr: %w", err)
-	// 	}
-
-	// 	return nil
-	// }
-
-	id := node.ID()
 
 	result := d.v5.Lookup(id)
 
@@ -218,7 +200,7 @@ func (d *Discovery) crawlNodeV5(ctx context.Context, tx pgx.Tx, node *enode.Node
 		return nil
 	}
 
-	err := d.db.UpdateDiscNodeFailed(ctx, tx, node.ID())
+	err := d.db.UpdateDiscNodeFailed(ctx, tx, id)
 	if err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
@@ -226,18 +208,9 @@ func (d *Discovery) crawlNodeV5(ctx context.Context, tx pgx.Tx, node *enode.Node
 	return nil
 }
 
-func (d *Discovery) crawlNode(ctx context.Context, tx pgx.Tx) error {
-	node, err := d.db.DiscNodesToCrawl(ctx)
-	if err != nil {
-		return fmt.Errorf("select node: %w", err)
-	}
-
-	if node == nil {
-		return nil
-	}
-
+func (d *Discovery) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
 	if common.IsEnode(node.Record()) {
-		err = d.crawlNodeV4(ctx, tx, node)
+		err := d.crawlNodeV4(ctx, tx, node)
 		if err != nil {
 			return fmt.Errorf("crawl node v4: %w", err)
 		}
@@ -245,7 +218,7 @@ func (d *Discovery) crawlNode(ctx context.Context, tx pgx.Tx) error {
 		return nil
 	}
 
-	err = d.crawlNodeV5(ctx, tx, node)
+	err := d.crawlNodeV5(ctx, tx, node.ID())
 	if err != nil {
 		return fmt.Errorf("crawl node v5: %w", err)
 	}
@@ -257,7 +230,14 @@ func (d *Discovery) discCrawler(ctx context.Context) {
 	defer d.wg.Done()
 
 	for ctx.Err() == nil {
-		err := d.db.WithTx(ctx, d.crawlNode)
+		node, err := d.db.DiscNodesToCrawl(ctx)
+		if err != nil {
+			log.Error("disc crawl select node failed", "err", err)
+		}
+
+		err = d.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			return d.crawlNode(ctx, tx, node)
+		})
 		if err != nil {
 			log.Error("disc crawl node failed", "err", err)
 		}
@@ -276,6 +256,8 @@ func (d *Discovery) randomLoop(ctx context.Context, iter enode.Iterator, discVer
 		}
 
 		metrics.DiscUpdateCount.WithLabelValues(discVersion).Inc()
+
+		time.Sleep(30 * time.Second)
 	}
 }
 
@@ -289,6 +271,6 @@ func (d *Discovery) StartDaemon(ctx context.Context) {
 func (d *Discovery) StartRandomDaemon(ctx context.Context) {
 	d.wg.Add(2)
 
-	go d.randomLoop(ctx, d.v4.RandomNodes(), "v4")
-	go d.randomLoop(ctx, d.v5.RandomNodes(), "v5")
+	go d.randomLoop(ctx, d.v4RandomIterator, "v4")
+	go d.randomLoop(ctx, d.v5RandomIterator, "v5")
 }

@@ -336,6 +336,11 @@ func nodesToCrawl(
 			}
 
 			sleepDur := time.Until(nextNode.NextCrawl)
+
+			if sleepDur > time.Hour {
+				continue
+			}
+
 			if sleepDur > 0 {
 				time.Sleep(sleepDur)
 			}
