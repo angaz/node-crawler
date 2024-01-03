@@ -235,7 +235,7 @@ func (d *Discovery) discCrawler(ctx context.Context) {
 			log.Error("disc crawl select node failed", "err", err)
 		}
 
-		err = d.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		err = d.db.WithTxAsync(ctx, func(ctx context.Context, tx pgx.Tx) error {
 			return d.crawlNode(ctx, tx, node)
 		})
 		if err != nil {
@@ -248,7 +248,7 @@ func (d *Discovery) randomLoop(ctx context.Context, iter enode.Iterator, discVer
 	defer d.wg.Done()
 
 	for iter.Next() {
-		err := d.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		err := d.db.WithTxAsync(ctx, func(ctx context.Context, tx pgx.Tx) error {
 			return d.db.UpsertNode(ctx, tx, iter.Node())
 		})
 		if err != nil {

@@ -149,7 +149,7 @@ func (l *Listener) crawlPeer(ctx context.Context, nodeKey *ecdsa.PrivateKey, fd 
 	}
 	defer conn.Close()
 
-	err = l.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	err = l.db.WithTxAsync(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		node := conn.GetClientInfo(
 			ctx,
 			tx,

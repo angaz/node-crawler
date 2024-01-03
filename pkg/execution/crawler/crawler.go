@@ -106,11 +106,11 @@ func (c *Crawler) crawlAndUpdateNode(ctx context.Context) error {
 		return fmt.Errorf("select node: %w", err)
 	}
 
-	return c.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		if node == nil {
-			return ErrNothingToCrawl
-		}
+	if node == nil {
+		return ErrNothingToCrawl
+	}
 
+	return c.db.WithTxAsync(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		err = c.crawlNode(ctx, tx, node)
 		if err != nil {
 			return fmt.Errorf("crawl node: %w", err)

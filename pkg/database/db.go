@@ -214,16 +214,52 @@ func (db *DB) TableStatsMetricsDaemon(ctx context.Context, frequency time.Durati
 	}
 }
 
-func (db *DB) WithTx(ctx context.Context, fn func(context.Context, pgx.Tx) error) error {
-	tx, err := db.pg.Begin(ctx)
+type TxFn func(context.Context, pgx.Tx) error
+
+var (
+	//nolint:exhaustruct
+	txOptionsDefault = pgx.TxOptions{}
+)
+
+func asyncCommitTxFn(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, "SET LOCAL synchronous_commit TO OFF")
+	if err != nil {
+		return fmt.Errorf("set async commit: %w", err)
+	}
+
+	return nil
+}
+
+func (db *DB) withTx(
+	ctx context.Context,
+	txOptions pgx.TxOptions,
+	postBeginFn TxFn,
+	fn TxFn,
+	preCommitFn TxFn,
+) error {
+	tx, err := db.pg.BeginTx(ctx, txOptions)
 	if err != nil {
 		return fmt.Errorf("start tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
+	if postBeginFn != nil {
+		err = postBeginFn(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("post-begin fn: %w", err)
+		}
+	}
+
 	err = fn(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("fn: %w", err)
+	}
+
+	if preCommitFn != nil {
+		err = preCommitFn(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("pre-commit fn: %w", err)
+		}
 	}
 
 	err = tx.Commit(ctx)
@@ -232,6 +268,26 @@ func (db *DB) WithTx(ctx context.Context, fn func(context.Context, pgx.Tx) error
 	}
 
 	return nil
+}
+
+func (db *DB) WithTxAsync(ctx context.Context, fn func(context.Context, pgx.Tx) error) error {
+	return db.withTx(
+		ctx,
+		txOptionsDefault,
+		asyncCommitTxFn,
+		fn,
+		nil,
+	)
+}
+
+func (db *DB) WithTx(ctx context.Context, fn TxFn) error {
+	return db.withTx(
+		ctx,
+		txOptionsDefault,
+		nil,
+		fn,
+		nil,
+	)
 }
 
 func (db *DB) EphemeryInsertDaemon(ctx context.Context, frequency time.Duration) {
