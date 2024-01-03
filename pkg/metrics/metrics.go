@@ -29,7 +29,7 @@ var (
 			Help:      "Number of nodes in each time bucket by last_found",
 		},
 		[]string{
-			"bucket",
+			"le",
 		},
 	)
 	DiscUpdateBacklog = promauto.NewGauge(prometheus.GaugeOpts{

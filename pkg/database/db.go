@@ -146,58 +146,81 @@ func (db *DB) tableStats(ctx context.Context) {
 	metrics.DBStatsDiscNodesToCrawl.Set(float64(discToCrawl))
 }
 
+const (
+	hourSeconds = 3600
+	daySeconds  = 24 * hourSeconds
+)
+
+var lastFoundSeconds = [13]int64{
+	1 * hourSeconds,
+	2 * hourSeconds,
+	3 * hourSeconds,
+	6 * hourSeconds,
+	12 * hourSeconds,
+	18 * hourSeconds,
+	1 * daySeconds,
+	2 * daySeconds,
+	3 * daySeconds,
+	4 * daySeconds,
+	5 * daySeconds,
+	6 * daySeconds,
+	7 * daySeconds,
+}
+
 func (db *DB) lastFoundStats(ctx context.Context) {
 	var err error
 
 	defer metrics.ObserveDBQuery("last_found_stats", time.Now(), err)
 
-	rows, err := db.pg.Query(
+	row := db.pg.QueryRow(
 		ctx,
 		`
-			WITH last_found AS (
-				SELECT
-					time_bucket_gapfill(
-						INTERVAL '3 hour',
-						last_found,
-						now() - INTERVAL '72 hours',
-						now()
-					) bucket,
-					coalesce(COUNT(*), 0) count
-				FROM disc.nodes
-				WHERE last_found > now() - INTERVAL '72 hours'
-				GROUP BY bucket
-			)
 			SELECT
-				time_bucket(
-					INTERVAL '3 hours',
-					now()
-				) - time_bucket(
-					INTERVAL '3 hours',
-					bucket
-				) relative_bucket,
-				count
-			FROM last_found
-			ORDER BY bucket DESC
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '1 hour'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '2 hour'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '3 hours'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '6 hours'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '12 hours'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '18 hours'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '1 day'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '2 day'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '3 days'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '4 days'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '5 days'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '6 days'),
+				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '7 days')
+			FROM disc.nodes
+			WHERE last_found > now() - INTERVAL '7 days';
 		`,
 	)
+
+	var counts [13]int64
+
+	err = row.Scan(
+		&counts[0],
+		&counts[1],
+		&counts[2],
+		&counts[3],
+		&counts[4],
+		&counts[5],
+		&counts[6],
+		&counts[7],
+		&counts[8],
+		&counts[9],
+		&counts[10],
+		&counts[11],
+		&counts[12],
+	)
 	if err != nil {
-		log.Error("get last found stats query failed", "err", err)
+		log.Error("get last found stats rows failed", "err", err)
 
 		return
 	}
 
-	var bucket time.Duration
-	var count int64
-
-	_, err = pgx.ForEachRow(rows, []any{&bucket, &count}, func() error {
+	for i, count := range counts {
 		metrics.LastFound.
-			WithLabelValues(strconv.FormatInt(int64(bucket.Seconds()), 10)).
+			WithLabelValues(strconv.FormatInt(lastFoundSeconds[i], 10)).
 			Set(float64(count))
-
-		return nil
-	})
-	if err != nil {
-		log.Error("get last found stats rows failed", "err", err)
 	}
 }
 
