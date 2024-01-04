@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/ethereum/node-crawler/public"
 )
@@ -65,7 +66,7 @@ func (a *API) nodesListHandler(w http.ResponseWriter, r *http.Request) {
 		nodeType,
 	)
 	if err != nil {
-		log.Error("get node list failed", "err", err, "pageNumber", pageNumber)
+		slog.Error("get node list failed", "err", err, "pageNumber", pageNumber)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
 
@@ -74,7 +75,7 @@ func (a *API) nodesListHandler(w http.ResponseWriter, r *http.Request) {
 
 	ephemeryNetworks, err := a.db.EphemeryNetworks(r.Context())
 	if err != nil {
-		log.Error("get ephemery networks failed", "err", err)
+		slog.Error("get ephemery networks failed", "err", err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")

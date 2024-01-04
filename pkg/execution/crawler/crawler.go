@@ -9,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
@@ -68,7 +69,7 @@ func (c *Crawler) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) er
 	if err != nil {
 		known, errStr := p2p.TranslateError(err)
 		if !known {
-			log.Error("dial failed", "err", err)
+			slog.Error("dial failed", "err", err)
 		}
 
 		//nolint:exhaustruct  // Missing values because of error.
@@ -128,7 +129,7 @@ func (c *Crawler) crawler(ctx context.Context) {
 		err := c.crawlAndUpdateNode(ctx)
 		if err != nil {
 			if !errors.Is(err, ErrNothingToCrawl) {
-				log.Error("crawl failed", "err", err)
+				slog.Error("crawl failed", "err", err)
 			}
 
 			time.Sleep(time.Minute)

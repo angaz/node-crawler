@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
 )
 
 var (
@@ -338,7 +338,7 @@ func handleNimbus(name string) (*Client, error) {
 
 	os, arch, err := parseOSArch(parts[2])
 	if err != nil {
-		log.Error("os/arch parse error", "err", err)
+		slog.Error("os/arch parse error", "err", err)
 	}
 
 	return &Client{
@@ -565,7 +565,7 @@ func ParseClientID(clientName *string) *Client {
 	if strings.HasPrefix(name, "nimbus-eth1") {
 		client, err := handleNimbus(name)
 		if err != nil {
-			log.Error("parse nimbus failed", "err", err, "name", name)
+			slog.Error("parse nimbus failed", "err", err, "name", name)
 		}
 
 		return client
@@ -576,13 +576,13 @@ func ParseClientID(clientName *string) *Client {
 	nParts := len(parts)
 
 	if nParts == 0 {
-		log.Error("parts is 0")
+		slog.Error("parts is 0")
 
 		return nil
 	}
 
 	if nParts >= len(funcs) {
-		log.Error("Too many parts", "name", name)
+		slog.Error("Too many parts", "name", name)
 
 		return nil
 	}
@@ -593,7 +593,7 @@ func ParseClientID(clientName *string) *Client {
 
 	client, err := funcs[nParts](parts)
 	if err != nil {
-		log.Error("error parsing client", "err", err, "name", name)
+		slog.Error("error parsing client", "err", err, "name", name)
 
 		return nil
 	}

@@ -26,7 +26,8 @@ import (
 	"github.com/oschwald/geoip2-golang"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/pkg/execution/crawler"
 	"github.com/ethereum/node-crawler/pkg/execution/listener"
 
@@ -135,7 +136,7 @@ func crawlNodesV2(cCtx *cli.Context) error {
 
 	// Start metrics server
 	metricsAddr := metricsAddressFlag.Get(cCtx)
-	log.Info("starting metrics server", "address", metricsAddr)
+	slog.Info("starting metrics server", "address", metricsAddr)
 	http.Handle("/metrics", promhttp.Handler())
 	http.ListenAndServe(metricsAddr, nil)
 

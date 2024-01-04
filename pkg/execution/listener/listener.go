@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/ethereum/node-crawler/pkg/common"
@@ -77,7 +78,7 @@ func (l *Listener) StartDaemon(ctx context.Context) {
 
 func (l *Listener) StartDiscCrawlers(ctx context.Context, crawlers int) {
 	if len(l.disc) == 0 {
-		log.Error("start disc crawlers: number of discovery servers running is zero")
+		slog.Error("start disc crawlers: number of discovery servers running is zero")
 
 		return
 	}
@@ -93,7 +94,7 @@ func (l *Listener) StartDiscCrawlers(ctx context.Context, crawlers int) {
 func (l *Listener) startListener(ctx context.Context, nodeKey *ecdsa.PrivateKey, listenAddr string, port uint16) {
 	disc, err := disc.New(l.db, nodeKey, listenAddr, port)
 	if err != nil {
-		log.Error("new discovery failed", "err", err, "addr", listenAddr)
+		slog.Error("new discovery failed", "err", err, "addr", listenAddr)
 
 		return
 	}
@@ -102,7 +103,7 @@ func (l *Listener) startListener(ctx context.Context, nodeKey *ecdsa.PrivateKey,
 
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		log.Error("listener failed", "err", err)
+		slog.Error("listener failed", "err", err)
 
 		return
 	}
@@ -124,7 +125,7 @@ func (l *Listener) startListener(ctx context.Context, nodeKey *ecdsa.PrivateKey,
 					time.Sleep(100 * time.Millisecond)
 					continue
 				} else if err != nil {
-					log.Error("crawler listener accept failed", "err", err)
+					slog.Error("crawler listener accept failed", "err", err)
 				}
 
 				break
@@ -142,7 +143,7 @@ func (l *Listener) crawlPeer(ctx context.Context, nodeKey *ecdsa.PrivateKey, fd 
 	if err != nil {
 		known, _ := p2p.TranslateError(err)
 		if !known {
-			log.Info("accept peer failed", "err", err, "ip", fd.RemoteAddr().String())
+			slog.Info("accept peer failed", "err", err, "ip", fd.RemoteAddr().String())
 		}
 
 		return
@@ -166,7 +167,7 @@ func (l *Listener) crawlPeer(ctx context.Context, nodeKey *ecdsa.PrivateKey, fd 
 		return nil
 	})
 	if err != nil {
-		log.Error("accept peer failed", "err", err)
+		slog.Error("accept peer failed", "err", err)
 	}
 }
 

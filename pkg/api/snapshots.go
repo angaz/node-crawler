@@ -8,7 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/public"
 )
 
@@ -47,7 +48,7 @@ func allFiles(dirName string) ([]fs.FileInfo, error) {
 func (a *API) handleSnapshotsList(w http.ResponseWriter, r *http.Request) {
 	files, err := allFiles(a.snapshotDir)
 	if err != nil {
-		log.Error("listing snapshots failed", "err", err)
+		slog.Error("listing snapshots failed", "err", err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprint(w, "Internal Server Error\n")

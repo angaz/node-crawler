@@ -4,9 +4,10 @@ import (
 	"context"
 	"reflect"
 
+	"log/slog"
+
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/node-crawler/pkg/common"
@@ -24,7 +25,7 @@ func (conn *Conn) GetClientInfo(
 	if err != nil {
 		known, errStr := TranslateError(err)
 		if !known {
-			log.Info("write hello failed", "err", err)
+			slog.Info("write hello failed", "err", err)
 		}
 
 		//nolint:exhaustruct  // Missing values because of error.
@@ -94,7 +95,7 @@ func (conn *Conn) GetClientInfo(
 
 			getBlock, err := getMissingBlock(ctx, tx, msg.NetworkID)
 			if err != nil {
-				log.Error("could not get missing block", "err", err)
+				slog.Error("could not get missing block", "err", err)
 			}
 
 			if getBlock != nil {
@@ -163,7 +164,7 @@ func (conn *Conn) GetClientInfo(
 		case *Transactions:
 
 		default:
-			log.Info("message type not handled", "type", reflect.TypeOf(msg).String())
+			slog.Info("message type not handled", "type", reflect.TypeOf(msg).String())
 		}
 	}
 
@@ -180,7 +181,7 @@ loopExit:
 	} else if readError != nil {
 		known, errStr := TranslateError(readError)
 		if !known {
-			log.Info("message read error", "err", readError)
+			slog.Info("message read error", "err", readError)
 		}
 
 		nodeJSON.Error = errStr

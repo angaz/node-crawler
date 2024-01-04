@@ -8,9 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"log/slog"
+
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/metrics"
 	"github.com/jackc/pgx/v5"
@@ -224,7 +225,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 
 	clientPtr := common.ParseClientID(&node.Info.ClientIdentifier)
 	if clientPtr == nil && node.Info.ClientIdentifier != "" {
-		log.Error("parsing client ID failed", "id", node.Info.ClientIdentifier)
+		slog.Error("parsing client ID failed", "id", node.Info.ClientIdentifier)
 	}
 
 	client := clientPtr.Deref()

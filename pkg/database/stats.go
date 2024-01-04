@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/metrics"
 	"golang.org/x/exp/slices"
@@ -44,7 +45,7 @@ func (db *DB) CopyStatsDaemon(frequency time.Duration) {
 
 		err := db.CopyStats()
 		if err != nil {
-			log.Error("Copy stats failed", "err", err)
+			slog.Error("Copy stats failed", "err", err)
 		}
 
 		// nextRun := time.Now().Truncate(frequency).Add(frequency)

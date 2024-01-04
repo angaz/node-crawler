@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/pkg/metrics"
 )
 
@@ -48,7 +49,7 @@ func (db *DB) blocksCleaner(ctx context.Context) {
 		`,
 	)
 	if err != nil {
-		log.Error("blocks cleaner failed", "err", err)
+		slog.Error("blocks cleaner failed", "err", err)
 	}
 }
 
@@ -67,6 +68,6 @@ func (db *DB) historyCleaner(ctx context.Context) {
 			AND direction = 'accept'
 	`)
 	if err != nil {
-		log.Error("history cleaner failed", "err", err)
+		slog.Error("history cleaner failed", "err", err)
 	}
 }

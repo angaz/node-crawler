@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/pkg/networks"
 	"github.com/jackc/pgx/v5"
 )
@@ -133,7 +134,7 @@ func InsertNewEphemeryNetworks(ctx context.Context, tx pgx.Tx, githubToken strin
 		return fmt.Errorf("get ephemerey networks: %w", err)
 	}
 
-	log.Info("fetch ephemery networks done", "duration", time.Since(startEphemery))
+	slog.Info("fetch ephemery networks done", "duration", time.Since(startEphemery))
 
 	forks := make([]networks.Fork, 0, len(ephemeryNetworks))
 

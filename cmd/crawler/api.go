@@ -7,7 +7,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/pkg/api"
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -62,7 +63,7 @@ func runAPI(cCtx *cli.Context) error {
 
 	// Start metrics server
 	metricsAddr := metricsAddressFlag.Get(cCtx)
-	log.Info("starting metrics server", "address", metricsAddr)
+	slog.Info("starting metrics server", "address", metricsAddr)
 	http.Handle("/metrics", promhttp.Handler())
 	http.ListenAndServe(metricsAddr, nil)
 

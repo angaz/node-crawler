@@ -5,7 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/pkg/database"
 )
 
@@ -85,6 +86,6 @@ func (a *API) StartServer(wg *sync.WaitGroup, address string) {
 	router.HandleFunc("/snapshots/", a.handleSnapshots)
 	router.HandleFunc("/static/", handleStatic)
 
-	log.Info("Starting API", "address", address)
+	slog.Info("Starting API", "address", address)
 	_ = http.ListenAndServe(address, router)
 }

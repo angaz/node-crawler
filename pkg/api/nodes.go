@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"log/slog"
+
 	"github.com/a-h/templ"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/node-crawler/public"
 	"github.com/jackc/pgx/v5"
 )
@@ -33,7 +34,7 @@ func (a *API) nodesHandler(w http.ResponseWriter, r *http.Request) {
 
 	nodes, err := a.db.GetNodeTable(r.Context(), nodeID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		log.Error("get node page failed", "err", err, "id", nodeID)
+		slog.Error("get node page failed", "err", err, "id", nodeID)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")

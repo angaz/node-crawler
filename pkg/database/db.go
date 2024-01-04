@@ -9,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/node-crawler/pkg/database/migrations"
 	"github.com/ethereum/node-crawler/pkg/fifomemory"
@@ -134,7 +135,7 @@ func (db *DB) tableStats(ctx context.Context) {
 		&blocks,
 	)
 	if err != nil {
-		log.Error("table stats scan failed", "err", err)
+		slog.Error("table stats scan failed", "err", err)
 
 		return
 	}
@@ -212,7 +213,7 @@ func (db *DB) lastFoundStats(ctx context.Context) {
 		&counts[12],
 	)
 	if err != nil {
-		log.Error("get last found stats rows failed", "err", err)
+		slog.Error("get last found stats rows failed", "err", err)
 
 		return
 	}
@@ -327,7 +328,7 @@ func (db *DB) EphemeryInsertDaemon(ctx context.Context, frequency time.Duration)
 			return nil
 		})
 		if err != nil {
-			log.Error("ephemery daemon failed", "err", err)
+			slog.Error("ephemery daemon failed", "err", err)
 		}
 	}
 }

@@ -26,8 +26,9 @@ import (
 	"strconv"
 	"strings"
 
+	"log/slog"
+
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	pb "github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1"
@@ -265,7 +266,6 @@ func RecordToEnodeV4(r *enr.Record) *enode.Node {
 
 func IsEnode(r *enr.Record) bool {
 	return r.IdentityScheme() == ""
-
 }
 
 func RecordToEnode(r *enr.Record) (*enode.Node, error) {
@@ -279,7 +279,7 @@ func RecordToEnode(r *enr.Record) (*enode.Node, error) {
 func EnodeString(r *enr.Record) string {
 	node, err := RecordToEnode(r)
 	if err != nil {
-		log.Error("enode to string failed", "err", err)
+		slog.Error("enode to string failed", "err", err)
 		return ""
 	}
 

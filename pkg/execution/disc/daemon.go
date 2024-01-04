@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
@@ -221,14 +222,14 @@ func (d *Discovery) discCrawler(ctx context.Context) {
 	for ctx.Err() == nil {
 		node, err := d.db.DiscNodesToCrawl(ctx)
 		if err != nil {
-			log.Error("disc crawl select node failed", "err", err)
+			slog.Error("disc crawl select node failed", "err", err)
 		}
 
 		err = d.db.WithTxAsync(ctx, func(ctx context.Context, tx pgx.Tx) error {
 			return d.crawlNode(ctx, tx, node)
 		})
 		if err != nil {
-			log.Error("disc crawl node failed", "err", err)
+			slog.Error("disc crawl node failed", "err", err)
 		}
 	}
 }
@@ -241,7 +242,7 @@ func (d *Discovery) randomLoop(ctx context.Context, iter enode.Iterator, discVer
 			return d.db.UpsertNode(ctx, tx, iter.Node())
 		})
 		if err != nil {
-			log.Error("upserting disc node failed", "err", err)
+			slog.Error("upserting disc node failed", "err", err)
 		}
 
 		metrics.DiscUpdateCount.WithLabelValues(discVersion).Inc()

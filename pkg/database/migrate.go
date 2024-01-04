@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/pkg/database/migrations"
 	"github.com/jackc/pgx/v5"
 )
@@ -95,7 +96,7 @@ func (db *DB) migrate(
 		}
 
 		start := time.Now()
-		log.Info("migration start", "version", version)
+		slog.Info("migration start", "version", version)
 
 		err := migration(ctx, tx)
 		if err != nil {
@@ -117,7 +118,7 @@ func (db *DB) migrate(
 			return fmt.Errorf("insert migration failed: %w", err)
 		}
 
-		log.Info(
+		slog.Info(
 			"migration complete",
 			"version", version,
 			"duration", time.Since(start),
@@ -126,14 +127,14 @@ func (db *DB) migrate(
 
 	for name, fn := range staticObjects {
 		start := time.Now()
-		log.Info("migration start", "name", name)
+		slog.Info("migration start", "name", name)
 
 		err = fn(ctx, tx)
 		if err != nil {
 			return fmt.Errorf("static object: %s failed: %w", name, err)
 		}
 
-		log.Info("migration complete", "name", name, "duration", time.Since(start))
+		slog.Info("migration complete", "name", name, "duration", time.Since(start))
 	}
 
 	err = tx.Commit(ctx)

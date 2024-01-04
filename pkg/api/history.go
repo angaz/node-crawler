@@ -6,7 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/ethereum/node-crawler/public"
 )
@@ -69,7 +70,7 @@ func (a *API) handleHistoryList(w http.ResponseWriter, r *http.Request) {
 
 	historyList, err := a.db.GetHistoryList(r.Context(), before, after, networkID, isError)
 	if err != nil {
-		log.Error("get history list failed", "err", err)
+		slog.Error("get history list failed", "err", err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
@@ -79,7 +80,7 @@ func (a *API) handleHistoryList(w http.ResponseWriter, r *http.Request) {
 
 	ephemeryNetworks, err := a.db.EphemeryNetworks(r.Context())
 	if err != nil {
-		log.Error("get ephemery networks failed", "err", err)
+		slog.Error("get ephemery networks failed", "err", err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")

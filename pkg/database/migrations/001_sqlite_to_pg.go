@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/jackc/pgx/v5"
 	"github.com/oschwald/geoip2-golang"
@@ -73,10 +74,10 @@ func denormalizeString(
 }
 
 func denormalizeClient(ctx context.Context, tx pgx.Tx, sqlite *sql.DB, column string, table string, schema string) (map[string]int64, error) {
-	log.Info("migration start", "name", column)
+	slog.Info("migration start", "name", column)
 	start := time.Now()
 	defer func() {
-		log.Info("migration end", "name", column, "duration", time.Since(start))
+		slog.Info("migration end", "name", column, "duration", time.Since(start))
 	}()
 
 	return denormalizeString(
@@ -115,10 +116,10 @@ func copySqliteToPGClientVersion(ctx context.Context, tx pgx.Tx, sqlite *sql.DB)
 	table := "client.versions"
 	schema := "stats"
 
-	log.Info("migration start", "name", column)
+	slog.Info("migration start", "name", column)
 	start := time.Now()
 	defer func() {
-		log.Info("migration end", "name", column, "duration", time.Since(start))
+		slog.Info("migration end", "name", column, "duration", time.Since(start))
 	}()
 
 	return denormalizeString(
@@ -219,10 +220,10 @@ func copySqlitePGcountriesCities(
 	sqlite *sql.DB,
 	geoip *geoip2.Reader,
 ) (map[string]int32, error) {
-	log.Info("migration start", "name", "cities")
+	slog.Info("migration start", "name", "cities")
 	start := time.Now()
 	defer func() {
-		log.Info("migration end", "name", "cities", "duration", time.Since(start))
+		slog.Info("migration end", "name", "cities", "duration", time.Since(start))
 	}()
 
 	countriesMap := map[string]int32{
@@ -339,10 +340,10 @@ func migrateStatsTable(
 	clientVersionsMap map[string]int64,
 	countriesMap map[string]int32,
 ) error {
-	log.Info("migration start", "name", "stats table")
+	slog.Info("migration start", "name", "stats table")
 	start := time.Now()
 	defer func() {
-		log.Info("migration end", "name", "stats table", "duration", time.Since(start))
+		slog.Info("migration end", "name", "stats table", "duration", time.Since(start))
 	}()
 
 	rows, err := sqlite.QueryContext(
@@ -482,10 +483,10 @@ func migrateExecutionNodesTable(
 	clientLanguagesMap map[string]int64,
 	capabilitiesMap map[string]int64,
 ) error {
-	log.Info("migration start", "name", "execution nodes table")
+	slog.Info("migration start", "name", "execution nodes table")
 	start := time.Now()
 	defer func() {
-		log.Info("migration end", "name", "execution nodes table", "duration", time.Since(start))
+		slog.Info("migration end", "name", "execution nodes table", "duration", time.Since(start))
 	}()
 
 	rows, err := sqlite.QueryContext(
@@ -654,10 +655,10 @@ func migrateDiscNodes(
 	sqlite *sql.DB,
 	geoip *geoip2.Reader,
 ) error {
-	log.Info("migration start", "name", "disc nodes table")
+	slog.Info("migration start", "name", "disc nodes table")
 	start := time.Now()
 	defer func() {
-		log.Info("migration end", "name", "disc nodes table", "duration", time.Since(start))
+		slog.Info("migration end", "name", "disc nodes table", "duration", time.Since(start))
 	}()
 
 	rows, err := sqlite.QueryContext(
@@ -754,10 +755,10 @@ func migrateBlocks(
 	tx pgx.Tx,
 	sqlite *sql.DB,
 ) error {
-	log.Info("migration start", "name", "blocks table")
+	slog.Info("migration start", "name", "blocks table")
 	start := time.Now()
 	defer func() {
-		log.Info("migration end", "name", "blocks table", "duration", time.Since(start))
+		slog.Info("migration end", "name", "blocks table", "duration", time.Since(start))
 	}()
 
 	rows, err := sqlite.QueryContext(
@@ -822,10 +823,10 @@ func migrateCrawlHistory(
 	tx pgx.Tx,
 	sqlite *sql.DB,
 ) error {
-	log.Info("migration start", "name", "crawl history table")
+	slog.Info("migration start", "name", "crawl history table")
 	start := time.Now()
 	defer func() {
-		log.Info("migration end", "name", "crawl history table", "duration", time.Since(start))
+		slog.Info("migration end", "name", "crawl history table", "duration", time.Since(start))
 	}()
 
 	rows, err := sqlite.QueryContext(

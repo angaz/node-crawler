@@ -7,7 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/node-crawler/pkg/common"
@@ -349,7 +350,7 @@ func nodesToCrawl(
 		default:
 			err := fetchNodesToCrawl(ctx)
 			if err != nil {
-				log.Error("fetch nodes to crawl failed", "err", err)
+				slog.Error("fetch nodes to crawl failed", "err", err)
 				time.Sleep(time.Minute)
 			}
 		}

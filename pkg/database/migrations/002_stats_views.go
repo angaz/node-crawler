@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"log/slog"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -78,7 +79,7 @@ func createStatsView(
 		return fmt.Errorf("exec: %w", err)
 	}
 
-	log.Warn(
+	slog.Warn(
 		"Don't forget to add initial data",
 		"query", fmt.Sprintf(
 			"CALL refresh_continuous_aggregate('%s', '%s', INTERVAL '30 minutes');",

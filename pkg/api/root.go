@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"log/slog"
+
 	"github.com/a-h/templ"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/ethereum/node-crawler/public"
 )
@@ -102,7 +103,7 @@ func (a *API) getFilterStats(
 		params.graphInterval,
 	)
 	if err != nil {
-		log.Error("GetStats failed", "err", err)
+		slog.Error("GetStats failed", "err", err)
 
 		return nil, fmt.Errorf("internal server error")
 	}
@@ -195,7 +196,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	allStats, err := a.getFilterStats(r.Context(), after, before, params)
 	if err != nil {
-		log.Error("get filter stats failed", "err", err)
+		slog.Error("get filter stats failed", "err", err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
@@ -205,7 +206,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	ephemeryNetworks, err := a.db.EphemeryNetworks(r.Context())
 	if err != nil {
-		log.Error("get ephemery networks failed", "err", err)
+		slog.Error("get ephemery networks failed", "err", err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
