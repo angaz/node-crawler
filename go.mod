@@ -9,8 +9,6 @@ require (
 	github.com/fjl/memsize v0.0.2
 	github.com/google/go-github/v57 v57.0.0
 	github.com/jackc/pgx/v5 v5.5.1
-	github.com/mattn/go-colorable v0.1.13
-	github.com/mattn/go-isatty v0.0.20
 	github.com/oschwald/geoip2-golang v1.9.0
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prysmaticlabs/prysm/v4 v4.1.1
@@ -66,6 +64,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
