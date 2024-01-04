@@ -31,10 +31,6 @@ type Discovery struct {
 
 	v4 *discover.UDPv4
 	v5 *discover.UDPv5
-
-	v4RandomIterator enode.Iterator
-	v5RandomIterator enode.Iterator
-
 	wg *sync.WaitGroup
 }
 
@@ -54,11 +50,7 @@ func New(
 		localnode: &enode.LocalNode{},
 		v4:        &discover.UDPv4{},
 		v5:        &discover.UDPv5{},
-
-		v4RandomIterator: nil,
-		v5RandomIterator: nil,
-
-		wg: &sync.WaitGroup{},
+		wg:        &sync.WaitGroup{},
 	}
 
 	var err error
@@ -130,9 +122,6 @@ func (d *Discovery) setupDiscovery() error {
 	if err != nil {
 		return fmt.Errorf("setting up discv5 failed: %w", err)
 	}
-
-	d.v4RandomIterator = d.v4.RandomNodes()
-	d.v5RandomIterator = d.v5.RandomNodes()
 
 	return nil
 }
@@ -271,6 +260,6 @@ func (d *Discovery) StartDaemon(ctx context.Context) {
 func (d *Discovery) StartRandomDaemon(ctx context.Context) {
 	d.wg.Add(2)
 
-	go d.randomLoop(ctx, d.v4RandomIterator, "v4")
-	go d.randomLoop(ctx, d.v5RandomIterator, "v5")
+	go d.randomLoop(ctx, d.v4.RandomNodes(), "v4")
+	go d.randomLoop(ctx, d.v5.RandomNodes(), "v5")
 }
