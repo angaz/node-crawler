@@ -877,48 +877,40 @@ templ SyncedFilterLinks(url URL, synced int) {
 	</div>
 }
 
-templ ReadyForNextForkLinks(name string, url URL, nextFork int) {
+templ ReadyForNextForkLinks(name string, key string, url URL, nextForkName string) {
 	<div style="display: flex; flex-direction: row; gap: 0.5em;">
 		<a
- 			class={
+			class={
 				pageButton(),
-				templ.KV(pageButtonActive(), nextFork == -1),
-				templ.KV(pageButtonInactive(), nextFork != -1),
+				templ.KV(pageButtonActive(), nextForkName == ""),
+				templ.KV(pageButtonInactive(), nextForkName != ""),
 			}
- 			href={ url.WithParam("next-fork", "all").SafeURL() }
+			href={ url.WithParam("next-fork-name", "").SafeURL() }
 		>
 			All
 		</a>
 		<a
- 			class={
+			class={
 				pageButton(),
-				templ.KV(pageButtonActive(), nextFork == 1),
-				templ.KV(pageButtonInactive(), nextFork != 1),
+				templ.KV(pageButtonActive(), nextForkName == key),
+				templ.KV(pageButtonInactive(), nextForkName != key),
 			}
- 			href={ url.WithParam("next-fork", "yes").SafeURL() }
+			href={ url.WithParam("next-fork-name", key).SafeURL() }
 		>
 			Ready for { name }
-		</a>
-		<a
- 			class={
-				pageButton(),
-				templ.KV(pageButtonActive(), nextFork == 0),
-				templ.KV(pageButtonInactive(), nextFork != 0),
-			}
- 			href={ url.WithParam("next-fork", "no").SafeURL() }
-		>
-			Not ready for { name }
 		</a>
 	</div>
 }
 
-templ ReadyForNextForkLinksDisabled(url URL, networkID int64, nextFork int) {
+templ ReadyForNextForkLinksDisabled(url URL, networkID int64, nextForkName string) {
 	switch networkID {
-	case -1, 1, 5, 17000, 11155111:
+	case 1:
 		<div style="pointer-events: none;">
 			<span>Disabled, waiting for the fork time to be announced</span>
-			@ReadyForNextForkLinks("Cancun", url, nextFork)
+			@ReadyForNextForkLinks("Cancun", "cancun", url, nextForkName)
 		</div>
+	case -1, 5, 17000, 11155111:
+		@ReadyForNextForkLinks("Cancun", "cancun", url, nextForkName)
 	}
 }
 
@@ -927,6 +919,7 @@ templ Stats(
 	networkID int64,
 	synced int,
 	nextFork int,
+	nextForkName string,
 	clientName string,
 	charts []templ.Component,
 	stats []templ.Component,
@@ -936,7 +929,7 @@ templ Stats(
 	<div style="display: flex; flex-direction: column; padding: 1em; gap: 1em;">
 		@NetworkFilterLinks(reqURL.WithPath("/"), networkID, ephemeryNetworks)
 		@SyncedFilterLinks(reqURL, synced)
-		@ReadyForNextForkLinksDisabled(reqURL, networkID, nextFork)
+		@ReadyForNextForkLinksDisabled(reqURL, networkID, nextForkName)
 		if clientName != "" {
 			<div style="display: flex; flex-direction: row; gap: 0.5em;">
 				<a

@@ -328,6 +328,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		params.networkID,
 		params.synced,
 		params.nextFork,
+		params.nextForkName,
 		params.clientName,
 		graphs,
 		instant,

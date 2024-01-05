@@ -760,7 +760,7 @@ func (db *DB) GetStats(
 					)
 					AND (
 						@next_fork_name = ''
-						OR next_fork.fork_name = @next_fork_name
+						OR LOWER(next_fork.fork_name) = LOWER(@next_fork_name)
 					)
 				GROUP BY
 					1,
