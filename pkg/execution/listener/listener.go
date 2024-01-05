@@ -150,22 +150,26 @@ func (l *Listener) crawlPeer(ctx context.Context, nodeKey *ecdsa.PrivateKey, fd 
 	}
 	defer conn.Close()
 
-	err = l.db.WithTxAsync(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		node := conn.GetClientInfo(
-			ctx,
-			tx,
-			l.nodeFromConn(pubKey, fd),
-			common.DirectionAccept,
-			l.db.GetMissingBlock,
-		)
+	err = l.db.WithTxAsync(
+		ctx,
+		database.TxOptionsDeferrable,
+		func(ctx context.Context, tx pgx.Tx) error {
+			node := conn.GetClientInfo(
+				ctx,
+				tx,
+				l.nodeFromConn(pubKey, fd),
+				common.DirectionAccept,
+				l.db.GetMissingBlock,
+			)
 
-		err = l.db.UpsertCrawledNode(ctx, tx, node)
-		if err != nil {
-			return fmt.Errorf("upsert: %s: %w", node.TerminalString(), err)
-		}
+			err = l.db.UpsertCrawledNode(ctx, tx, node)
+			if err != nil {
+				return fmt.Errorf("upsert: %s: %w", node.TerminalString(), err)
+			}
 
-		return nil
-	})
+			return nil
+		},
+	)
 	if err != nil {
 		slog.Error("accept peer failed", "err", err)
 	}

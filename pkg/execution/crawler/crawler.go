@@ -111,14 +111,18 @@ func (c *Crawler) crawlAndUpdateNode(ctx context.Context) error {
 		return ErrNothingToCrawl
 	}
 
-	return c.db.WithTxAsync(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		err = c.crawlNode(ctx, tx, node)
-		if err != nil {
-			return fmt.Errorf("crawl node: %w", err)
-		}
+	return c.db.WithTxAsync(
+		ctx,
+		database.TxOptionsDeferrable,
+		func(ctx context.Context, tx pgx.Tx) error {
+			err = c.crawlNode(ctx, tx, node)
+			if err != nil {
+				return fmt.Errorf("crawl node: %w", err)
+			}
 
-		return nil
-	})
+			return nil
+		},
+	)
 }
 
 // Meant to be run as a goroutine

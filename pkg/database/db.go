@@ -242,7 +242,9 @@ type TxFn func(context.Context, pgx.Tx) error
 
 var (
 	//nolint:exhaustruct
-	txOptionsDefault = pgx.TxOptions{}
+	TxOptionsDefault = pgx.TxOptions{}
+	//nolint:exhaustruct
+	TxOptionsDeferrable = pgx.TxOptions{DeferrableMode: pgx.Deferrable}
 )
 
 func asyncCommitTxFn(ctx context.Context, tx pgx.Tx) error {
@@ -294,10 +296,14 @@ func (db *DB) withTx(
 	return nil
 }
 
-func (db *DB) WithTxAsync(ctx context.Context, fn func(context.Context, pgx.Tx) error) error {
+func (db *DB) WithTxAsync(
+	ctx context.Context,
+	txOptions pgx.TxOptions,
+	fn TxFn,
+) error {
 	return db.withTx(
 		ctx,
-		txOptionsDefault,
+		txOptions,
 		asyncCommitTxFn,
 		fn,
 		nil,
@@ -307,7 +313,7 @@ func (db *DB) WithTxAsync(ctx context.Context, fn func(context.Context, pgx.Tx) 
 func (db *DB) WithTx(ctx context.Context, fn TxFn) error {
 	return db.withTx(
 		ctx,
-		txOptionsDefault,
+		TxOptionsDefault,
 		nil,
 		fn,
 		nil,

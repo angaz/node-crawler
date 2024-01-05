@@ -225,9 +225,13 @@ func (d *Discovery) discCrawler(ctx context.Context) {
 			slog.Error("disc crawl select node failed", "err", err)
 		}
 
-		err = d.db.WithTxAsync(ctx, func(ctx context.Context, tx pgx.Tx) error {
-			return d.crawlNode(ctx, tx, node)
-		})
+		err = d.db.WithTxAsync(
+			ctx,
+			database.TxOptionsDeferrable,
+			func(ctx context.Context, tx pgx.Tx) error {
+				return d.crawlNode(ctx, tx, node)
+			},
+		)
 		if err != nil {
 			slog.Error("disc crawl node failed", "err", err)
 		}
@@ -238,9 +242,13 @@ func (d *Discovery) randomLoop(ctx context.Context, iter enode.Iterator, discVer
 	defer d.wg.Done()
 
 	for iter.Next() {
-		err := d.db.WithTxAsync(ctx, func(ctx context.Context, tx pgx.Tx) error {
-			return d.db.UpsertNode(ctx, tx, iter.Node())
-		})
+		err := d.db.WithTxAsync(
+			ctx,
+			database.TxOptionsDeferrable,
+			func(ctx context.Context, tx pgx.Tx) error {
+				return d.db.UpsertNode(ctx, tx, iter.Node())
+			},
+		)
 		if err != nil {
 			slog.Error("upserting disc node failed", "err", err)
 		}
