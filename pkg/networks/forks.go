@@ -108,11 +108,13 @@ func Forks(genesis *core.Genesis, networkName string) []Fork {
 		if block != nil && previousBlock != *block {
 			thisForkID := checksumUpdate(previousForkID, *block)
 
+			pfid := previousForkID
+
 			out = append(out, Fork{
 				NetworkID:      genesis.Config.ChainID.Uint64(),
 				ForkID:         thisForkID,
 				BlockTime:      *block,
-				PreviousForkID: &previousForkID,
+				PreviousForkID: &pfid,
 				ForkName:       ethereumForkNames[i],
 				NetworkName:    networkName,
 			})
@@ -129,11 +131,13 @@ func Forks(genesis *core.Genesis, networkName string) []Fork {
 		if blockTime != nil && previousBlockTime != *blockTime {
 			thisForkID := checksumUpdate(previousForkID, *blockTime)
 
+			pfid := previousForkID
+
 			out = append(out, Fork{
 				NetworkID:      genesis.Config.ChainID.Uint64(),
 				ForkID:         thisForkID,
 				BlockTime:      *blockTime,
-				PreviousForkID: &previousForkID,
+				PreviousForkID: &pfid,
 				ForkName:       ethereumForkNames[i+len(blocks)],
 				NetworkName:    networkName,
 			})

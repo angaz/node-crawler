@@ -786,7 +786,7 @@ func (db *DB) GetStats(
 			"network_id":     networkID,
 			"synced":         synced,
 			"client_name":    clientName,
-			"next_fork_name": "",
+			"next_fork_name": nextForkName,
 		},
 	)
 	if err != nil {
