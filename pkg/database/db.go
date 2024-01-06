@@ -70,15 +70,15 @@ func NewDB(
 		nextCrawlNotEth: nextCrawlNotEth,
 		githubToken:     githubToken,
 
-		nodesToCrawlCache: make(chan *NodeToCrawl, 16384),
+		nodesToCrawlCache: make(chan *NodeToCrawl, 2048),
 		nodesToCrawlLock:  new(sync.Mutex),
 		recentlyCrawled:   fifomemory.New[enode.ID](256),
 
-		discNodesToCrawlCache: make(chan *NodeToCrawl, 16384),
+		discNodesToCrawlCache: make(chan *NodeToCrawl, 2048),
 		discNodesToCrawlLock:  new(sync.Mutex),
-		discRecentlyCrawled:   fifomemory.New[enode.ID](1024),
+		discRecentlyCrawled:   fifomemory.New[enode.ID](256),
 
-		discUpdateCache: fifomemory.New[enode.ID](512),
+		discUpdateCache: fifomemory.New[enode.ID](1024),
 	}, nil
 }
 
@@ -92,13 +92,6 @@ func (db *DB) Close() error {
 	return nil
 }
 
-type tableStats struct {
-	totalDiscoveredNodes int64
-	totalCrawledNodes    int64
-	totalBlocks          int64
-	totalToCrawl         int64
-}
-
 func (db *DB) tableStats(ctx context.Context) {
 	var err error
 
@@ -108,7 +101,6 @@ func (db *DB) tableStats(ctx context.Context) {
 		ctx,
 		`
 			SELECT
-				(SELECT COUNT(*) FROM disc.nodes),
 				(
 					SELECT COUNT(*) FROM disc.nodes
 					WHERE
@@ -119,20 +111,15 @@ func (db *DB) tableStats(ctx context.Context) {
 					SELECT COUNT(*) FROM disc.nodes
 					WHERE
 						next_disc_crawl < now()
-				),
-				(SELECT COUNT(*) FROM execution.nodes),
-				(SELECT COUNT(*) FROM execution.blocks)
+				)
 		`,
 	)
 
-	var discoveredNodes, toCrawl, discToCrawl, crawledNodes, blocks int64
+	var toCrawl, discToCrawl int64
 
 	err = row.Scan(
-		&discoveredNodes,
 		&toCrawl,
 		&discToCrawl,
-		&crawledNodes,
-		&blocks,
 	)
 	if err != nil {
 		slog.Error("table stats scan failed", "err", err)
@@ -140,9 +127,6 @@ func (db *DB) tableStats(ctx context.Context) {
 		return
 	}
 
-	metrics.DBStatsBlocks.Set(float64(blocks))
-	metrics.DBStatsCrawledNodes.Set(float64(crawledNodes))
-	metrics.DBStatsDiscNodes.Set(float64(discoveredNodes))
 	metrics.DBStatsNodesToCrawl.Set(float64(toCrawl))
 	metrics.DBStatsDiscNodesToCrawl.Set(float64(discToCrawl))
 }

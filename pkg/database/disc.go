@@ -128,7 +128,7 @@ func (db *DB) UpdateDiscNodeFailed(ctx context.Context, tx pgx.Tx, nodeID enode.
 		`,
 		pgx.NamedArgs{
 			"node_id":         nodeID.Bytes(),
-			"next_disc_crawl": time.Now().Add(72 * time.Hour).Add(randomHourSeconds()),
+			"next_disc_crawl": time.Now().Add(36 * time.Hour).Add(randomHourSeconds()),
 		},
 	)
 	if err != nil {
@@ -270,7 +270,7 @@ func (db *DB) fetchNodesToCrawl(ctx context.Context) error {
 			WHERE
 				node_type IN ('Unknown', 'Execution')
 			ORDER BY next_crawl
-			LIMIT 8196
+			LIMIT 1024
 		`,
 	)
 	if err != nil {
@@ -299,7 +299,7 @@ func (db *DB) fetchDiscNodesToCrawl(ctx context.Context) error {
 				node_record
 			FROM disc.nodes
 			ORDER BY next_disc_crawl
-			LIMIT 8196
+			LIMIT 1024
 		`,
 	)
 	if err != nil {

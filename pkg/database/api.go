@@ -559,7 +559,6 @@ func statsInstant(
 				LEFT JOIN geoname.countries USING (country_geoname_id)
 				WHERE
 					bucket = (SELECT MAX(bucket) FROM timeseries WHERE total IS NOT NULL)
-					AND total IS NOT NULL
 				GROUP BY
 					key
 				ORDER BY total DESC

@@ -78,22 +78,6 @@ var (
 			"error",
 		},
 	)
-	DBStatsCrawledNodes = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: "database_stats",
-			Name:      "crawled_nodes",
-			Help:      "Number of crawled nodes in the database",
-		},
-	)
-	DBStatsDiscNodes = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: "database_stats",
-			Name:      "discovered_nodes",
-			Help:      "Number of discovered nodes in the database",
-		},
-	)
 	DBStatsNodesToCrawl = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -108,36 +92,6 @@ var (
 			Subsystem: "database_stats",
 			Name:      "disc_nodes_to_crawl",
 			Help:      "Number of discovery nodes to crawl",
-		},
-	)
-	DBStatsBlocks = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: "database_stats",
-			Name:      "blocks",
-			Help:      "Number of blocks in the database",
-		},
-	)
-	DBStatsSizeBytes = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: "database_stats",
-			Name:      "table_size_bytes",
-			Help:      "Size of each table in bytes",
-		},
-		[]string{
-			"schema",
-			"table",
-		},
-	)
-	DatabaseRetries = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "database_retries_total",
-			Help:      "Number of retries per retry count",
-		},
-		[]string{
-			"retry",
 		},
 	)
 	startTime = promauto.NewGauge(
