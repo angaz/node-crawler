@@ -336,15 +336,15 @@ func nodesToCrawl(
 				continue
 			}
 
-			sleepDur := time.Until(nextNode.NextCrawl)
+			// sleepDur := time.Until(nextNode.NextCrawl)
 
-			if sleepDur > time.Hour {
-				continue
-			}
+			// if sleepDur > time.Hour {
+			// 	continue
+			// }
 
-			if sleepDur > 0 {
-				time.Sleep(sleepDur)
-			}
+			// if sleepDur > 0 {
+			// 	time.Sleep(sleepDur)
+			// }
 
 			return nextNode.Enode, nil
 		default:
