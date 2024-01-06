@@ -384,6 +384,20 @@ func handleLen2(parts []string) (*Client, error) {
 func handleLen3(parts []string) (*Client, error) {
 	name := parts[0]
 
+	if name == "" {
+		os, arch, _ := parseOSArch(parts[1])
+
+		return &Client{
+			Name:     Unknown,
+			UserData: Unknown,
+			Version:  Unknown,
+			Build:    Unknown,
+			OS:       os,
+			Arch:     arch,
+			Language: parts[2],
+		}, nil
+	}
+
 	if name == "reth" {
 		version, err := parseVersion(parts[1])
 		if err != nil {
@@ -584,10 +598,6 @@ func ParseClientID(clientName *string) *Client {
 	if nParts >= len(funcs) {
 		slog.Error("Too many parts", "name", name)
 
-		return nil
-	}
-
-	if parts[0] == "" {
 		return nil
 	}
 
