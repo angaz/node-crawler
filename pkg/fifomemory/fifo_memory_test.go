@@ -17,7 +17,7 @@ func TestFIFOMemory(t *testing.T) {
 		t.Errorf("mem should not contain 0. mem: %v", mem.memory)
 	}
 
-	mem.Push(1)
+	mem.ContainsOrPush(1)
 	if !slices.Equal(mem.memory, []int{1}) {
 		t.Errorf("slices not equal: expected: %v, got: %v", []int{1}, mem.memory)
 	}
@@ -28,22 +28,22 @@ func TestFIFOMemory(t *testing.T) {
 		t.Errorf("mem should contain 1. mem: %v", mem.memory)
 	}
 
-	mem.Push(2)
+	mem.ContainsOrPush(2)
 	if !slices.Equal(mem.memory, []int{1, 2}) {
 		t.Errorf("slices not equal: expected: %v, got: %v", []int{1, 2}, mem.memory)
 	}
 
-	mem.Push(3)
+	mem.ContainsOrPush(3)
 	if !slices.Equal(mem.memory, []int{1, 2, 3}) {
 		t.Errorf("slices not equal: expected: %v, got: %v", []int{1, 2, 3}, mem.memory)
 	}
 
-	mem.Push(4)
+	mem.ContainsOrPush(4)
 	if !slices.Equal(mem.memory, []int{4, 2, 3}) {
 		t.Errorf("slices not equal: expected: %v, got: %v", []int{4, 2, 3}, mem.memory)
 	}
 
-	mem.Push(5)
+	mem.ContainsOrPush(5)
 	if !slices.Equal(mem.memory, []int{4, 5, 3}) {
 		t.Errorf("slices not equal: expected: %v, got: %v", []int{4, 5, 3}, mem.memory)
 	}

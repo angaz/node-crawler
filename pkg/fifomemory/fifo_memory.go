@@ -40,7 +40,7 @@ func (m *FIFOMemory[T]) push(value T) {
 	}
 }
 
-func (m *FIFOMemory[T]) contains(value T) bool {
+func (m *FIFOMemory[T]) Contains(value T) bool {
 	return slices.Contains(m.memory, value)
 }
 
@@ -48,7 +48,7 @@ func (m *FIFOMemory[T]) ContainsOrPush(value T) bool {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	if m.contains(value) {
+	if m.Contains(value) {
 		return true
 	}
 
