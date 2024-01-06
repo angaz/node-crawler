@@ -336,7 +336,7 @@ func handleNimbus(name string) (*Client, error) {
 		return nil, fmt.Errorf("parse version failed: %w", err)
 	}
 
-	os, arch, err := parseOSArch(parts[2])
+	os, arch, err := parseOSArch(parts[2] + "-" + parts[3])
 	if err != nil {
 		slog.Error("os/arch parse error", "err", err)
 	}
