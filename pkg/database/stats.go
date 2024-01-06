@@ -102,7 +102,7 @@ func (db *DB) CopyStats() error {
 			)
 			LEFT JOIN geoname.cities USING (city_geoname_id)
 			WHERE
-				disc.last_found > (now() - INTERVAL '48 hours')
+				disc.last_found > (now() - INTERVAL '24 hours')
 			GROUP BY
 				nodes.client_name_id,
 				nodes.client_user_data_id,
