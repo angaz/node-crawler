@@ -41,6 +41,7 @@ type NodeTable struct {
 	RlpxVersion    *int64
 	Capabilities   *string
 	networkID      *int64
+	networkName    *string
 	ForkID         *common.ForkID
 	ForkName       *string
 	NextForkID     *uint64
@@ -124,7 +125,11 @@ func (n NodeTable) NetworkID() string {
 		return ""
 	}
 
-	return fmt.Sprintf("%s (%d)", NetworkName(n.networkID), *n.networkID)
+	if n.networkName == nil {
+		return strconv.FormatInt(*n.networkID, 10)
+	}
+
+	return fmt.Sprintf("%s (%d)", *n.networkName, *n.networkID)
 }
 
 func (n NodeTable) YOffsetPercent() int {

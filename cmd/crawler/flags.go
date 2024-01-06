@@ -37,9 +37,8 @@ var (
 		Value: 3000,
 	}
 	crawlerDBFlag = cli.StringFlag{
-		Name:     "crawler-db",
-		Usage:    "Crawler SQLite file name",
-		Required: true,
+		Name:  "crawler-db",
+		Usage: "Crawler SQLite file name",
 	}
 	githubTokenFileFlag = cli.StringFlag{
 		Name: "github-token",
@@ -48,9 +47,8 @@ var (
 		Value: "github_token",
 	}
 	statsDBFlag = cli.StringFlag{
-		Name:     "stats-db",
-		Usage:    "Stats SQLite file name",
-		Required: true,
+		Name:  "stats-db",
+		Usage: "Stats SQLite file name",
 	}
 	dropNodesTimeFlag = cli.DurationFlag{
 		Name:  "drop-time",

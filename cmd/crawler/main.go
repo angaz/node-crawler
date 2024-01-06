@@ -35,6 +35,7 @@ var app = &cli.App{
 		apiCommand,
 		crawlerCommand,
 		genkeysCommand,
+		migrateCommand,
 		printEnodesCommand,
 	},
 }
