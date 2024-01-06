@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"strings"
+	"text/template"
 	"time"
 
 	"github.com/ethereum/node-crawler/pkg/common"
@@ -552,13 +554,11 @@ func statsInstant(
 			`
 				SELECT
 					%s key,
-					SUM(total)::INTEGER total
-				FROM timeseries
+					SUM(total) total
+				FROM timeseries_instant
 				LEFT JOIN client.names USING (client_name_id)
 				LEFT JOIN client.versions USING (client_version_id)
 				LEFT JOIN geoname.countries USING (country_geoname_id)
-				WHERE
-					bucket = (SELECT MAX(bucket) FROM timeseries WHERE total IS NOT NULL)
 				GROUP BY
 					key
 				ORDER BY total DESC
@@ -670,6 +670,127 @@ func statsGraph(
 	return graph, nil
 }
 
+var statsTempl = template.Must(template.New("stats_temp_table").Parse(`
+	SELECT
+		{{ if not .Instant }}
+		time_bucket_gapfill(
+			make_interval(hours => @interval),
+			nodes.bucket,
+			@after::TIMESTAMPTZ,
+			@before::TIMESTAMPTZ
+		) bucket,
+		{{ end }}
+		client_name_id,
+		client_version_id,
+		client_os,
+		client_arch,
+		nodes.network_id,
+		nodes.fork_id,
+		next_fork_id,
+		country_geoname_id,
+		synced,
+		dial_success,
+		avg(total)::INTEGER total
+	INTO TEMPORARY TABLE {{ .TempTableName }}
+	FROM {{ .FromTableName }} nodes
+	LEFT JOIN client.names USING (client_name_id)
+	LEFT JOIN network.forks next_fork ON (
+		nodes.network_id = next_fork.network_id
+		AND nodes.next_fork_id = next_fork.block_time
+	)
+	WHERE
+		-- If we are filtering by a network ID, and we have the network
+		-- in the forks table, the fork ID should exist. If we don't
+		-- have the network, keep the record.
+		CASE
+			WHEN @network_id = -1 THEN
+				TRUE
+			WHEN EXISTS (
+				SELECT 1
+				FROM network.forks
+				WHERE forks.network_id = nodes.network_id
+			) THEN
+				EXISTS (
+					SELECT 1
+					FROM network.forks
+					WHERE
+						forks.network_id = nodes.network_id
+						AND forks.fork_id = nodes.fork_id
+					)
+			ELSE
+				TRUE
+		END
+		{{ if .Instant }}
+		AND nodes.timestamp = (SELECT MAX(timestamp) FROM {{ .FromTableName }})
+		{{ else }}
+		AND bucket >= @after::TIMESTAMPTZ
+		AND bucket < @before::TIMESTAMPTZ
+		{{ end }}
+		AND (
+			@network_id = -1
+			OR nodes.network_id = @network_id
+		)
+		AND (
+			@synced = -1
+			OR synced = (@synced = 1)
+		)
+		AND (
+			@client_name = ''
+			OR names.client_name = @client_name
+		)
+		AND (
+			@next_fork_name = ''
+			OR LOWER(next_fork.fork_name) = LOWER(@next_fork_name)
+		)
+	GROUP BY
+		{{ if not .Instant }}1,  -- bucket{{ end }}
+		client_name_id,
+		client_version_id,
+		client_os,
+		client_arch,
+		nodes.network_id,
+		nodes.fork_id,
+		next_fork_id,
+		country_geoname_id,
+		synced,
+		dial_success
+	{{ if not .Instant }}
+	ORDER BY
+		1 ASC  -- bucket
+	{{ end }}
+`))
+
+func statsTempTable(tempTableName string, fromTableName string, instant bool) string {
+	builder := new(strings.Builder)
+
+	err := statsTempl.Execute(builder, struct {
+		Instant       bool
+		TempTableName string
+		FromTableName string
+	}{
+		instant,
+		tempTableName,
+		fromTableName,
+	})
+	if err != nil {
+		panic("execute template: " + err.Error())
+	}
+
+	return builder.String()
+}
+
+func mergeNamedArgs(namedArgs ...pgx.NamedArgs) pgx.NamedArgs {
+	outNamedArgs := make(pgx.NamedArgs)
+
+	for _, args := range namedArgs {
+		for key, value := range args {
+			outNamedArgs[key] = value
+		}
+	}
+
+	return outNamedArgs
+}
+
 func (db *DB) GetStats(
 	ctx context.Context,
 	after time.Time,
@@ -693,105 +814,40 @@ func (db *DB) GetStats(
 	defer tx.Rollback(ctx)
 
 	intervalHours := int(graphInterval.Hours())
+	statsTempParams := pgx.NamedArgs{
+		"interval":       intervalHours,
+		"after":          after.Format(time.RFC3339),
+		"before":         before.Format(time.RFC3339),
+		"network_id":     networkID,
+		"synced":         synced,
+		"client_name":    clientName,
+		"next_fork_name": nextForkName,
+	}
 
 	_, err = tx.Exec(
 		ctx,
-		fmt.Sprintf(
-			`
-				SELECT
-					time_bucket_gapfill(
-						make_interval(hours => @interval),
-						nodes.bucket,
-						@after::TIMESTAMPTZ,
-						@before::TIMESTAMPTZ
-					) bucket,
-					client_name_id,
-					client_version_id,
-					client_os,
-					client_arch,
-					nodes.network_id,
-					nodes.fork_id,
-					next_fork_id,
-					country_geoname_id,
-					synced,
-					dial_success,
-					avg(total) total
-				INTO TEMPORARY TABLE timeseries
-				FROM stats.execution_nodes_%dh nodes
-				LEFT JOIN client.names USING (client_name_id)
-				LEFT JOIN network.forks next_fork ON (
-					nodes.network_id = next_fork.network_id
-					AND nodes.next_fork_id = next_fork.block_time
-				)
-				WHERE
-					-- If we are filtering by a network ID, and we have the network
-					-- in the forks table, the fork ID should exist. If we don't
-					-- have the network, keep the record.
-					CASE
-						WHEN @network_id = -1 THEN
-							TRUE
-						WHEN EXISTS (
-							SELECT 1
-							FROM network.forks
-							WHERE forks.network_id = nodes.network_id
-						) THEN
-							EXISTS (
-								SELECT 1
-								FROM network.forks
-								WHERE
-									forks.network_id = nodes.network_id
-									AND forks.fork_id = nodes.fork_id
-								)
-						ELSE
-							TRUE
-					END
-					AND bucket >= @after::TIMESTAMPTZ
-					AND bucket < @before::TIMESTAMPTZ
-					AND (
-						@network_id = -1
-						OR nodes.network_id = @network_id
-					)
-					AND (
-						@synced = -1
-						OR synced = (@synced = 1)
-					)
-					AND (
-						@client_name = ''
-						OR names.client_name = @client_name
-					)
-					AND (
-						@next_fork_name = ''
-						OR LOWER(next_fork.fork_name) = LOWER(@next_fork_name)
-					)
-				GROUP BY
-					1,
-					client_name_id,
-					client_version_id,
-					client_os,
-					client_arch,
-					nodes.network_id,
-					nodes.fork_id,
-					next_fork_id,
-					country_geoname_id,
-					synced,
-					dial_success
-				ORDER BY
-					1 ASC
-			`,
-			intervalHours,
+		statsTempTable(
+			"timeseries",
+			fmt.Sprintf("stats.execution_nodes_%dh", intervalHours),
+			false,
 		),
-		pgx.NamedArgs{
-			"interval":       intervalHours,
-			"after":          after.Format(time.RFC3339),
-			"before":         before.Format(time.RFC3339),
-			"network_id":     networkID,
-			"synced":         synced,
-			"client_name":    clientName,
-			"next_fork_name": nextForkName,
-		},
+		statsTempParams,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create temp table: %w", err)
+		return nil, fmt.Errorf("create timeseries temp table: %w", err)
+	}
+
+	_, err = tx.Exec(
+		ctx,
+		statsTempTable(
+			"timeseries_instant",
+			"stats.execution_nodes",
+			true,
+		),
+		statsTempParams,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create instant temp table: %w", err)
 	}
 
 	rows, err := tx.Query(ctx, `SELECT DISTINCT bucket FROM timeseries ORDER BY bucket`)
