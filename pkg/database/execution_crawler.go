@@ -467,66 +467,88 @@ func (db *DB) UpsertCrawledNode(ctx context.Context, tx pgx.Tx, node common.Node
 var missingBlockCache = map[uint64][]ethcommon.Hash{}
 var missingBlocksLock = sync.Mutex{}
 
-func (db *DB) GetMissingBlock(ctx context.Context, tx pgx.Tx, networkID uint64) (*ethcommon.Hash, error) {
+func (db *DB) setMissingBlocks(ctx context.Context) error {
 	var err error
-
-	missingBlocksLock.Lock()
-	defer missingBlocksLock.Unlock()
-
-	blocks, ok := missingBlockCache[networkID]
-	if ok && len(blocks) != 0 {
-		block := blocks[0]
-		missingBlockCache[networkID] = blocks[1:]
-
-		return &block, nil
-	}
 
 	start := time.Now()
 	defer metrics.ObserveDBQuery("get_missing_block", start, err)
 
-	// TODO: Optimize this. We have all the blocks at this time.
-	return nil, nil
+	rows, err := db.pg.Query(
+		ctx,
+		`
+			SELECT DISTINCT
+				network_id,
+				head_hash
+			FROM execution.nodes
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM execution.blocks
+				WHERE
+					blocks.block_hash = nodes.head_hash
+					AND blocks.network_id = nodes.network_id
+			)
+			ORDER BY
+				network_id,
+				head_hash
+		`,
+	)
+	if err != nil {
+		return fmt.Errorf("query: %w", err)
+	}
 
-	// rows, err := db.QueryRetryBusy(
-	// 	`
-	// 		SELECT
-	// 			crawled.head_hash
-	// 		FROM crawled_nodes AS crawled
-	// 		LEFT JOIN blocks ON (crawled.head_hash = blocks.block_hash)
-	// 		WHERE
-	// 			crawled.network_id = ?1
-	// 			AND blocks.block_hash IS NULL
-	// 		LIMIT 1000
-	// 	`,
-	// 	networkID,
-	// )
-	// if err != nil {
-	// 	return nil, fmt.Errorf("query failed: %w", err)
-	// }
+	newCache := make(map[uint64][]ethcommon.Hash, 10)
 
-	// newBlocks := make([]ethcommon.Hash, 0, 1000)
+	var networkID uint64
+	var hash ethcommon.Hash
 
-	// for rows.Next() {
-	// 	var hash ethcommon.Hash
+	_, err = pgx.ForEachRow(rows, []any{&networkID, &hash}, func() error {
+		blocks, ok := newCache[networkID]
+		if !ok {
+			newCache[networkID] = []ethcommon.Hash{hash}
+		} else {
+			newCache[networkID] = append(blocks, hash)
+		}
 
-	// 	err = rows.Scan(&hash)
-	// 	if err != nil {
-	// 		if errors.Is(err, sql.ErrNoRows) {
-	// 			return nil, nil
-	// 		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("scan: %w", err)
+	}
 
-	// 		return nil, fmt.Errorf("scan failed: %w", err)
-	// 	}
+	missingBlocksLock.Lock()
+	defer missingBlocksLock.Unlock()
 
-	// 	newBlocks = append(newBlocks, hash)
-	// }
+	missingBlockCache = newCache
 
-	// if len(newBlocks) == 0 {
-	// 	return nil, nil
-	// }
+	return nil
+}
 
-	// block := newBlocks[0]
-	// missingBlockCache[networkID] = newBlocks[1:]
+// Meant to be run as a goroutine.
+//
+// Updates the missing block cache.
+func (db *DB) MissingBlocksDaemon(ctx context.Context, frequency time.Duration) {
+	for ctx.Err() == nil {
+		err := db.setMissingBlocks(ctx)
+		if err != nil {
+			slog.Error("missing blocks daemon update failed", "err", err)
+		}
 
-	// return &block, nil
+		next := time.Now().Truncate(frequency).Add(frequency)
+		time.Sleep(time.Until(next))
+	}
+}
+
+func (db *DB) GetMissingBlock(ctx context.Context, tx pgx.Tx, networkID uint64) (*ethcommon.Hash, error) {
+	missingBlocksLock.Lock()
+	defer missingBlocksLock.Unlock()
+
+	blocks, ok := missingBlockCache[networkID]
+	if !ok || len(blocks) == 0 {
+		return nil, nil
+	}
+
+	block := blocks[0]
+	missingBlockCache[networkID] = blocks[1:]
+
+	return &block, nil
 }
