@@ -15,7 +15,6 @@ import (
 var (
 	ErrOSArchEmpty   = errors.New("os/arch empty")
 	ErrOSArchUnknown = errors.New("os/arch unknown")
-	ErrNotGethOrReth = errors.New("not geth or reth")
 	ErrUnknownClient = errors.New("unknown client")
 	ErrVersionEmpty  = errors.New("version empty")
 	Unknown          = "Unknown"
@@ -234,7 +233,7 @@ func (a Version) Cmp(b Version) int {
 }
 
 func (v Version) String() string {
-	if v.Build != "" {
+	if v.Build != Unknown {
 		return v.Version() + "-" + v.Build
 	}
 
@@ -254,13 +253,14 @@ func parseVersion(s string) (Version, error) {
 		return Version{
 			version:    "null",
 			versionNum: []uint64{0},
-			Build:      "",
+			Build:      Unknown,
 		}, nil
 	}
 
 	s = strings.TrimLeft(s, "vx")
 
-	var version, build string
+	var version string
+	build := Unknown
 
 	idx := strings.IndexAny(s, "-+")
 
@@ -417,36 +417,32 @@ func handleLen3(parts []string) (*Client, error) {
 		}, nil
 	}
 
-	if name == "geth" || name == "bor" {
-		version, err := parseVersion(parts[1])
-		if err != nil {
-			os, arch, _ := parseOSArch(parts[1])
-
-			return &Client{
-				Name:     name,
-				UserData: Unknown,
-				Version:  Unknown,
-				Build:    Unknown,
-				OS:       os,
-				Arch:     arch,
-				Language: parts[2],
-			}, nil
-		}
-
-		os, arch, _ := parseOSArch(parts[2])
+	version, err := parseVersion(parts[1])
+	if err != nil {
+		os, arch, _ := parseOSArch(parts[1])
 
 		return &Client{
 			Name:     name,
 			UserData: Unknown,
-			Version:  version.Version(),
-			Build:    version.Build,
+			Version:  Unknown,
+			Build:    Unknown,
 			OS:       os,
 			Arch:     arch,
-			Language: "go",
+			Language: parts[2],
 		}, nil
 	}
 
-	return nil, ErrNotGethOrReth
+	os, arch, _ := parseOSArch(parts[2])
+
+	return &Client{
+		Name:     name,
+		UserData: Unknown,
+		Version:  version.Version(),
+		Build:    version.Build,
+		OS:       os,
+		Arch:     arch,
+		Language: "go",
+	}, nil
 }
 
 func handleLen4(parts []string) (*Client, error) {

@@ -5,6 +5,14 @@ import (
 )
 
 func clientEq(a, b *Client) bool {
+	if a == nil && b == nil {
+		return true
+	}
+
+	if (a == nil) != (b == nil) {
+		return false
+	}
+
 	return (a.Name == b.Name &&
 		a.UserData == b.UserData &&
 		a.Version == b.Version &&
@@ -31,6 +39,71 @@ func TestParseClientID(t *testing.T) {
 				OS:       OSLinux,
 				Arch:     ArchAMD64,
 				Language: "nim",
+			},
+		},
+		{
+			name: "ethereumjs-p2p",
+			ci:   "ethereumjs-devp2p/darwin-arm64/nodejs",
+			client: &Client{
+				Name:     "ethereumjs-devp2p",
+				UserData: Unknown,
+				Version:  Unknown,
+				Build:    Unknown,
+				OS:       OSMacOS,
+				Arch:     ArchARM64,
+				Language: "nodejs",
+			},
+		},
+		{
+			name: "reth",
+			ci:   "reth/v0.1.0-alpha.13-453f699/aarch64-unknown-linux-gnu",
+			client: &Client{
+				Name:     "reth",
+				UserData: Unknown,
+				Version:  "v0.1.0-alpha.13",
+				Build:    "alpha.13-453f699",
+				OS:       OSLinux,
+				Arch:     ArchARM64,
+				Language: "rust",
+			},
+		},
+		{
+			name: "len 3 geth version",
+			ci:   "Geth/v1.1.20/linux",
+			client: &Client{
+				Name:     "geth",
+				UserData: Unknown,
+				Version:  "v1.1.20",
+				Build:    Unknown,
+				OS:       OSLinux,
+				Arch:     ArchUnknown,
+				Language: "go",
+			},
+		},
+		{
+			name: "len 3 geth language",
+			ci:   "Geth/linux-amd64/go1.20.3",
+			client: &Client{
+				Name:     "geth",
+				UserData: Unknown,
+				Version:  Unknown,
+				Build:    Unknown,
+				OS:       OSLinux,
+				Arch:     ArchAMD64,
+				Language: "go1.20.3",
+			},
+		},
+		{
+			name: "len 3 unknown",
+			ci:   "/linux-amd64/go1.21.4",
+			client: &Client{
+				Name:     Unknown,
+				UserData: Unknown,
+				Version:  Unknown,
+				Build:    Unknown,
+				OS:       OSLinux,
+				Arch:     ArchAMD64,
+				Language: "go1.21.4",
 			},
 		},
 	}
