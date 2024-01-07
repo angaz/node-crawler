@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -155,8 +156,19 @@ func (a *API) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := a.getFilterStats(r.Context(), after, before, params)
+	stats, err := a.db.GetStatsAPI(
+		r.Context(),
+		after,
+		before,
+		params.networkID,
+		params.synced,
+		params.nextFork,
+		params.nextForkName,
+		params.clientName,
+	)
 	if err != nil {
+		slog.Error("get stats api failed", "err", err)
+
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "Internal Server Error")
 
@@ -165,10 +177,17 @@ func (a *API) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	// encoder := json.NewEncoder(w)
-	// encoder.Encode(statsResp{
-	// 	Stats: allStats,
-	// })
+	encoder := json.NewEncoder(w)
+
+	err = encoder.Encode(stats)
+	if err != nil {
+		slog.Error("stats api encode json failed", "err", err)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintln(w, "Internal Server Error")
+
+		return
+	}
 }
 
 func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {

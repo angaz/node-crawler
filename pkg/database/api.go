@@ -791,6 +791,187 @@ func mergeNamedArgs(namedArgs ...pgx.NamedArgs) pgx.NamedArgs {
 	return outNamedArgs
 }
 
+//	{
+//	  "stats": [
+//	    {
+//	      "timestamp": string,
+//	      "client_name": string,
+//	      "client_user_data": string|null,
+//	      "client_version": string,
+//	      "client_os": string,
+//	      "client_arch": string,
+//	      "network_id": number,
+//	      "fork_id": string,
+//	      "next_fork_id": string|null,
+//	      "country": string,
+//	      "synced": boolean,
+//	      "dial_success": boolean,
+//	      "total": number
+//	    },
+//	    ...
+//	  ]
+//	}
+type StatsAPIRow struct {
+	Timestamp      time.Time `json:"timestamp"`
+	ClientName     string    `json:"client_name"`
+	ClientUserData *string   `json:"client_usr_data"`
+	ClientVersion  string    `json:"client_version"`
+	ClientOS       string    `json:"client_os"`
+	ClientArch     string    `json:"client_arch"`
+	NetworkID      int64     `json:"network_id"`
+	ForkID         string    `json:"fork_id"`
+	NextForkID     *int64    `json:"next_fork_id"`
+	Country        string    `json:"country"`
+	Synced         bool      `json:"synced"`
+	DialSuccess    bool      `json:"dial_success"`
+	Total          int64     `json:"total"`
+}
+type StatsAPIResponse struct {
+	Stats []StatsAPIRow `json:"stats"`
+}
+
+func (db *DB) GetStatsAPI(
+	ctx context.Context,
+	after time.Time,
+	before time.Time,
+	networkID int64,
+	synced int,
+	nextFork int,
+	nextForkName string,
+	clientName string,
+) (*StatsAPIResponse, error) {
+	var err error
+
+	start := time.Now()
+	defer metrics.ObserveDBQuery("get_stats", start, err)
+
+	rows, err := db.pg.Query(
+		ctx,
+		`
+			SELECT
+				timestamp,
+				coalesce(client_name, 'Unknown'),
+				nullif(client_user_data, ''),
+				coalesce(client_version, 'Unknown'),
+				client_os,
+				client_arch,
+				nodes.network_id,
+				nodes.fork_id,
+				nullif(nodes.next_fork_id, 0),
+				country_name,
+				synced,
+				dial_success,
+				avg(total)::INTEGER total
+			FROM stats.execution_nodes nodes
+			LEFT JOIN client.names USING (client_name_id)
+			LEFT JOIN client.user_data USING (client_user_data_id)
+			LEFT JOIN client.versions USING (client_version_id)
+			LEFT JOIN network.forks next_fork ON (
+				nodes.network_id = next_fork.network_id
+				AND nodes.next_fork_id = next_fork.block_time
+			)
+			LEFT JOIN geoname.countries USING (country_geoname_id)
+			WHERE
+				CASE
+					WHEN @network_id = -1 THEN
+						TRUE
+					WHEN EXISTS (
+						SELECT 1
+						FROM network.forks
+						WHERE forks.network_id = nodes.network_id
+					) THEN
+						EXISTS (
+							SELECT 1
+							FROM network.forks
+							WHERE
+								forks.network_id = nodes.network_id
+								AND forks.fork_id = nodes.fork_id
+							)
+					ELSE
+						TRUE
+				END
+				AND timestamp >= @after::TIMESTAMPTZ
+				AND timestamp < @before::TIMESTAMPTZ
+				AND (
+					@network_id = -1
+					OR nodes.network_id = @network_id
+				)
+				AND (
+					@synced = -1
+					OR synced = (@synced = 1)
+				)
+				AND (
+					@client_name = ''
+					OR client.names.client_name = @client_name
+				)
+				AND (
+					@next_fork_name = ''
+					OR LOWER(next_fork.fork_name) = LOWER(@next_fork_name)
+				)
+			GROUP BY
+				timestamp,
+				client_name,
+				client_user_data,
+				client_version,
+				client_os,
+				client_arch,
+				nodes.network_id,
+				nodes.fork_id,
+				next_fork_id,
+				country_name,
+				synced,
+				dial_success
+			ORDER BY
+				timestamp ASC
+		`,
+		pgx.NamedArgs{
+			"after":          after.Format(time.RFC3339),
+			"before":         before.Format(time.RFC3339),
+			"network_id":     networkID,
+			"synced":         synced,
+			"client_name":    clientName,
+			"next_fork_name": nextForkName,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+
+	statsRows := make([]StatsAPIRow, 0, 1024)
+
+	for rows.Next() {
+		var row StatsAPIRow
+		var forkID common.ForkID
+
+		err = rows.Scan(
+			&row.Timestamp,
+			&row.ClientName,
+			&row.ClientUserData,
+			&row.ClientVersion,
+			&row.ClientOS,
+			&row.ClientArch,
+			&row.NetworkID,
+			&forkID,
+			&row.NextForkID,
+			&row.Country,
+			&row.Synced,
+			&row.DialSuccess,
+			&row.Total,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+
+		row.ForkID = forkID.String()
+
+		statsRows = append(statsRows, row)
+	}
+
+	return &StatsAPIResponse{
+		Stats: statsRows,
+	}, nil
+}
+
 func (db *DB) GetStats(
 	ctx context.Context,
 	after time.Time,
