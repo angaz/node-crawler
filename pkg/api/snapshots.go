@@ -26,7 +26,7 @@ func allFiles(dirName string) ([]fs.FileInfo, error) {
 		}
 
 		// Not a complete snapshot
-		if !strings.HasSuffix(file.Name(), ".gz") {
+		if !strings.HasSuffix(file.Name(), ".pgdump") {
 			continue
 		}
 
