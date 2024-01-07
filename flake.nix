@@ -507,6 +507,11 @@
                     "pg_stat_statements"
                     "timescaledb"
                   ];
+
+                  # Performance tuning.
+                  checkpoint_timeout = "15min";
+                  max_wal_size = "16GB";
+                  effective_io_concurrency = 200;
                 };
                 ensureDatabases = [ "nodecrawler" ];
                 ensureUsers = [
