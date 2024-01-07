@@ -76,7 +76,7 @@ func parseGraphFormat(w http.ResponseWriter, str string) (string, bool) {
 
 func parseGraphInterval(w http.ResponseWriter, str string) (time.Duration, bool) {
 	if str == "" {
-		return database.GraphInterval24Hour, true
+		return database.GraphInterval3Hour, true
 	}
 
 	dur, ok := database.GraphIntervalValues[str]
