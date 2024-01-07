@@ -64,7 +64,7 @@ func (db *DB) historyCleaner(ctx context.Context) {
 	_, err = db.pg.Exec(ctx, `
 		DELETE FROM crawler.history
 		WHERE
-			crawled_at < (now() - INTERVAL '-14 days')
+			crawled_at < (now() - INTERVAL '14 days')
 			AND direction = 'accept'
 	`)
 	if err != nil {
