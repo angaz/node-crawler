@@ -214,6 +214,15 @@ func copySqliteToPGCapabilities(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) 
 	)
 }
 
+type location struct {
+	country          string
+	countryGeoNameID uint
+	city             string
+	cityGeoNameID    uint
+	latitude         float64
+	longitude        float64
+}
+
 func copySqlitePGcountriesCities(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -232,7 +241,19 @@ func copySqlitePGcountriesCities(
 		"Eritrea":        338010,
 		"Gabon":          2400553,
 		"Netherlands":    2750405,
+		"North Korea":    1873107,
 		"Turkey":         298795,
+	}
+
+	extraCities := []location{
+		{
+			country:          "North Korea",
+			countryGeoNameID: 1873107,
+			city:             "Pyongyang",
+			cityGeoNameID:    1871859,
+			latitude:         39.0365,
+			longitude:        125.7611,
+		},
 	}
 
 	rows, err := sqlite.QueryContext(
@@ -326,6 +347,23 @@ func copySqlitePGcountriesCities(
 		}
 
 		countriesMap[countryName] = int32(countryGeonameID)
+	}
+
+	for _, city := range extraCities {
+		_, err = tx.Exec(
+			ctx,
+			stmt.Name,
+
+			city.countryGeoNameID,
+			city.country,
+			city.cityGeoNameID,
+			city.city,
+			city.latitude,
+			city.longitude,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("exec: %w", err)
+		}
 	}
 
 	return countriesMap, nil

@@ -211,7 +211,10 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				total				INTEGER 	NOT NULL
 			);
 
-			SELECT create_hypertable('stats.execution_nodes', by_range('timestamp'));
+			SELECT create_hypertable(
+				'stats.execution_nodes',
+				by_range('timestamp', INTERVAL '1 day')
+			);
 
 			CREATE TABLE disc.nodes (
 				node_id			BYTEA				PRIMARY KEY,
@@ -285,7 +288,10 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				PRIMARY KEY (node_id, crawled_at) INCLUDE (direction, error)
 			);
 
-			SELECT create_hypertable('crawler.history', by_range('crawled_at'));
+			SELECT create_hypertable(
+				'crawler.history',
+				by_range('crawled_at', INTERVAL '1 day')
+			);
 
 			CREATE INDEX crawler_history_crawled_at
 				ON crawler.history (crawled_at);

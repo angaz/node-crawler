@@ -17,6 +17,7 @@ func createStatsView(
 	interval time.Duration,
 	startOffset time.Duration,
 	retention time.Duration,
+	chunkInterval time.Duration,
 ) error {
 	_, err := tx.Exec(
 		ctx,
@@ -68,11 +69,17 @@ func createStatsView(
 					'%[1]s',
 					make_interval(secs => %[4]d)
 				);
+
+				SELECT set_chunk_time_interval(
+					'%[1]s',
+					make_interval(secs => %[4]d)
+				);
 			`,
 			tableName,
 			int(interval.Seconds()),
 			int(startOffset.Seconds()),
 			int(retention.Seconds()),
+			int(chunkInterval.Seconds()),
 		),
 	)
 	if err != nil {
@@ -91,6 +98,8 @@ func createStatsView(
 	return nil
 }
 
+var day = 24 * time.Hour
+
 func Migrate002StatsViews(ctx context.Context, tx pgx.Tx) error {
 	err := createStatsView(
 		ctx,
@@ -98,7 +107,8 @@ func Migrate002StatsViews(ctx context.Context, tx pgx.Tx) error {
 		"stats.execution_nodes_3h",
 		3*time.Hour,
 		12*time.Hour,
-		14*24*time.Hour,
+		14*day,
+		3*day,
 	)
 	if err != nil {
 		return fmt.Errorf("create view 3 hourly: %w", err)
@@ -109,8 +119,9 @@ func Migrate002StatsViews(ctx context.Context, tx pgx.Tx) error {
 		tx,
 		"stats.execution_nodes_24h",
 		24*time.Hour,
-		3*24*time.Hour,
-		32*24*time.Hour,
+		3*day,
+		32*day,
+		7*day,
 	)
 	if err != nil {
 		return fmt.Errorf("create view daily: %w", err)
