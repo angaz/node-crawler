@@ -176,7 +176,7 @@
 
             snapshotDirname = mkOption {
               type = types.str;
-              default = "snapshots";
+              default = "/var/lib/postgres_backups/nodecrawler";
               description = "Snapshots directory name within the `stateDir`";
             };
 
@@ -448,10 +448,9 @@
 
                 serviceConfig = {
                   Type = "oneshot";
-                  Group = cfg.group;
-                  User = cfg.user;
-                  WorkingDirectory = cfg.stateDir;
-                  DynamicUser = cfg.dynamicUser;
+                  Group = "postgres";
+                  User = "postgres";
+                  StateDirectory = "postgres_backups";
                 };
 
                 path = [
@@ -462,13 +461,13 @@
                 script = ''
                   set -e -o pipefail
 
-                  dump_name="nodecrawler_$(date +%Y%m%d).pgdump"
+                  mkdir -p "${cfg.snapshotDirname}"
+
+                  dump_name="${cfg.snapshotDirname}/nodecrawler_$(date --utc +%Y%m%dT%H%M%S).pgdump"
 
                   pg_dump \
-                    --data-only \
-                    --load-via-partition-root \
                     --format custom \
-                    --file "${cfg.snapshotDirname}/''${dump_name}.part" \
+                    --file "''${dump_name}.part" \
                     --host /var/run/postgresql \
                     nodecrawler
 
