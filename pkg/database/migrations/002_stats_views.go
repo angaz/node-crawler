@@ -62,7 +62,7 @@ func createStatsView(
 					'%[1]s',
 					start_offset => make_interval(secs => %[3]d),
 					end_offset => INTERVAL '30 minutes',
-					schedule_interval => INTERVAL '30 minutes'
+					schedule_interval => make_interval(secs => %[2]d)
 				);
 
 				SELECT add_retention_policy(
@@ -106,7 +106,7 @@ func Migrate002StatsViews(ctx context.Context, tx pgx.Tx) error {
 		tx,
 		"stats.execution_nodes_3h",
 		3*time.Hour,
-		12*time.Hour,
+		9*time.Hour,
 		14*day,
 		3*day,
 	)
