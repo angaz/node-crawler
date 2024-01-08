@@ -508,7 +508,7 @@
                   ];
 
                   # Performance tuning.
-                  checkpoint_timeout = "15min";
+                  checkpoint_timeout = "30min";
                   max_wal_size = "16GB";
                   effective_io_concurrency = 200;
                 };
