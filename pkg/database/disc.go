@@ -317,6 +317,7 @@ func (db *DB) fetchDiscNodesToCrawl(ctx context.Context) error {
 
 func nodesToCrawl(
 	ctx context.Context,
+	sleep bool,
 	lock *sync.Mutex,
 	ch <-chan *NodeToCrawl,
 	recentlyCrawled *fifomemory.FIFOMemory[enode.ID],
@@ -336,15 +337,15 @@ func nodesToCrawl(
 				continue
 			}
 
-			// sleepDur := time.Until(nextNode.NextCrawl)
+			if sleep {
+				sleepDuration := time.Until(nextNode.NextCrawl)
 
-			// if sleepDur > time.Hour {
-			// 	continue
-			// }
+				if sleepDuration > 15*time.Minute {
+					continue
+				}
 
-			// if sleepDur > 0 {
-			// 	time.Sleep(sleepDur)
-			// }
+				time.Sleep(sleepDuration)
+			}
 
 			return nextNode.Enode, nil
 		default:
@@ -362,6 +363,7 @@ func nodesToCrawl(
 func (db *DB) NodesToCrawl(ctx context.Context) (*enode.Node, error) {
 	return nodesToCrawl(
 		ctx,
+		true,
 		db.nodesToCrawlLock,
 		db.nodesToCrawlCache,
 		db.recentlyCrawled,
@@ -372,6 +374,7 @@ func (db *DB) NodesToCrawl(ctx context.Context) (*enode.Node, error) {
 func (db *DB) DiscNodesToCrawl(ctx context.Context) (*enode.Node, error) {
 	return nodesToCrawl(
 		ctx,
+		false,
 		db.discNodesToCrawlLock,
 		db.discNodesToCrawlCache,
 		db.discRecentlyCrawled,
