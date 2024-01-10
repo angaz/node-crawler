@@ -508,9 +508,13 @@
                   ];
 
                   # Performance tuning.
+                  checkpoint_segments = 64;
                   checkpoint_timeout = "30min";
-                  max_wal_size = "16GB";
                   effective_io_concurrency = 200;
+                  max_wal_size = "16GB";
+                  shared_buffers = "256MB";
+                  wal_buffers = "16MB";
+                  wal_writer_delay = "4s";
                 };
                 ensureDatabases = [ "nodecrawler" ];
                 ensureUsers = [
