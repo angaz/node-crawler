@@ -507,6 +507,8 @@ func (stats StatsResult) toTimeseries(series []StatsGraphSeries) Timeseries {
 	}
 
 	for i, series := range series {
+		legend = append(legend, series.Key())
+
 		chartSeries[i] = ChartSeries{
 			Name:      series.Key(),
 			Type:      "line",
