@@ -84,6 +84,10 @@ func (dst *NodeType) Scan(src any) error {
 		*dst = ParseNodeType(src)
 
 		return nil
+	case int64:
+		*dst = NodeType(src)
+
+		return nil
 	}
 
 	return fmt.Errorf("cannot scan %T", src)

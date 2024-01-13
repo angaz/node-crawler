@@ -112,50 +112,13 @@ func copySqliteToPGClientName(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (m
 }
 
 func copySqliteToPGClientVersion(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
-	column := "client_version"
-	table := "client.versions"
-	schema := "stats"
-
-	slog.Info("migration start", "name", column)
-	start := time.Now()
-	defer func() {
-		slog.Info("migration end", "name", column, "duration", time.Since(start))
-	}()
-
-	return denormalizeString(
+	return denormalizeClient(
 		ctx,
 		tx,
 		sqlite,
-		fmt.Sprintf(`
-			SELECT DISTINCT CASE
-				WHEN client_name = 'reth' THEN
-					CASE WHEN instr(client_build, '-') != 0 THEN
-						client_version || '-' || substr(client_build, 0, instr(client_build, '-'))
-					WHEN client_build IS NOT NULL AND client_build != '' THEN
-						client_version || '-' || client_build
-					ELSE
-						client_version
-					END
-				ELSE
-					client_version
-			END
-			FROM main.crawled_nodes
-			WHERE %[1]s IS NOT NULL
-
-			UNION
-
-			SELECT DISTINCT client_version
-			FROM stats.crawled_nodes
-			WHERE %[1]s IS NOT NULL
-		`, column, schema),
-		fmt.Sprintf(`
-			INSERT INTO %[2]s (
-				%[1]s
-			) VALUES (
-				$1
-			)
-			RETURNING %[1]s_id
-		`, column, table),
+		"client_version",
+		"client.versions",
+		"stats",
 	)
 }
 
@@ -170,37 +133,81 @@ func copySqliteToPGClientUserData(ctx context.Context, tx pgx.Tx, sqlite *sql.DB
 	)
 }
 
-func copySqliteToPGClientBuild(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
-	return denormalizeClient(
-		ctx,
-		tx,
-		sqlite,
-		"client_build",
-		"client.builds",
-		"main",
-	)
-}
-
 func copySqliteToPGIdentifiers(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
-	return denormalizeClient(
-		ctx,
-		tx,
-		sqlite,
-		"client_identifier",
-		"client.identifiers",
-		"main",
-	)
-}
+	slog.Info("migration start", "name", "client_identifiers")
+	start := time.Now()
+	defer func() {
+		slog.Info("migration end", "name", "client_identifiers", "duration", time.Since(start))
+	}()
 
-func copySqliteToPGLanguages(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
-	return denormalizeClient(
-		ctx,
-		tx,
-		sqlite,
-		"client_language",
-		"client.languages",
-		"main",
+	rows, err := sqlite.Query(
+		`
+			SELECT DISTINCT
+				client_identifier
+			FROM main.crawled_nodes
+			WHERE client_identifier IS NOT NULL
+		`,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+
+	err = ClientUpsertStrings(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf("client upsert strings: %w", err)
+	}
+
+	idMap := make(map[string]int64)
+
+	for rows.Next() {
+		var identifier string
+
+		err = rows.Scan(&identifier)
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+
+		client := common.ParseClientID(&identifier).Deref()
+
+		row := tx.QueryRow(
+			ctx,
+			`
+				SELECT
+					client_identifier_id
+				FROM client.upsert(
+					client_identifier	=> nullif(@client_identifier, 'Unknown'),
+					client_name			=> nullif(@client_name, 'Unknown'),
+					client_user_data	=> nullif(@client_user_data, 'Unknown'),
+					client_version		=> nullif(@client_version, 'Unknown'),
+					client_build		=> nullif(@client_build, 'Unknown'),
+					client_os			=> @client_os::client.os,
+					client_arch			=> @client_arch::client.arch,
+					client_language		=> nullif(@client_language, 'Unknown')
+				)
+			`,
+			pgx.NamedArgs{
+				"client_identifier": identifier,
+				"client_name":       client.Name,
+				"client_user_data":  client.UserData,
+				"client_version":    client.Version,
+				"client_build":      client.Build,
+				"client_os":         client.OS,
+				"client_arch":       client.Arch,
+				"client_language":   client.Language,
+			},
+		)
+
+		var identifierID int64
+
+		err = row.Scan(&identifierID)
+		if err != nil {
+			return nil, fmt.Errorf("client.upsert scan: %w", err)
+		}
+
+		idMap[identifier] = identifierID
+	}
+
+	return idMap, nil
 }
 
 func copySqliteToPGCapabilities(ctx context.Context, tx pgx.Tx, sqlite *sql.DB) (map[string]int64, error) {
@@ -403,6 +410,9 @@ func migrateStatsTable(
 				total
 			FROM stats.crawled_nodes
 			WHERE country NOT IN ('Greenland')
+			ORDER BY
+				timestamp,
+				network_id
 		`,
 	)
 	if err != nil {
@@ -514,11 +524,6 @@ func migrateExecutionNodesTable(
 	tx pgx.Tx,
 	sqlite *sql.DB,
 	clientIdentifiersMap map[string]int64,
-	clientNamesMap map[string]int64,
-	clientUserDataMap map[string]int64,
-	clientVersionsMap map[string]int64,
-	clientBuildsMap map[string]int64,
-	clientLanguagesMap map[string]int64,
 	capabilitiesMap map[string]int64,
 ) error {
 	slog.Info("migration start", "name", "execution nodes table")
@@ -548,6 +553,8 @@ func migrateExecutionNodesTable(
 				AND network_id IS NOT NULL
 				AND fork_id IS NOT NULL
 				AND rlpx_version IS NOT NULL
+			ORDER BY
+				node_id
 		`,
 	)
 	if err != nil {
@@ -585,66 +592,11 @@ func migrateExecutionNodesTable(
 			return nil, fmt.Errorf("scan: %w", err)
 		}
 
-		var cnID, cudID, cvID, cbID, clID *int64
-		var os common.OS
-		var arch common.Arch
-
 		cID := clientIdentifiersMap[clientIdentifier]
 		capID := capabilitiesMap[capabilities]
 
-		client := common.ParseClientID(&clientIdentifier)
-
-		if client != nil {
-			if client.Name != common.Unknown {
-				id, ok := clientNamesMap[client.Name]
-				if !ok {
-					return nil, fmt.Errorf("client not found: %s, %s", client.Name, clientIdentifier)
-				}
-				cnID = &id
-			}
-
-			if client.UserData != common.Unknown {
-				id, ok := clientUserDataMap[client.UserData]
-				if !ok {
-					return nil, fmt.Errorf("user data not found: %s, %s", client.UserData, clientIdentifier)
-				}
-				cudID = &id
-			}
-
-			if client.Version != common.Unknown {
-				id, ok := clientVersionsMap[client.Version]
-				if !ok {
-					return nil, fmt.Errorf("version not found: %s, %s", client.Version, clientIdentifier)
-				}
-				cvID = &id
-			}
-
-			if client.Build != common.Unknown {
-				id, ok := clientBuildsMap[client.Build]
-				if !ok {
-					return nil, fmt.Errorf("build not found: %s, %s", client.Build, clientIdentifier)
-				}
-				cbID = &id
-			}
-
-			if client.Language != common.Unknown {
-				id, ok := clientLanguagesMap[client.Language]
-				if !ok {
-					return nil, fmt.Errorf("language not found: %s, %s", client.Language, clientIdentifier)
-				}
-				clID = &id
-			}
-
-			os = client.OS
-			arch = client.Arch
-		} else {
-			os = common.OSUnknown
-			arch = common.ArchUnknown
-		}
-
 		return []any{
 			nodeID,
-			time.Unix(updatedAt, 0),
 			cID,
 			rlpxVersion,
 			capID,
@@ -652,19 +604,11 @@ func migrateExecutionNodesTable(
 			forkID,
 			nextForkID,
 			headHash,
-			cnID,
-			cudID,
-			cvID,
-			cbID,
-			os.String(),
-			arch.String(),
-			clID,
 		}, nil
 	})
 
 	_, err = tx.CopyFrom(ctx, []string{"execution", "nodes"}, []string{
 		"node_id",
-		"updated_at",
 		"client_identifier_id",
 		"rlpx_version",
 		"capabilities_id",
@@ -672,19 +616,41 @@ func migrateExecutionNodesTable(
 		"fork_id",
 		"next_fork_id",
 		"head_hash",
-		"client_name_id",
-		"client_user_data_id",
-		"client_version_id",
-		"client_build_id",
-		"client_os",
-		"client_arch",
-		"client_language_id",
 	}, copier)
 	if err != nil {
 		return fmt.Errorf("copy: %w", err)
 	}
 
 	return nil
+}
+
+type discNode struct {
+	NodeID        []byte
+	NodeType      common.NodeType
+	FirstFound    time.Time
+	NodePubkey    []byte
+	NodeRecord    []byte
+	IPAddress     string
+	CityGeonameID uint
+}
+
+type nextDiscCrawl struct {
+	NodeID    []byte
+	LastFound time.Time
+	NextCrawl time.Time
+}
+
+type nextNodeCrawl struct {
+	NodeID    []byte
+	UpdatedAt *time.Time
+	NextCrawl time.Time
+	NodeType  common.NodeType
+}
+
+func randomHour() time.Duration {
+	secs := rand.Int63n(3600)
+
+	return time.Duration(secs) * time.Second
 }
 
 func migrateDiscNodes(
@@ -707,11 +673,15 @@ func migrateDiscNodes(
 				node_pubkey,
 				node_type,
 				node_record,
-				ip_address,
+				disc.ip_address,
 				first_found,
 				last_found,
-				next_crawl
-			FROM discovered_nodes
+				next_crawl,
+				updated_at
+			FROM discovered_nodes disc
+			LEFT JOIN crawled_nodes USING (node_id)
+			ORDER BY
+				node_id
 		`,
 	)
 	if err != nil {
@@ -719,19 +689,20 @@ func migrateDiscNodes(
 	}
 	defer rows.Close()
 
-	copier := pgx.CopyFromFunc(func() ([]any, error) {
-		if !rows.Next() {
-			return nil, nil
-		}
+	discNodes := make(chan discNode, 8_000_000)
+	nextDiscCrawls := make(chan nextDiscCrawl, 8_000_000)
+	nextNodeCrawls := make(chan nextNodeCrawl, 8_000_000)
 
+	for rows.Next() {
 		var nodeID []byte
 		var nodePubkey []byte
-		var nodeType int64
+		var nodeType common.NodeType
 		var nodeRecord []byte
 		var ipAddress string
 		var firstFound int64
 		var lastFound int64
 		var nextCrawl int64
+		var updatedAt *int64
 
 		err := rows.Scan(
 			&nodeID,
@@ -742,47 +713,120 @@ func migrateDiscNodes(
 			&firstFound,
 			&lastFound,
 			&nextCrawl,
+			&updatedAt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
+			return fmt.Errorf("scan: %w", err)
 		}
 
 		ipAddr := net.ParseIP(ipAddress)
 		if ipAddr == nil {
-			return nil, fmt.Errorf("parse ip: %s", ipAddress)
+			return fmt.Errorf("parse ip: %s", ipAddress)
 		}
 
 		city, err := geoip.City(ipAddr)
 		if err != nil {
-			return nil, fmt.Errorf("lookup ip: %w", err)
+			return fmt.Errorf("lookup ip: %w", err)
 		}
 
-		return []any{
-			nodeID,
-			common.NodeType(nodeType).String(),
-			time.Unix(firstFound, 0),
-			time.Unix(lastFound, 0),
-			time.Unix(nextCrawl, 0),
-			time.Now(),
-			nodePubkey,
-			nodeRecord,
-			ipAddress,
-			city.City.GeoNameID,
-		}, nil
-	})
+		discNodes <- discNode{
+			NodeID:        nodeID,
+			NodeType:      nodeType,
+			FirstFound:    time.Unix(firstFound, 0),
+			NodePubkey:    nodePubkey,
+			NodeRecord:    nodeRecord,
+			IPAddress:     ipAddress,
+			CityGeonameID: city.City.GeoNameID,
+		}
+
+		nextDiscCrawls <- nextDiscCrawl{
+			NodeID:    nodeID,
+			LastFound: time.Unix(lastFound, 0),
+			NextCrawl: time.Unix(nextCrawl, 0),
+		}
+
+		var updatedAtTime *time.Time
+
+		if updatedAt != nil {
+			t := time.Unix(*updatedAt, 0)
+			updatedAtTime = &t
+		}
+
+		nextNodeCrawls <- nextNodeCrawl{
+			NodeID:    nodeID,
+			UpdatedAt: updatedAtTime,
+			NextCrawl: time.Now().UTC().Add(randomHour()),
+			NodeType:  nodeType,
+		}
+	}
+
+	close(discNodes)
+	close(nextDiscCrawls)
+	close(nextNodeCrawls)
 
 	_, err = tx.CopyFrom(ctx, []string{"disc", "nodes"}, []string{
 		"node_id",
 		"node_type",
 		"first_found",
-		"last_found",
-		"next_crawl",
-		"next_disc_crawl",
 		"node_pubkey",
 		"node_record",
 		"ip_address",
 		"city_geoname_id",
-	}, copier)
+	}, pgx.CopyFromFunc(func() ([]any, error) {
+		for node := range discNodes {
+			return []any{
+				node.NodeID,
+				node.NodeType.String(),
+				node.FirstFound,
+				node.NodePubkey,
+				node.NodeRecord,
+				node.IPAddress,
+				node.CityGeonameID,
+			}, nil
+		}
+
+		return nil, nil
+	}))
+	if err != nil {
+		return fmt.Errorf("copy: %w", err)
+	}
+
+	_, err = tx.CopyFrom(ctx, []string{"crawler", "next_disc_crawl"}, []string{
+		"node_id",
+		"last_found",
+		"next_crawl",
+	}, pgx.CopyFromFunc(func() (row []any, err error) {
+		for node := range nextDiscCrawls {
+			return []any{
+				node.NodeID,
+				node.LastFound,
+				node.NextCrawl,
+			}, nil
+		}
+
+		return nil, nil
+	}))
+	if err != nil {
+		return fmt.Errorf("copy: %w", err)
+	}
+
+	_, err = tx.CopyFrom(ctx, []string{"crawler", "next_node_crawl"}, []string{
+		"node_id",
+		"updated_at",
+		"next_crawl",
+		"node_type",
+	}, pgx.CopyFromFunc(func() (row []any, err error) {
+		for node := range nextNodeCrawls {
+			return []any{
+				node.NodeID,
+				node.UpdatedAt,
+				node.NextCrawl,
+				node.NodeType.String(),
+			}, nil
+		}
+
+		return nil, nil
+	}))
 	if err != nil {
 		return fmt.Errorf("copy: %w", err)
 	}
@@ -810,6 +854,11 @@ func migrateBlocks(
 				timestamp,
 				block_number
 			FROM blocks
+			ORDER BY
+				block_hash,
+				network_id,
+				timestamp,
+				block_number
 		`,
 	)
 	if err != nil {
@@ -878,6 +927,11 @@ func migrateCrawlHistory(
 				direction,
 				error
 			FROM crawl_history
+			ORDER BY
+				node_id,
+				crawled_at,
+				direction,
+				error
 		`,
 	)
 	if err != nil {
@@ -933,11 +987,6 @@ func migrateCrawlHistory(
 }
 
 func Migrate001SqliteToPG(ctx context.Context, tx pgx.Tx, sqlite *sql.DB, geoip *geoip2.Reader) error {
-	clientIdentifiersMap, err := copySqliteToPGIdentifiers(ctx, tx, sqlite)
-	if err != nil {
-		return fmt.Errorf("client_identifiers: %w", err)
-	}
-
 	clientNamesMap, err := copySqliteToPGClientName(ctx, tx, sqlite)
 	if err != nil {
 		return fmt.Errorf("client_names: %w", err)
@@ -948,19 +997,14 @@ func Migrate001SqliteToPG(ctx context.Context, tx pgx.Tx, sqlite *sql.DB, geoip 
 		return fmt.Errorf("client_versions: %w", err)
 	}
 
-	clientBuildsMap, err := copySqliteToPGClientBuild(ctx, tx, sqlite)
-	if err != nil {
-		return fmt.Errorf("client_builds: %w", err)
-	}
-
 	clientUserDataMap, err := copySqliteToPGClientUserData(ctx, tx, sqlite)
 	if err != nil {
 		return fmt.Errorf("client_user_data: %w", err)
 	}
 
-	clientLanguagesMap, err := copySqliteToPGLanguages(ctx, tx, sqlite)
+	clientIdentifiersMap, err := copySqliteToPGIdentifiers(ctx, tx, sqlite)
 	if err != nil {
-		return fmt.Errorf("client_languages: %w", err)
+		return fmt.Errorf("client_identifiers: %w", err)
 	}
 
 	capabilitiesMap, err := copySqliteToPGCapabilities(ctx, tx, sqlite)
@@ -973,7 +1017,15 @@ func Migrate001SqliteToPG(ctx context.Context, tx pgx.Tx, sqlite *sql.DB, geoip 
 		return fmt.Errorf("countries cities: %w", err)
 	}
 
-	err = migrateStatsTable(ctx, tx, sqlite, clientNamesMap, clientUserDataMap, clientVersionsMap, countriesMap)
+	err = migrateStatsTable(
+		ctx,
+		tx,
+		sqlite,
+		clientNamesMap,
+		clientUserDataMap,
+		clientVersionsMap,
+		countriesMap,
+	)
 	if err != nil {
 		return fmt.Errorf("migrate stats table: %w", err)
 	}
@@ -986,11 +1038,6 @@ func Migrate001SqliteToPG(ctx context.Context, tx pgx.Tx, sqlite *sql.DB, geoip 
 	err = migrateExecutionNodesTable(
 		ctx, tx, sqlite,
 		clientIdentifiersMap,
-		clientNamesMap,
-		clientUserDataMap,
-		clientVersionsMap,
-		clientBuildsMap,
-		clientLanguagesMap,
 		capabilitiesMap,
 	)
 	if err != nil {
