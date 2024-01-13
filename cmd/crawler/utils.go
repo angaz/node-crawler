@@ -46,24 +46,24 @@ func openSQLiteDB(cCtx *cli.Context, mode sqlu.Param) (*sql.DB, error) {
 	dsn := sqlu.ConnParams{
 		Filename: crawlerDBName,
 		Mode:     mode,
-		Pragma: []sqlu.Pragma{
-			sqlu.PragmaBusyTimeout(int64(busyTimeoutFlag.Get(cCtx))),
-			sqlu.PragmaJournalSizeLimit(128 * 1024 * 1024), // 128MiB
-			sqlu.PragmaAutoVacuumIncremental,
-			sqlu.PragmaJournalModeWAL,
-			sqlu.PragmaSynchronousNormal,
-		},
+		// Pragma: []sqlu.Pragma{
+		// 	sqlu.PragmaBusyTimeout(int64(busyTimeoutFlag.Get(cCtx))),
+		// 	sqlu.PragmaJournalSizeLimit(128 * 1024 * 1024), // 128MiB
+		// 	sqlu.PragmaAutoVacuumIncremental,
+		// 	sqlu.PragmaJournalModeWAL,
+		// 	sqlu.PragmaSynchronousNormal,
+		// },
 		Attach: []sqlu.AttachParams{
 			{
 				Filename: statsDBFlag.Get(cCtx),
 				Database: "stats",
 				Mode:     mode,
-				Pragma: []sqlu.Pragma{
-					sqlu.PragmaJournalSizeLimit(128 * 1024 * 1024), // 128MiB
-					sqlu.PragmaAutoVacuumIncremental,
-					sqlu.PragmaJournalModeWAL,
-					sqlu.PragmaSynchronousNormal,
-				},
+				// Pragma: []sqlu.Pragma{
+				// 	sqlu.PragmaJournalSizeLimit(128 * 1024 * 1024), // 128MiB
+				// 	sqlu.PragmaAutoVacuumIncremental,
+				// 	sqlu.PragmaJournalModeWAL,
+				// 	sqlu.PragmaSynchronousNormal,
+				// },
 			},
 		},
 	}
@@ -77,7 +77,7 @@ func openSQLiteDB(cCtx *cli.Context, mode sqlu.Param) (*sql.DB, error) {
 }
 
 func openDBWriter(cCtx *cli.Context, geoipDB *geoip2.Reader) (*database.DB, error) {
-	sqlite, err := openSQLiteDB(cCtx, sqlu.ParamModeRWC)
+	sqlite, err := openSQLiteDB(cCtx, sqlu.ParamModeRO)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
