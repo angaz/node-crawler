@@ -260,6 +260,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 				"Client Names",
 				"client_names",
 				clientNamesTimeseries,
+				params.graphInterval,
 				params.graphFormat,
 				func(key string, value string) templ.SafeURL {
 					return reqURL.
@@ -294,6 +295,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 				"Client Versions",
 				"client_versions",
 				clientVersionsTimeseries,
+				params.graphInterval,
 				params.graphFormat,
 				func(key string, value string) templ.SafeURL {
 					return reqURL.
@@ -342,6 +344,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 				"Fail":    "#ff6e76",
 				"Success": "#05c091",
 			}),
+			params.graphInterval,
 			params.graphFormat,
 			func(key string, value string) templ.SafeURL {
 				return reqURL.

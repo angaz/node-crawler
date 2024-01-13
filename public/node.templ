@@ -220,7 +220,7 @@ func ByteCountIEC(b int64) string {
 
 templ SnapshotsList(files []fs.FileInfo) {
 	<div style="margin: 1em;">
-		<h3>SQLite3 Snapshots</h3>
+		<h3>Postgres Snapshots</h3>
 		<table style="max-width=100%">
 			<thead>
 				<tr>
@@ -730,7 +730,6 @@ css graphButton() {
 	background-color: inherit;
 	color: inherit;
 	user-select: none;
-	border: 2px solid #eee;
 }
 
 css pageButtonActive() {
@@ -877,7 +876,11 @@ templ SyncedFilterLinks(url URL, synced int) {
 	</div>
 }
 
-templ ReadyForNextForkLinks(name string, key string, url URL, nextForkName string) {
+css buttonDisabled() {
+	pointer-events: none;
+}
+
+templ readyForNextForkLinks(name string, key string, url URL, nextForkName string, disabled bool) {
 	<div style="display: flex; flex-direction: row; gap: 0.5em;">
 		<a
 			class={
@@ -894,6 +897,7 @@ templ ReadyForNextForkLinks(name string, key string, url URL, nextForkName strin
 				pageButton(),
 				templ.KV(pageButtonActive(), nextForkName == key),
 				templ.KV(pageButtonInactive(), nextForkName != key),
+				templ.KV(buttonDisabled(), disabled),
 			}
 			href={ url.WithParam("next-fork-name", key).SafeURL() }
 		>
@@ -902,15 +906,15 @@ templ ReadyForNextForkLinks(name string, key string, url URL, nextForkName strin
 	</div>
 }
 
-templ ReadyForNextForkLinksDisabled(url URL, networkID int64, nextForkName string) {
+templ ReadyForNextForkLinks(url URL, networkID int64, nextForkName string) {
 	switch networkID {
 	case 1:
-		<div style="pointer-events: none;">
+		<div>
 			<span>Disabled, waiting for the fork time to be announced</span>
-			@ReadyForNextForkLinks("Cancun", "cancun", url, nextForkName)
+			@readyForNextForkLinks("Cancun", "cancun", url, nextForkName, true)
 		</div>
 	case -1, 5, 17000, 11155111:
-		@ReadyForNextForkLinks("Cancun", "cancun", url, nextForkName)
+		@readyForNextForkLinks("Cancun", "cancun", url, nextForkName, false)
 	}
 }
 
@@ -929,7 +933,7 @@ templ Stats(
 	<div style="display: flex; flex-direction: column; padding: 1em; gap: 1em;">
 		@NetworkFilterLinks(reqURL.WithPath("/"), networkID, ephemeryNetworks)
 		@SyncedFilterLinks(reqURL, synced)
-		@ReadyForNextForkLinksDisabled(reqURL, networkID, nextForkName)
+		@ReadyForNextForkLinks(reqURL, networkID, nextForkName)
 		if clientName != "" {
 			<div style="display: flex; flex-direction: row; gap: 0.5em;">
 				<a
@@ -1025,14 +1029,49 @@ script statsGraph(id string, ts database.Timeseries, graphFormat string) {
 	ro.observe(chartDiv);
 }
 
-templ StatsGraph(title string, id string, ts database.Timeseries, graphFormat string, hrefFn func(string, string) templ.SafeURL) {
+templ StatsGraph(
+	title string,
+	id string,
+	ts database.Timeseries,
+	graphInterval time.Duration,
+	graphFormat string,
+	hrefFn func(string, string) templ.SafeURL,
+) {
 	<div class="chart">
 		<div style="display: flex; flex-direction: row; gap: 0.5em; align-items: center;">
 			<h3>{ title }</h3>
-			<a class={ graphButton() } href={ hrefFn("interval", "3h") }>3h</a>
-			<a class={ graphButton() } href={ hrefFn("interval", "24h") }>24h</a>
-			<a class={ graphButton() } href={ hrefFn("graph-format", "number") }>#</a>
-			<a class={ graphButton() } href={ hrefFn("graph-format", "percent") }>%</a>
+			<a
+				class={
+					graphButton(),
+					templ.KV(pageButtonInactive(), graphInterval != 3*time.Hour),
+					templ.KV(pageButtonActive(), graphInterval == 3*time.Hour),
+				}
+				href={ hrefFn("interval", "3h") }
+			>3h</a>
+			<a
+				class={
+					graphButton(),
+					templ.KV(pageButtonInactive(), graphInterval != 24*time.Hour),
+					templ.KV(pageButtonActive(), graphInterval == 24*time.Hour),
+				}
+				href={ hrefFn("interval", "24h") }
+			>24h</a>
+			<a
+				class={
+					graphButton(),
+					templ.KV(pageButtonInactive(), graphFormat != "number"),
+					templ.KV(pageButtonActive(), graphFormat == "number"),
+				}
+				href={ hrefFn("graph-format", "number") }
+			>#</a>
+			<a
+				class={
+					graphButton(),
+					templ.KV(pageButtonInactive(), graphFormat != "percent"),
+					templ.KV(pageButtonActive(), graphFormat == "percent"),
+				}
+				href={ hrefFn("graph-format", "percent") }
+			>%</a>
 		</div>
 		<div style="height: 100%; width: 100%;" id={ id }></div>
 	</div>
