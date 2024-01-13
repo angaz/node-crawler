@@ -122,19 +122,11 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 			CREATE TABLE geoname.cities (
 				city_geoname_id		INTEGER NOT NULL,
 				city_name			TEXT	NOT NULL,
-				country_geoname_id	INTEGER	NOT NULL REFERENCES geoname.countries(country_geoname_id),
+				country_geoname_id	INTEGER	NOT NULL REFERENCES geoname.countries (country_geoname_id),
 				latitude			REAL	NOT NULL,
 				longitude			REAL	NOT NULL,
 
 				PRIMARY KEY (city_geoname_id) INCLUDE (country_geoname_id)
-			);
-
-			CREATE TABLE client.identifiers (
-				client_identifier_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-				client_identifier		TEXT	NOT NULL,
-
-				CONSTRAINT client_identifier_unique
-					UNIQUE (client_identifier) INCLUDE (client_identifier_id)
 			);
 
 			CREATE TABLE client.names (
@@ -177,6 +169,26 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 					UNIQUE (client_language) INCLUDE (client_language_id)
 			);
 
+			CREATE TABLE client.identifiers (
+				client_identifier_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+				client_identifier		TEXT		NOT NULL,
+				client_name_id			INTEGER		DEFAULT NULL REFERENCES client.names (client_name_id),
+				client_user_data_id		INTEGER		DEFAULT NULL REFERENCES client.user_data (client_user_data_id),
+				client_version_id		INTEGER		DEFAULT NULL REFERENCES client.versions (client_version_id),
+				client_build_id			INTEGER		DEFAULT NULL REFERENCES client.builds (client_build_id),
+				client_os				client.os	NOT NULL,
+				client_arch				client.arch	NOT NULL,
+				client_language_id		INTEGER		DEFAULT NULL REFERENCES client.languages (client_language_id),
+
+				CONSTRAINT client_identifier_unique
+					UNIQUE (client_identifier) INCLUDE (client_identifier_id)
+			);
+
+			CREATE INDEX client_identifier_name ON client.identifiers (client_name_id);
+			CREATE INDEX client_identifier_user_data ON client.user_data (client_user_data_id);
+			CREATE INDEX client_identifier_version ON client.versions (client_version_id);
+			CREATE INDEX client_identifier_build ON client.builds (client_build_id);
+
 			CREATE TABLE network.forks (
 				network_id			BIGINT	NOT NULL,
 				block_time			BIGINT	NOT NULL,
@@ -197,15 +209,15 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 
 			CREATE TABLE stats.execution_nodes (
 				timestamp			TIMESTAMPTZ	NOT NULL,
-				client_name_id		INTEGER		DEFAULT NULL REFERENCES client.names(client_name_id),
-				client_user_data_id	INTEGER		DEFAULT NULL REFERENCES client.user_data(client_user_data_id),
-				client_version_id	INTEGER		DEFAULT NULL REFERENCES client.versions(client_version_id),
+				client_name_id		INTEGER		DEFAULT NULL REFERENCES client.names (client_name_id),
+				client_user_data_id	INTEGER		DEFAULT NULL REFERENCES client.user_data (client_user_data_id),
+				client_version_id	INTEGER		DEFAULT NULL REFERENCES client.versions (client_version_id),
 				client_os			client.os	NOT NULL,
 				client_arch			client.arch	NOT NULL,
 				network_id			BIGINT		NOT NULL,
 				fork_id				BIGINT		NOT NULL,
 				next_fork_id		BIGINT		NOT NULL,  -- 0 means no next fork
-				country_geoname_id	INTEGER		NOT NULL REFERENCES geoname.countries(country_geoname_id),
+				country_geoname_id	INTEGER		NOT NULL REFERENCES geoname.countries (country_geoname_id),
 				synced				BOOLEAN		NOT NULL,
 				dial_success		BOOLEAN 	NOT NULL,
 				total				INTEGER 	NOT NULL
@@ -217,26 +229,40 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 			);
 
 			CREATE TABLE disc.nodes (
-				node_id			BYTEA				PRIMARY KEY,
+				node_id			BYTEA				NOT NULL,
 				node_type		client.node_type	NOT NULL,
 				first_found		TIMESTAMPTZ			NOT NULL,
-				last_found		TIMESTAMPTZ			NOT NULL,
-				next_crawl		TIMESTAMPTZ			NOT NULL,
-				next_disc_crawl	TIMESTAMPTZ			NOT NULL,
 				node_pubkey		BYTEA				NOT NULL,
 				node_record		BYTEA				NOT NULL,
 				ip_address		INET				NOT NULL,
-				city_geoname_id	INTEGER				NOT NULL REFERENCES geoname.cities(city_geoname_id)
+				city_geoname_id	INTEGER				NOT NULL REFERENCES geoname.cities (city_geoname_id),
+
+				PRIMARY KEY (node_id) INCLUDE (node_record)
 			) PARTITION BY RANGE (node_id);
 
-			CREATE INDEX disc_nodes_next_crawl_node_type_node_record ON
-				disc.nodes (next_crawl, node_type, node_record);
-			CREATE INDEX disc_nodes_next_disc_crawl_node_record ON
-				disc.nodes (next_disc_crawl, node_record);
-			CREATE INDEX disc_nodes_last_found ON
-				disc.nodes (last_found);
 			CREATE INDEX disc_nodes_ip_address ON
 				disc.nodes (ip_address);
+
+			CREATE TABLE crawler.next_disc_crawl (
+				node_id		BYTEA		PRIMARY KEY REFERENCES disc.nodes (node_id),
+				last_found	TIMESTAMPTZ	NOT NULL,
+				next_crawl	TIMESTAMPTZ	NOT NULL
+			);
+
+			CREATE INDEX next_disc_crawl_next_crawl_node_id
+				ON crawler.next_disc_crawl (next_crawl, node_id);
+			CREATE INDEX next_disc_crawl_last_found
+				ON crawler.next_disc_crawl (last_found);
+
+			CREATE TABLE crawler.next_node_crawl (
+				node_id		BYTEA				PRIMARY KEY REFERENCES disc.nodes (node_id),
+				updated_at	TIMESTAMPTZ			DEFAULT NULL,
+				next_crawl	TIMESTAMPTZ			NOT NULL,
+				node_type	client.node_type	NOT NULL
+			);
+
+			CREATE INDEX next_node_crawl_next_crawl_node_type_node_id
+				ON crawler.next_node_crawl (next_crawl, node_type, node_id);
 
 			CREATE TABLE execution.capabilities (
 				capabilities_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
@@ -247,28 +273,15 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 			);
 
 			CREATE TABLE execution.nodes (
-				node_id					BYTEA		PRIMARY KEY REFERENCES disc.nodes(node_id),
-				updated_at				TIMESTAMPTZ	NOT NULL,
-				client_identifier_id	INTEGER		NOT NULL REFERENCES client.identifiers(client_identifier_id),
-				rlpx_version			INTEGER		NOT NULL,
-				capabilities_id			INTEGER		NOT NULL REFERENCES execution.capabilities(capabilities_id),
-				network_id				BIGINT		NOT NULL,
-				fork_id					BIGINT		NOT NULL,
-				next_fork_id			BIGINT		NOT NULL,  -- 0 means no next fork
-				head_hash				BYTEA		NOT NULL,
-				client_name_id			INTEGER		DEFAULT NULL REFERENCES client.names(client_name_id),
-				client_user_data_id		INTEGER		DEFAULT NULL REFERENCES client.user_data(client_user_data_id),
-				client_version_id		INTEGER		DEFAULT NULL REFERENCES client.versions(client_version_id),
-				client_build_id			INTEGER		DEFAULT NULL REFERENCES client.builds(client_build_id),
-				client_os				client.os	DEFAULT NULL,
-				client_arch				client.arch	DEFAULT NULL,
-				client_language_id		INTEGER		DEFAULT NULL REFERENCES client.languages(client_language_id)
+				node_id					BYTEA	PRIMARY KEY REFERENCES disc.nodes (node_id),
+				client_identifier_id	INTEGER	NOT NULL REFERENCES client.identifiers (client_identifier_id),
+				rlpx_version			INTEGER	NOT NULL,
+				capabilities_id			INTEGER	NOT NULL REFERENCES execution.capabilities (capabilities_id),
+				network_id				BIGINT	NOT NULL,
+				fork_id					BIGINT	NOT NULL,
+				next_fork_id			BIGINT	NOT NULL,  -- 0 means no next fork
+				head_hash				BYTEA	NOT NULL
 			) PARTITION BY RANGE (node_id);
-
-			CREATE INDEX execution_nodes_client_name
-				ON execution.nodes (client_name_id);
-			CREATE INDEX execution_nodes_client_user_data
-				ON execution.nodes (client_user_data_id);
 
 			CREATE TABLE execution.blocks (
 				block_hash		BYTEA		NOT NULL,
@@ -280,7 +293,7 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 			);
 
 			CREATE TABLE crawler.history (
-				node_id		BYTEA				NOT NULL REFERENCES disc.nodes(node_id),
+				node_id		BYTEA				NOT NULL REFERENCES disc.nodes (node_id),
 				crawled_at	TIMESTAMPTZ			NOT NULL,
 				direction	crawler.direction	NOT NULL,
 				error		crawler.error		DEFAULT NULL,

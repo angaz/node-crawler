@@ -77,9 +77,6 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 					node_id,
 					node_type,
 					first_found,
-					last_found,
-					next_crawl,
-					next_disc_crawl,
 					node_pubkey,
 					node_record,
 					ip_address,
@@ -89,18 +86,39 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 					@node_id,
 					@node_type,
 					now(),
-					now(),
-					@next_crawl,
-					now(),
 					@node_pubkey,
 					@node_record,
 					@ip_address,
 					@city_geoname_id
 				)
+				ON CONFLICT (node_id) DO NOTHING
+			), next_disc_crawl AS (
+				INSERT INTO crawler.next_disc_crawl (
+					node_id,
+					last_found,
+					next_crawl
+				) VALUES (
+					@node_id,
+					now(),
+					now()
+				) ON CONFLICT (node_id) DO NOTHING
+			), next_node_crawl AS (
+				INSERT INTO crawler.next_node_crawl (
+					node_id,
+					updated_at,
+					next_crawl,
+					node_type
+				) VALUES (
+					@node_id,
+					NULL,
+					@next_crawl,
+					@node_type
+				)
 				ON CONFLICT (node_id) DO UPDATE
 				SET
-					next_crawl = excluded.next_crawl
-				WHERE @direction = 'dial'::crawler.direction
+					next_crawl = @next_crawl
+				WHERE
+					@direction = 'dial'::crawler.direction
 			)
 
 			INSERT INTO crawler.history (
@@ -156,34 +174,54 @@ func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJ
 	_, err = tx.Exec(
 		ctx,
 		`
-			INSERT INTO disc.nodes (
-				node_id,
-				node_type,
-				first_found,
-				last_found,
-				next_crawl,
-				next_disc_crawl,
-				node_pubkey,
-				node_record,
-				ip_address,
-				city_geoname_id
+			WITH disc_nodes AS (
+				INSERT INTO disc.nodes (
+					node_id,
+					node_type,
+					first_found,
+					node_pubkey,
+					node_record,
+					ip_address,
+					city_geoname_id
+				)
+				VALUES (
+					@node_id,
+					@node_type,
+					now(),
+					@node_pubkey,
+					@node_record,
+					@ip_address,
+					@city_geoname_id
+				)
+				ON CONFLICT (node_id) DO NOTHING
+			), next_disc_crawl AS (
+				INSERT INTO crawler.next_disc_crawl (
+					node_id,
+					last_found,
+					next_crawl
+				) VALUES (
+					@node_id,
+					now(),
+					now()
+				) ON CONFLICT (node_id) DO NOTHING
 			)
-			VALUES (
+
+			INSERT INTO crawler.next_node_crawl (
+				node_id,
+				updated_at,
+				next_crawl,
+				node_type
+			) VALUES (
 				@node_id,
-				@node_type,
-				now(),
-				now(),
+				NULL,
 				@next_crawl,
-				now(),
-				@node_pubkey,
-				@node_record,
-				@ip_address,
-				@city_geoname_id
+				@node_type
 			)
 			ON CONFLICT (node_id) DO UPDATE
 			SET
-				next_crawl = excluded.next_crawl
-			WHERE @direction = 'dial'::crawler.direction
+				next_crawl = @next_crawl
+			WHERE
+				@direction = 'dial'::crawler.direction
 		`,
 		pgx.NamedArgs{
 			"node_id":         node.ID(),
@@ -245,6 +283,8 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 					client_user_data	=> nullif(@client_user_data, 'Unknown'),
 					client_version		=> nullif(@client_version, 'Unknown'),
 					client_build		=> nullif(@client_build, 'Unknown'),
+					client_os			=> @client_os::client.os,
+					client_arch			=> @client_arch::client.arch,
 					client_language		=> nullif(@client_language, 'Unknown')
 				)
 			), disc_node AS (
@@ -252,9 +292,6 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 					node_id,
 					node_type,
 					first_found,
-					last_found,
-					next_crawl,
-					next_disc_crawl,
 					node_pubkey,
 					node_record,
 					ip_address,
@@ -264,17 +301,37 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 					@node_id,
 					@node_type,
 					now(),
-					now(),
-					@next_crawl,
-					now(),
 					@node_pubkey,
 					@node_record,
 					@ip_address,
 					@city_geoname_id
 				)
+				ON CONFLICT (node_id) DO NOTHING
+			), next_disc_crawl AS (
+				INSERT INTO crawler.next_disc_crawl (
+					node_id,
+					last_found,
+					next_crawl
+				) VALUES (
+					@node_id,
+					now(),
+					now()
+				) ON CONFLICT (node_id) DO NOTHING
+			), next_node_crawl AS (
+				INSERT INTO crawler.next_node_crawl (
+					node_id,
+					updated_at,
+					next_crawl,
+					node_type
+				) VALUES (
+					@node_id,
+					now(),
+					@next_crawl,
+					@node_type
+				)
 				ON CONFLICT (node_id) DO UPDATE
 				SET
-					last_found = now(),
+					updated_at = excluded.updated_at,
 					-- Only update next_crawl if we initiated the connection.
 					-- Even if the peer initiated the the connection, we still
 					-- want to try dialing because we want to see if the node has
@@ -282,61 +339,45 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 					next_crawl = CASE
 						WHEN @direction = 'dial'::crawler.direction
 							THEN excluded.next_crawl
-							ELSE nodes.next_crawl
+							ELSE next_node_crawl.next_crawl
 						END
 			), crawled_node AS (
 				INSERT INTO execution.nodes (
 					node_id,
-					updated_at,
 					client_identifier_id,
 					rlpx_version,
 					capabilities_id,
 					network_id,
 					fork_id,
 					next_fork_id,
-					head_hash,
-					client_name_id,
-					client_user_data_id,
-					client_version_id,
-					client_build_id,
-					client_os,
-					client_arch,
-					client_language_id
+					head_hash
 				) VALUES (
 					@node_id,
-					now(),
 					(SELECT client_identifier_id FROM client_ids),
 					@rlpx_version,
 					execution.upsert_capabilities(@capabilities),
 					@network_id,
 					@fork_id,
 					@next_fork_id,
-					@head_hash,
-					(SELECT client_name_id FROM client_ids),
-					(SELECT client_user_data_id FROM client_ids),
-					(SELECT client_version_id FROM client_ids),
-					(SELECT client_build_id FROM client_ids),
-					@client_os,
-					@client_arch,
-					(SELECT client_language_id FROM client_ids)
+					@head_hash
 				)
 				ON CONFLICT (node_id) DO UPDATE
 				SET
-					updated_at = now(),
 					client_identifier_id = excluded.client_identifier_id,
 					rlpx_version = excluded.rlpx_version,
 					capabilities_id = excluded.capabilities_id,
 					network_id = excluded.network_id,
 					fork_id = excluded.fork_id,
 					next_fork_id = excluded.next_fork_id,
-					head_hash = excluded.head_hash,
-					client_name_id = excluded.client_name_id,
-					client_user_data_id = excluded.client_user_data_id,
-					client_version_id = excluded.client_version_id,
-					client_build_id = excluded.client_build_id,
-					client_os = excluded.client_os,
-					client_arch = excluded.client_arch,
-					client_language_id = excluded.client_language_id
+					head_hash = excluded.head_hash
+				WHERE
+					nodes.client_identifier_id != excluded.client_identifier_id
+					OR nodes.rlpx_version != excluded.rlpx_version
+					OR nodes.capabilities_id != excluded.capabilities_id
+					OR nodes.network_id != excluded.network_id
+					OR nodes.fork_id != excluded.fork_id
+					OR nodes.next_fork_id != excluded.next_fork_id
+					OR nodes.head_hash != excluded.head_hash
 			)
 
 			INSERT INTO crawler.history (

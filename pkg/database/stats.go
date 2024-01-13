@@ -65,11 +65,11 @@ func (db *DB) CopyStats() error {
 
 			SELECT
 				now() timestamp,
-				nodes.client_name_id,
-				nodes.client_user_data_id,
-				nodes.client_version_id,
-				nodes.client_os,
-				nodes.client_arch,
+				client_name_id,
+				client_user_data_id,
+				client_version_id,
+				client_os,
+				client_arch,
 				nodes.network_id,
 				nodes.fork_id,
 				nodes.next_fork_id,
@@ -77,8 +77,8 @@ func (db *DB) CopyStats() error {
 				CASE
 					WHEN blocks.timestamp IS NULL
 						THEN false
-					WHEN nodes.updated_at > blocks.timestamp
-						THEN (nodes.updated_at - blocks.timestamp) < INTERVAL '1 minute'
+					WHEN next_node_crawl.updated_at > blocks.timestamp
+						THEN (next_node_crawl.updated_at - blocks.timestamp) < INTERVAL '1 minute'
 					ELSE false
 				END synced,
 				EXISTS (
@@ -96,19 +96,22 @@ func (db *DB) CopyStats() error {
 				COUNT(*) total
 			FROM execution.nodes
 			LEFT JOIN disc.nodes disc USING (node_id)
+			LEFT JOIN crawler.next_node_crawl USING (node_id)
+			LEFT JOIN crawler.next_disc_crawl USING (node_id)
+			LEFT JOIN client.identifiers USING (client_identifier_id)
 			LEFT JOIN execution.blocks ON (
 				nodes.head_hash = blocks.block_hash
 				AND nodes.network_id = blocks.network_id
 			)
 			LEFT JOIN geoname.cities USING (city_geoname_id)
 			WHERE
-				disc.last_found > (now() - INTERVAL '24 hours')
+				next_disc_crawl.last_found > (now() - INTERVAL '24 hours')
 			GROUP BY
-				nodes.client_name_id,
-				nodes.client_user_data_id,
-				nodes.client_version_id,
-				nodes.client_os,
-				nodes.client_arch,
+				client_name_id,
+				client_user_data_id,
+				client_version_id,
+				client_os,
+				client_arch,
 				nodes.network_id,
 				nodes.fork_id,
 				nodes.next_fork_id,

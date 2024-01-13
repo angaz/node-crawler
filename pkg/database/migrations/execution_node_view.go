@@ -15,10 +15,11 @@ func ExecutionNodeView(ctx context.Context, tx pgx.Tx) error {
 				SELECT
 					-- disc.nodes
 					disc.node_id,
-					node_type,
+					disc.node_type,
 					first_found,
 					last_found,
-					next_crawl,
+					next_disc_crawl.next_crawl next_disc_crawl,
+					next_node_crawl.next_crawl next_node_crawl,
 					node_pubkey,
 					node_record,
 					ip_address,
@@ -88,8 +89,8 @@ func ExecutionNodeView(ctx context.Context, tx pgx.Tx) error {
 					CASE
 						WHEN blocks.timestamp IS NULL
 							THEN FALSE
-						WHEN crawled.updated_at > blocks.timestamp
-							THEN (crawled.updated_at - blocks.timestamp) < INTERVAL '1 minute'
+						WHEN next_node_crawl.updated_at > blocks.timestamp
+							THEN (next_node_crawl.updated_at - blocks.timestamp) < INTERVAL '1 minute'
 						ELSE FALSE
 					END synced,
 					EXISTS (
@@ -106,6 +107,8 @@ func ExecutionNodeView(ctx context.Context, tx pgx.Tx) error {
 					) dial_success
 				FROM disc.nodes disc
 				LEFT JOIN execution.nodes crawled USING (node_id)
+				LEFT JOIN crawler.next_disc_crawl USING (node_id)
+				LEFT JOIN crawler.next_node_crawl USING (node_id)
 				LEFT JOIN client.identifiers USING (client_identifier_id)
 				LEFT JOIN client.names USING (client_name_id)
 				LEFT JOIN client.user_data USING (client_user_data_id)

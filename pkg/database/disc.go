@@ -120,15 +120,15 @@ func (db *DB) UpdateDiscNodeFailed(ctx context.Context, tx pgx.Tx, nodeID enode.
 	_, err = tx.Exec(
 		ctx,
 		`
-			UPDATE disc.nodes
+			UPDATE crawler.next_disc_crawl
 			SET
-				next_disc_crawl = @next_disc_crawl
+				next_crawl = @next_crawl
 			WHERE
 				node_id = @node_id
 		`,
 		pgx.NamedArgs{
-			"node_id":         nodeID.Bytes(),
-			"next_disc_crawl": time.Now().Add(36 * time.Hour).Add(randomHourSeconds()),
+			"node_id":    nodeID.Bytes(),
+			"next_crawl": time.Now().Add(36 * time.Hour).Add(randomHourSeconds()),
 		},
 	)
 	if err != nil {
@@ -168,49 +168,68 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 	_, err = tx.Exec(
 		ctx,
 		`
-			INSERT INTO disc.nodes (
+			WITH disc_node AS (
+				INSERT INTO disc.nodes (
+					node_id,
+					node_type,
+					first_found,
+					node_pubkey,
+					node_record,
+					ip_address,
+					city_geoname_id
+				) VALUES (
+					@node_id,
+					@node_type,
+					now(),
+					@node_pubkey,
+					@node_record,
+					@ip_address,
+					@city_geoname_id
+				)
+				ON CONFLICT (node_id) DO UPDATE
+				SET
+					node_type = excluded.node_type,
+					node_record = excluded.node_record,
+					ip_address = excluded.ip_address,
+					city_geoname_id = excluded.city_geoname_id
+				WHERE
+					nodes.node_record != excluded.node_record
+			), next_disc_node AS (
+				INSERT INTO crawler.next_disc_crawl (
+					node_id,
+					last_found,
+					next_crawl
+				) VALUES (
+					@node_id,
+					now(),
+					now()
+				) ON CONFLICT (node_id) DO UPDATE
+				SET
+					last_found = now(),
+					next_crawl = @next_crawl
+			)
+
+			INSERT INTO crawler.next_node_crawl (
 				node_id,
-				node_type,
-				first_found,
-				last_found,
+				updated_at,
 				next_crawl,
-				next_disc_crawl,
-				node_pubkey,
-				node_record,
-				ip_address,
-				city_geoname_id
+				node_type
 			) VALUES (
 				@node_id,
-				@node_type,
+				NULL,
 				now(),
-				now(),
-				now(),
-				now(),
-				@node_pubkey,
-				@node_record,
-				@ip_address,
-				@city_geoname_id
-			)
-			ON CONFLICT (node_id) DO UPDATE
-			SET
-				node_type = excluded.node_type,
-				last_found = now(),
-				next_disc_crawl = @next_disc_crawl,
-				node_record = excluded.node_record,
-				ip_address = excluded.ip_address,
-				city_geoname_id = excluded.city_geoname_id
-			-- WHERE
-			-- 	nodes.last_found < (now() - INTERVAL '3 hours')  -- Only update once every 3 hours
-			-- 	OR nodes.node_record != excluded.node_record
+				@node_type
+			) ON CONFLICT (node_id) DO NOTHING
+
 		`,
 		pgx.NamedArgs{
 			"node_id":         node.ID().Bytes(),
 			"node_type":       common.ENRNodeType(node.Record()),
-			"next_disc_crawl": time.Now().Add(12 * time.Hour).Add(randomHourSeconds()),
 			"node_pubkey":     common.PubkeyBytes(node.Pubkey()),
 			"node_record":     common.EncodeENR(bestRecord),
 			"ip_address":      ip.String(),
 			"city_geoname_id": location.cityGeoNameID,
+			"next_crawl":      time.Now().Add(12 * time.Hour).Add(randomHourSeconds()),
 		},
 	)
 	if err != nil {
@@ -266,9 +285,10 @@ func (db *DB) fetchNodesToCrawl(ctx context.Context) error {
 			SELECT
 				next_crawl,
 				node_record
-			FROM disc.nodes
+			FROM crawler.next_node_crawl
+			LEFT JOIN disc.nodes USING (node_id)
 			WHERE
-				node_type IN ('Unknown', 'Execution')
+				nodes.node_type IN ('Unknown', 'Execution')
 			ORDER BY next_crawl
 			LIMIT 1024
 		`,
@@ -295,10 +315,11 @@ func (db *DB) fetchDiscNodesToCrawl(ctx context.Context) error {
 		ctx,
 		`
 			SELECT
-				next_disc_crawl,
+				next_crawl,
 				node_record
-			FROM disc.nodes
-			ORDER BY next_disc_crawl
+			FROM crawler.next_disc_crawl
+			LEFT JOIN disc.nodes USING (node_id)
+			ORDER BY next_crawl
 			LIMIT 1024
 		`,
 	)

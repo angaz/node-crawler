@@ -65,7 +65,7 @@ func (db *DB) GetNodeTable(ctx context.Context, nodeID string) (*NodeTable, erro
 				city_name,
 				latitude,
 				longitude,
-				next_crawl,
+				next_node_crawl,
 				dial_success
 			FROM execution.node_view
 			WHERE node_id = $1

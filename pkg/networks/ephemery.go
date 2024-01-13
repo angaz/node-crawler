@@ -53,7 +53,7 @@ func getEphemeryReleases(githubToken string, lastRelease time.Time) ([]*github.R
 		}
 
 		// reached the end
-		if added < pageSize {
+		if added < pageSize || resp.NextPage == 0 {
 			return allReleases, nil
 		}
 

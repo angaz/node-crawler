@@ -102,15 +102,15 @@ func (db *DB) tableStats(ctx context.Context) {
 		`
 			SELECT
 				(
-					SELECT COUNT(*) FROM disc.nodes
+					SELECT COUNT(*) FROM crawler.next_node_crawl
 					WHERE
 						next_crawl < now()
 						AND node_type IN ('Unknown', 'Execution')
 				),
 				(
-					SELECT COUNT(*) FROM disc.nodes
+					SELECT COUNT(*) FROM crawler.next_disc_crawl
 					WHERE
-						next_disc_crawl < now()
+						next_crawl < now()
 				)
 		`,
 	)
@@ -174,7 +174,7 @@ func (db *DB) lastFoundStats(ctx context.Context) {
 				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '5 days'),
 				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '6 days'),
 				COUNT(*) FILTER (WHERE last_found > now() - INTERVAL '7 days')
-			FROM disc.nodes
+			FROM crawler.next_disc_crawl
 			WHERE last_found > now() - INTERVAL '7 days';
 		`,
 	)
