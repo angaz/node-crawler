@@ -499,16 +499,19 @@
                 enable = true;
                 enableJIT = true;
                 package = pkgs.postgresql_16;
-                extraPlugins = psql: with psql; [ timescaledb ];
+                extraPlugins = psql: with psql; [
+                  pg_repack
+                  timescaledb
+                ];
                 settings = {
                   max_connections = (cfg.crawler.maxPoolConns + cfg.api.maxPoolConns) * 1.15;
                   shared_preload_libraries = concatStringsSep "," [
+                    "pg_repack"
                     "pg_stat_statements"
                     "timescaledb"
                   ];
 
                   # Performance tuning.
-                  checkpoint_segments = 64;
                   checkpoint_timeout = "30min";
                   effective_io_concurrency = 200;
                   max_wal_size = "16GB";
@@ -526,11 +529,6 @@
                     };
                   }
                 ];
-              };
-              postgresqlBackup = mkIf cfg.postgresql.enable {
-                enable = true;
-                startAt = "*-*-* 00:00:00";
-                databases = [ "nodecrawler" ];
               };
             };
           };
