@@ -53,7 +53,9 @@ func (db *DB) blocksCleaner(ctx context.Context) {
 	}
 }
 
-// Delete history of the accepted connections older than 14 days.
+// Delete history of the accepted connections older than 14 days, or when there
+// is a greater than 15 accepted connection rows. Some nodes make many requests
+// per second. They will fill up the database pretty quickly otherwise.
 // There is a large volume of accepted connections, so this will fill up the
 // database significantly.
 func (db *DB) historyCleaner(ctx context.Context) {
@@ -63,9 +65,24 @@ func (db *DB) historyCleaner(ctx context.Context) {
 
 	_, err = db.pg.Exec(ctx, `
 		DELETE FROM crawler.history
-		WHERE
-			crawled_at < (now() - INTERVAL '14 days')
-			AND direction = 'accept'
+		WHERE (tableoid, ctid) IN (
+			SELECT
+				tableoid,
+				ctid
+			FROM (
+				SELECT
+					tableoid,
+					ctid,
+					crawled_at,
+					ROW_NUMBER() OVER (PARTITION BY node_id, direction ORDER BY crawled_at) row_number
+				FROM crawler.history
+				WHERE
+					direction = 'accept'
+			)
+			WHERE
+				row_number > 15
+				OR crawled_at < (now() - INTERVAL '14 days')
+		)
 	`)
 	if err != nil {
 		slog.Error("history cleaner failed", "err", err)
