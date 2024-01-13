@@ -191,6 +191,13 @@ func (a *API) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "" && r.URL.Path != "/" {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = fmt.Fprint(w, "1) What\n2) 404 Not Found\n")
+
+		return
+	}
+
 	params := parseStatsParams(w, r)
 	if params == nil {
 		return
