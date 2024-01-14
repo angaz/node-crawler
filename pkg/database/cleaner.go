@@ -69,19 +69,10 @@ func (db *DB) historyCleaner(ctx context.Context) {
 			SELECT
 				tableoid,
 				ctid
-			FROM (
-				SELECT
-					tableoid,
-					ctid,
-					crawled_at,
-					ROW_NUMBER() OVER (PARTITION BY node_id, direction ORDER BY crawled_at) row_number
-				FROM crawler.history
-				WHERE
-					direction = 'accept'
-			)
+			FROM crawler.history
 			WHERE
-				row_number > 15
-				OR crawled_at < (now() - INTERVAL '14 days')
+				direction = 'accept'
+			LIMIT 100_000
 		)
 	`)
 	if err != nil {
