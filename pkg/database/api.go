@@ -673,6 +673,13 @@ func statsGraph(
 }
 
 var statsTempl = template.Must(template.New("stats_temp_table").Parse(`
+	WITH forks AS (
+		SELECT
+			fork_id
+		FROM network.forks
+		WHERE network_id = @network_id
+	)
+
 	SELECT
 		{{ if not .Instant }}
 		time_bucket_gapfill(
@@ -701,24 +708,16 @@ var statsTempl = template.Must(template.New("stats_temp_table").Parse(`
 		AND nodes.next_fork_id = next_fork.block_time
 	)
 	WHERE
-		-- If we are filtering by a network ID, and we have the network
-		-- in the forks table, the fork ID should exist. If we don't
-		-- have the network, keep the record.
+		-- If we have the network in the forks table, the fork ID should exist.
+		-- If we don't have the network, keep the record.
 		CASE
-			WHEN @network_id = -1 THEN
-				TRUE
-			WHEN EXISTS (
-				SELECT 1
-				FROM network.forks
-				WHERE forks.network_id = nodes.network_id
-			) THEN
+			WHEN EXISTS (SELECT 1 FROM forks) THEN
 				EXISTS (
 					SELECT 1
-					FROM network.forks
+					FROM forks
 					WHERE
-						forks.network_id = nodes.network_id
-						AND forks.fork_id = nodes.fork_id
-					)
+						fork_id = nodes.fork_id
+				)
 			ELSE
 				TRUE
 		END
@@ -728,10 +727,7 @@ var statsTempl = template.Must(template.New("stats_temp_table").Parse(`
 		AND bucket >= @after::TIMESTAMPTZ
 		AND bucket < @before::TIMESTAMPTZ
 		{{ end }}
-		AND (
-			@network_id = -1
-			OR nodes.network_id = @network_id
-		)
+		AND nodes.network_id = @network_id
 		AND (
 			@synced = -1
 			OR synced = (@synced = 1)

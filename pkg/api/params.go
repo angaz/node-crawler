@@ -208,5 +208,12 @@ func parseNetworkID(w http.ResponseWriter, networkIDStr string) (int64, bool) {
 		return 0, false
 	}
 
+	if networkID < 1 {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprint(w, "network id must be > 0\n")
+
+		return 0, false
+	}
+
 	return networkID, true
 }
