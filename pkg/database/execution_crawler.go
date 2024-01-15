@@ -121,19 +121,14 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 					@direction = 'dial'::crawler.direction
 			)
 
-			INSERT INTO crawler.history (
-				node_id,
-				crawled_at,
-				direction,
-				error
-			)
-			VALUES (
-				@node_id,
-				now(),
-				@direction,
-				@error
-			)
-			ON CONFLICT (node_id, crawled_at) DO NOTHING;
+			INSERT INTO crawler.history
+				SELECT
+					@node_id node_id,
+					now() crawled_at,
+					@direction direction,
+					@error error
+				WHERE @direction = 'dial'
+			ON CONFLICT (node_id, crawled_at) DO NOTHING
 		`,
 		pgx.NamedArgs{
 			"node_id":         node.ID(),
@@ -380,17 +375,13 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 					OR nodes.head_hash != excluded.head_hash
 			)
 
-			INSERT INTO crawler.history (
-				node_id,
-				crawled_at,
-				direction,
-				error
-			) VALUES (
-				@node_id,
-				now(),
-				@direction,
-				NULL
-			)
+			INSERT INTO crawler.history
+				SELECT
+					@node_id node_id,
+					now() crawled_at,
+					@direction direction,
+					NULL error
+				WHERE @direction = 'dial'
 			ON CONFLICT (node_id, crawled_at) DO NOTHING
 		`,
 		pgx.NamedArgs{
