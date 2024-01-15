@@ -288,7 +288,7 @@ func (db *DB) fetchNodesToCrawl(ctx context.Context) error {
 			FROM crawler.next_node_crawl
 			LEFT JOIN disc.nodes USING (node_id)
 			WHERE
-				nodes.node_type IN ('Unknown', 'Execution')
+				next_node_crawl.node_type IN ('Unknown', 'Execution')
 			ORDER BY next_crawl
 			LIMIT 1024
 		`,

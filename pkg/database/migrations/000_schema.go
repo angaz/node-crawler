@@ -261,8 +261,9 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				node_type	client.node_type	NOT NULL
 			);
 
-			CREATE INDEX next_node_crawl_next_crawl_node_type_node_id
-				ON crawler.next_node_crawl (next_crawl, node_type, node_id);
+			CREATE INDEX next_node_crawl_execution_nodes_to_crawl
+				ON crawler.next_node_crawl (next_crawl, node_id)
+				WHERE node_type IN ('Unknown', 'Execution');
 
 			CREATE TABLE execution.capabilities (
 				capabilities_id	INTEGER	PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
@@ -308,6 +309,15 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 
 			CREATE INDEX crawler_history_crawled_at
 				ON crawler.history (crawled_at);
+
+			CREATE INDEX crawler_history_dial_success
+				ON crawler.history (node_id, crawled_at)
+				WHERE
+					direction = 'dial'
+					AND (
+						error IS NULL
+						OR error < 'DISCONNECT_REASONS'
+					);
 		`,
 	)
 	if err != nil {
