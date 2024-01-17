@@ -378,6 +378,7 @@
               node-crawler-crawler = mkIf cfg.crawler.enable {
                 description = "Node Cralwer, the Ethereum Node Crawler.";
                 wantedBy = [ "multi-user.target" ];
+                requires = [ "postgresql.service" ];
                 after = [ "network.target" ];
 
                 serviceConfig = {
@@ -413,6 +414,7 @@
               node-crawler-api = mkIf cfg.api.enable {
                 description = "Node Cralwer API, the API for the Ethereum Node Crawler.";
                 wantedBy = [ "multi-user.target" ];
+                requires = [ "postgresql.service" ];
                 after = [ "network.target" ]
                   ++ optional cfg.crawler.enable "node-crawler-crawler.service";
 
