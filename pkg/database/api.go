@@ -673,11 +673,29 @@ func statsGraph(
 }
 
 var statsTempl = template.Must(template.New("stats_temp_table").Parse(`
-	WITH forks AS (
+	WITH RECURSIVE forks AS (
 		SELECT
 			fork_id
 		FROM network.forks
 		WHERE network_id = @network_id
+	), supported_forks(fork_id, block_time) AS (
+		SELECT
+			fork_id,
+			block_time
+		FROM network.forks
+		WHERE
+			network_id = @network_id
+			AND LOWER(fork_name) = LOWER(@supports_fork_name)
+
+		UNION ALL
+
+		SELECT
+			forks.fork_id,
+			forks.block_time
+		FROM network.forks, supported_forks
+		WHERE
+			forks.network_id = @network_id
+			AND forks.previous_fork_id = supported_forks.fork_id
 	)
 
 	SELECT
@@ -703,10 +721,6 @@ var statsTempl = template.Must(template.New("stats_temp_table").Parse(`
 	INTO TEMPORARY TABLE {{ .TempTableName }}
 	FROM {{ .FromTableName }} nodes
 	LEFT JOIN client.names USING (client_name_id)
-	LEFT JOIN network.forks next_fork ON (
-		nodes.network_id = next_fork.network_id
-		AND nodes.next_fork_id = next_fork.block_time
-	)
 	WHERE
 		-- If we have the network in the forks table, the fork ID should exist.
 		-- If we don't have the network, keep the record.
@@ -737,8 +751,14 @@ var statsTempl = template.Must(template.New("stats_temp_table").Parse(`
 			OR names.client_name = @client_name
 		)
 		AND (
-			@next_fork_name = ''
-			OR LOWER(next_fork.fork_name) = LOWER(@next_fork_name)
+			@supports_fork_name = ''
+			OR EXISTS (
+				SELECT 1
+				FROM supported_forks
+				WHERE
+					supported_forks.fork_id = nodes.fork_id
+					OR supported_forks.block_time = nodes.next_fork_id
+			)
 		)
 	GROUP BY
 		{{ if not .Instant }}1,  -- bucket{{ end }}
@@ -835,7 +855,7 @@ func (db *DB) GetStatsAPI(
 	networkID int64,
 	synced int,
 	nextFork int,
-	nextForkName string,
+	supportsForkName string,
 	clientName string,
 ) (*StatsAPIResponse, error) {
 	var err error
@@ -928,7 +948,7 @@ func (db *DB) GetStatsAPI(
 			"network_id":     networkID,
 			"synced":         synced,
 			"client_name":    clientName,
-			"next_fork_name": nextForkName,
+			"next_fork_name": supportsForkName,
 		},
 	)
 	if err != nil {
@@ -977,7 +997,7 @@ func (db *DB) GetStats(
 	networkID int64,
 	synced int,
 	nextFork int,
-	nextForkName string,
+	supportsForkName string,
 	clientName string,
 	graphInterval time.Duration,
 ) (*StatsResult, error) {
@@ -994,13 +1014,13 @@ func (db *DB) GetStats(
 
 	intervalHours := int(graphInterval.Hours())
 	statsTempParams := pgx.NamedArgs{
-		"interval":       intervalHours,
-		"after":          after.Format(time.RFC3339),
-		"before":         before.Format(time.RFC3339),
-		"network_id":     networkID,
-		"synced":         synced,
-		"client_name":    clientName,
-		"next_fork_name": nextForkName,
+		"interval":           intervalHours,
+		"after":              after.Format(time.RFC3339),
+		"before":             before.Format(time.RFC3339),
+		"network_id":         networkID,
+		"synced":             synced,
+		"client_name":        clientName,
+		"supports_fork_name": supportsForkName,
 	}
 
 	_, err = tx.Exec(

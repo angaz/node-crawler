@@ -16,13 +16,13 @@ import (
 )
 
 type statsParams struct {
-	clientName    string
-	networkID     int64
-	nextFork      int
-	nextForkName  string
-	synced        int
-	graphInterval time.Duration
-	graphFormat   string
+	clientName       string
+	networkID        int64
+	nextFork         int
+	supportsForkName string
+	synced           int
+	graphInterval    time.Duration
+	graphFormat      string
 }
 
 func (p statsParams) cacheKey() string {
@@ -32,7 +32,7 @@ func (p statsParams) cacheKey() string {
 		p.networkID,
 		p.synced,
 		p.nextFork,
-		p.nextForkName,
+		p.supportsForkName,
 		int(p.graphInterval.Seconds()),
 		p.graphFormat,
 	)
@@ -41,7 +41,7 @@ func (p statsParams) cacheKey() string {
 func parseStatsParams(w http.ResponseWriter, r *http.Request) *statsParams {
 	query := r.URL.Query()
 	clientName := query.Get("client-name")
-	nextForkName := query.Get("next-fork-name")
+	supportsForkName := query.Get("supports-fork-name")
 
 	networkID, ok := parseNetworkID(w, query.Get("network"))
 	if !ok {
@@ -68,21 +68,21 @@ func parseStatsParams(w http.ResponseWriter, r *http.Request) *statsParams {
 		return nil
 	}
 
-	if nextForkName != "" && nextFork != -1 {
+	if supportsForkName != "" && nextFork != -1 {
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = fmt.Fprint(w, "next-fork and next-fork-name are mutually exclusive. Only one can be set.")
+		_, _ = fmt.Fprint(w, "next-fork and supports-fork-name are mutually exclusive. Only one can be set.")
 
 		return nil
 	}
 
 	return &statsParams{
-		clientName:    clientName,
-		networkID:     networkID,
-		nextFork:      nextFork,
-		nextForkName:  nextForkName,
-		synced:        synced,
-		graphInterval: graphInterval,
-		graphFormat:   graphFormat,
+		clientName:       clientName,
+		networkID:        networkID,
+		nextFork:         nextFork,
+		supportsForkName: supportsForkName,
+		synced:           synced,
+		graphInterval:    graphInterval,
+		graphFormat:      graphFormat,
 	}
 }
 
@@ -99,7 +99,7 @@ func (a *API) getFilterStats(
 		params.networkID,
 		params.synced,
 		params.nextFork,
-		params.nextForkName,
+		params.supportsForkName,
 		params.clientName,
 		params.graphInterval,
 	)
@@ -163,7 +163,7 @@ func (a *API) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 		params.networkID,
 		params.synced,
 		params.nextFork,
-		params.nextForkName,
+		params.supportsForkName,
 		params.clientName,
 	)
 	if err != nil {
@@ -359,7 +359,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		params.networkID,
 		params.synced,
 		params.nextFork,
-		params.nextForkName,
+		params.supportsForkName,
 		params.clientName,
 		graphs,
 		instant,
