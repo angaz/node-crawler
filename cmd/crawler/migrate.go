@@ -23,20 +23,16 @@ var (
 )
 
 func migrateAction(cCtx *cli.Context) error {
-	geoipDB, err := openGeoIP(cCtx)
-	if err != nil {
-		return fmt.Errorf("open geoip2 failed: %w", err)
-	}
-
-	if geoipDB != nil {
-		defer geoipDB.Close()
-	}
-
-	db, err := openDBWriter(cCtx, geoipDB)
+	db, err := openDBWriter(cCtx)
 	if err != nil {
 		return fmt.Errorf("open db failed: %w", err)
 	}
 	defer db.Close()
+
+	err = db.Migrate(geoipdbFlag.Get(cCtx))
+	if err != nil {
+		return fmt.Errorf("database migration failed: %w", err)
+	}
 
 	return nil
 }

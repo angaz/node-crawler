@@ -28,13 +28,13 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 			CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 			CREATE SCHEMA client;
+			CREATE SCHEMA consensus;
 			CREATE SCHEMA crawler;
-			CREATE SCHEMA network;
-			CREATE SCHEMA stats;
-			CREATE SCHEMA geoname;
 			CREATE SCHEMA disc;
 			CREATE SCHEMA execution;
-			CREATE SCHEMA consensus;
+			CREATE SCHEMA geoname;
+			CREATE SCHEMA network;
+			CREATE SCHEMA stats;
 
 			CREATE TYPE crawler.direction AS ENUM (
 				'dial',

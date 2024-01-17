@@ -17,13 +17,11 @@ import (
 	"github.com/ethereum/node-crawler/pkg/metrics"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/oschwald/geoip2-golang"
 )
 
 type DB struct {
-	db      *sql.DB
-	pg      *pgxpool.Pool
-	geoipDB *geoip2.Reader
+	db *sql.DB
+	pg *pgxpool.Pool
 
 	nextCrawlSucces time.Duration
 	nextCrawlFail   time.Duration
@@ -42,14 +40,13 @@ type DB struct {
 }
 
 func NewAPIDB(ctx context.Context, db *sql.DB, pgConnString string) (*DB, error) {
-	return NewDB(ctx, db, pgConnString, nil, 0, 0, 0, "")
+	return NewDB(ctx, db, pgConnString, 0, 0, 0, "")
 }
 
 func NewDB(
 	ctx context.Context,
 	db *sql.DB,
 	pgConnString string,
-	geoipDB *geoip2.Reader,
 	nextCrawlSucces time.Duration,
 	nextCrawlFail time.Duration,
 	nextCrawlNotEth time.Duration,
@@ -61,9 +58,8 @@ func NewDB(
 	}
 
 	return &DB{
-		db:      db,
-		pg:      pg,
-		geoipDB: geoipDB,
+		db: db,
+		pg: pg,
 
 		nextCrawlSucces: nextCrawlSucces,
 		nextCrawlFail:   nextCrawlFail,

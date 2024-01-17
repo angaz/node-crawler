@@ -30,54 +30,6 @@ type rowQuerier interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-func (_ *DB) upsertCountryCity(ctx context.Context, db execer, location location) error {
-	_, err := db.Exec(
-		ctx,
-		`
-			WITH country AS (
-				INSERT INTO geoname.countries (
-					country_geoname_id,
-					country_name
-				)
-				VALUES (
-					@country_geoname_id,
-					@country_name
-				)
-				ON CONFLICT (country_geoname_id) DO NOTHING
-			)
-
-			INSERT INTO geoname.cities (
-				city_geoname_id,
-				city_name,
-				country_geoname_id,
-				latitude,
-				longitude
-			)
-			VALUES (
-				@city_geoname_id,
-				@city_name,
-				@country_geoname_id,
-				@latitude,
-				@longitude
-			)
-			ON CONFLICT (city_geoname_id) DO NOTHING
-		`,
-		pgx.NamedArgs{
-			"country_geoname_id": location.countryGeoNameID,
-			"country_name":       location.country,
-			"city_geoname_id":    location.cityGeoNameID,
-			"city_name":          location.city,
-			"latitude":           location.latitude,
-			"longitude":          location.longitude,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("exec: %w", err)
-	}
-
-	return nil
-}
-
 func (_ *DB) selectBestRecord(ctx context.Context, db rowQuerier, node *enode.Node) (*enr.Record, error) {
 	var savedRecordBytes []byte
 	var savedRecord *enr.Record
@@ -148,18 +100,6 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 	start := time.Now()
 	defer metrics.ObserveDBQuery("disc_upsert_node", start, err)
 
-	ip := node.IP()
-
-	location, err := db.IPToLocation(ip)
-	if err != nil {
-		return fmt.Errorf("ip to location: %w", err)
-	}
-
-	err = db.upsertCountryCity(ctx, tx, location)
-	if err != nil {
-		return fmt.Errorf("upsert country city: %w", err)
-	}
-
 	bestRecord, err := db.selectBestRecord(ctx, tx, node)
 	if err != nil {
 		return fmt.Errorf("select best record: %w", err)
@@ -175,23 +115,20 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 					first_found,
 					node_pubkey,
 					node_record,
-					ip_address,
-					city_geoname_id
+					ip_address
 				) VALUES (
 					@node_id,
 					@node_type,
 					now(),
 					@node_pubkey,
 					@node_record,
-					@ip_address,
-					@city_geoname_id
+					@ip_address
 				)
 				ON CONFLICT (node_id) DO UPDATE
 				SET
 					node_type = excluded.node_type,
 					node_record = excluded.node_record,
-					ip_address = excluded.ip_address,
-					city_geoname_id = excluded.city_geoname_id
+					ip_address = excluded.ip_address
 				WHERE
 					nodes.node_record != excluded.node_record
 			), next_disc_node AS (
@@ -223,13 +160,12 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 
 		`,
 		pgx.NamedArgs{
-			"node_id":         node.ID().Bytes(),
-			"node_type":       common.ENRNodeType(node.Record()),
-			"node_pubkey":     common.PubkeyBytes(node.Pubkey()),
-			"node_record":     common.EncodeENR(bestRecord),
-			"ip_address":      ip.String(),
-			"city_geoname_id": location.cityGeoNameID,
-			"next_crawl":      time.Now().Add(12 * time.Hour).Add(randomHourSeconds()),
+			"node_id":     node.ID().Bytes(),
+			"node_type":   common.ENRNodeType(node.Record()),
+			"node_pubkey": common.PubkeyBytes(node.Pubkey()),
+			"node_record": common.EncodeENR(bestRecord),
+			"ip_address":  node.IP().String(),
+			"next_crawl":  time.Now().Add(12 * time.Hour).Add(randomHourSeconds()),
 		},
 	)
 	if err != nil {

@@ -24,7 +24,7 @@ func migrateCommand(sql string) migrationFn {
 	}
 }
 
-func (db *DB) Migrate() error {
+func (db *DB) Migrate(geoipdb string) error {
 	return db.migrate(
 		context.Background(),
 		[]migrationFn{
@@ -34,9 +34,11 @@ func (db *DB) Migrate() error {
 					return nil
 				}
 
-				return migrations.Migrate001SqliteToPG(ctx, tx, db.db, db.geoipDB)
+				// TODO: Fix the geoipdb usage here.
+				return migrations.Migrate001SqliteToPG(ctx, tx, db.db, nil)
 			},
 			migrations.Migrate002StatsViews,
+			migrations.Migrate003GeoIP,
 		},
 		map[string]migrationFn{
 			"insert networks": func(ctx context.Context, tx pgx.Tx) error {
@@ -44,7 +46,10 @@ func (db *DB) Migrate() error {
 			},
 			"function client.upsert":                 migrations.ClientUpsertStrings,
 			"function execution.capabilities_upsert": migrations.ExecutionCapabilitiesUpsert,
-			"execution.node_view":                    migrations.ExecutionNodeView,
+			"geoip": func(ctx context.Context, tx pgx.Tx) error {
+				return migrations.UpdateGeoIPData(ctx, tx, geoipdb)
+			},
+			"execution.node_view": migrations.ExecutionNodeView,
 		},
 	)
 }

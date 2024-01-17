@@ -116,6 +116,9 @@ func ExecutionNodeView(ctx context.Context, tx pgx.Tx) error {
 				LEFT JOIN client.builds USING (client_build_id)
 				LEFT JOIN client.languages USING (client_language_id)
 				LEFT JOIN execution.capabilities USING (capabilities_id)
+				LEFT JOIN geoip.networks ON (
+					disc.ip_address << geoip.networks.network
+				)
 				LEFT JOIN geoname.cities USING (city_geoname_id)
 				LEFT JOIN geoname.countries USING (country_geoname_id)
 				LEFT JOIN execution.blocks ON (

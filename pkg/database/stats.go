@@ -103,6 +103,9 @@ func (db *DB) CopyStats() error {
 				nodes.head_hash = blocks.block_hash
 				AND nodes.network_id = blocks.network_id
 			)
+			LEFT JOIN geoip.networks ON (
+				ip_address << networks.network
+			)
 			LEFT JOIN geoname.cities USING (city_geoname_id)
 			WHERE
 				next_disc_crawl.last_found > (now() - INTERVAL '24 hours')

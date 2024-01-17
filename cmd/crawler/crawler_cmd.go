@@ -39,7 +39,7 @@ var (
 	crawlerCommand = &cli.Command{
 		Name:   "crawl",
 		Usage:  "Crawl the ethereum network",
-		Action: crawlNodesV2,
+		Action: crawlerAction,
 		Flags: []cli.Flag{
 			&autovacuumFlag,
 			&bootnodesFlag,
@@ -82,27 +82,24 @@ func openGeoIP(cCtx *cli.Context) (*geoip2.Reader, error) {
 	return geoipDB, nil
 }
 
-func crawlNodesV2(cCtx *cli.Context) error {
-	geoipDB, err := openGeoIP(cCtx)
-	if err != nil {
-		return fmt.Errorf("open geoip2 failed: %w", err)
-	}
-
-	if geoipDB != nil {
-		defer geoipDB.Close()
-	}
-
-	db, err := openDBWriter(cCtx, geoipDB)
+func crawlerAction(cCtx *cli.Context) error {
+	db, err := openDBWriter(cCtx)
 	if err != nil {
 		return fmt.Errorf("open db failed: %w", err)
 	}
 	defer db.Close()
 
-	go db.TableStatsMetricsDaemon(cCtx.Context, 5*time.Minute)
+	err = db.Migrate(geoipdbFlag.Get(cCtx))
+	if err != nil {
+		return fmt.Errorf("database migration failed: %w", err)
+	}
+
+	go db.UpdateGeoIPDaemon(cCtx.Context, time.Hour, geoipdbFlag.Get(cCtx))
 	go db.CleanerDaemon(cCtx.Context, 3*time.Hour)
 	go db.CopyStatsDaemon(statsCopyFrequencyFlag.Get(cCtx))
 	go db.EphemeryInsertDaemon(cCtx.Context, time.Hour)
 	go db.MissingBlocksDaemon(cCtx.Context, 5*time.Minute)
+	go db.TableStatsMetricsDaemon(cCtx.Context, 5*time.Minute)
 
 	nodeKeys, err := readNodeKeys(cCtx)
 	if err != nil {

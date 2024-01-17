@@ -463,7 +463,7 @@ type StatsSeriesInstant struct {
 }
 
 func (i StatsSeriesInstant) Key() string {
-	if i.key == nil {
+	if i.key == nil || *i.key == "" {
 		return common.Unknown
 	}
 

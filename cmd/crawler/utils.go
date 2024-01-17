@@ -12,7 +12,6 @@ import (
 	"github.com/angaz/sqlu"
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
-	"github.com/oschwald/geoip2-golang"
 	"github.com/urfave/cli/v2"
 )
 
@@ -76,7 +75,7 @@ func openSQLiteDB(cCtx *cli.Context, mode sqlu.Param) (*sql.DB, error) {
 	return db, nil
 }
 
-func openDBWriter(cCtx *cli.Context, geoipDB *geoip2.Reader) (*database.DB, error) {
+func openDBWriter(cCtx *cli.Context) (*database.DB, error) {
 	sqlite, err := openSQLiteDB(cCtx, sqlu.ParamModeRO)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
@@ -91,7 +90,6 @@ func openDBWriter(cCtx *cli.Context, geoipDB *geoip2.Reader) (*database.DB, erro
 		cCtx.Context,
 		sqlite,
 		postgresFlag.Get(cCtx),
-		geoipDB,
 		nextCrawlSuccessFlag.Get(cCtx),
 		nextCrawlFailFlag.Get(cCtx),
 		nextCrawlNotEthFlag.Get(cCtx),
@@ -99,11 +97,6 @@ func openDBWriter(cCtx *cli.Context, geoipDB *geoip2.Reader) (*database.DB, erro
 	)
 	if err != nil {
 		return nil, fmt.Errorf("connect to postgres failed: %w", err)
-	}
-
-	err = db.Migrate()
-	if err != nil {
-		return nil, fmt.Errorf("database migration failed: %w", err)
 	}
 
 	return db, nil

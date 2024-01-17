@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"net"
 	"sync"
 	"time"
 
@@ -17,36 +16,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type location struct {
-	country          string
-	countryGeoNameID uint
-	city             string
-	cityGeoNameID    uint
-	latitude         float64
-	longitude        float64
-}
-
-func (db *DB) IPToLocation(ip net.IP) (location, error) {
-	if db.geoipDB == nil {
-		//nolint:exhaustruct
-		return location{}, nil
-	}
-
-	ipRecord, err := db.geoipDB.City(ip)
-	if err != nil {
-		return location{}, fmt.Errorf("getting geoip failed: %w", err)
-	}
-
-	return location{
-		country:          ipRecord.Country.Names["en"],
-		countryGeoNameID: ipRecord.Country.GeoNameID,
-		city:             ipRecord.City.Names["en"],
-		cityGeoNameID:    ipRecord.City.GeoNameID,
-		latitude:         ipRecord.Location.Latitude,
-		longitude:        ipRecord.Location.Longitude,
-	}, nil
-}
-
 func randomHourSeconds() time.Duration {
 	return time.Duration(rand.Int63n(3600)) * time.Second
 }
@@ -56,18 +25,6 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 
 	start := time.Now()
 	defer metrics.ObserveDBQuery("update_crawled_node_fail", start, err)
-
-	ip := node.N.IP()
-
-	location, err := db.IPToLocation(ip)
-	if err != nil {
-		return fmt.Errorf("ip to location: %w", err)
-	}
-
-	err = db.upsertCountryCity(ctx, tx, location)
-	if err != nil {
-		return fmt.Errorf("upsert country city: %w", err)
-	}
 
 	_, err = tx.Exec(
 		ctx,
@@ -79,8 +36,7 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 					first_found,
 					node_pubkey,
 					node_record,
-					ip_address,
-					city_geoname_id
+					ip_address
 				)
 				VALUES (
 					@node_id,
@@ -88,8 +44,7 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 					now(),
 					@node_pubkey,
 					@node_record,
-					@ip_address,
-					@city_geoname_id
+					@ip_address
 				)
 				ON CONFLICT (node_id) DO NOTHING
 			), next_disc_crawl AS (
@@ -131,15 +86,14 @@ func (db *DB) UpdateCrawledNodeFail(ctx context.Context, tx pgx.Tx, node common.
 			ON CONFLICT (node_id, crawled_at) DO NOTHING
 		`,
 		pgx.NamedArgs{
-			"node_id":         node.ID(),
-			"node_pubkey":     common.PubkeyBytes(node.N.Pubkey()),
-			"node_type":       common.ENRNodeType(node.N.Record()).String(),
-			"node_record":     common.EncodeENR(node.N.Record()),
-			"ip_address":      ip.String(),
-			"direction":       node.Direction.String(),
-			"error":           node.Error,
-			"next_crawl":      time.Now().Add(db.nextCrawlFail + randomHourSeconds()),
-			"city_geoname_id": location.cityGeoNameID,
+			"node_id":     node.ID(),
+			"node_pubkey": common.PubkeyBytes(node.N.Pubkey()),
+			"node_type":   common.ENRNodeType(node.N.Record()).String(),
+			"node_record": common.EncodeENR(node.N.Record()),
+			"ip_address":  node.N.IP().String(),
+			"direction":   node.Direction.String(),
+			"error":       node.Error,
+			"next_crawl":  time.Now().Add(db.nextCrawlFail + randomHourSeconds()),
 		},
 	)
 	if err != nil {
@@ -154,18 +108,6 @@ func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJ
 
 	defer metrics.ObserveDBQuery("update_crawled_node_not_eth", time.Now(), err)
 
-	ip := node.N.IP()
-
-	location, err := db.IPToLocation(ip)
-	if err != nil {
-		return fmt.Errorf("ip to location: %w", err)
-	}
-
-	err = db.upsertCountryCity(ctx, tx, location)
-	if err != nil {
-		return fmt.Errorf("upsert country city: %w", err)
-	}
-
 	_, err = tx.Exec(
 		ctx,
 		`
@@ -176,8 +118,7 @@ func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJ
 					first_found,
 					node_pubkey,
 					node_record,
-					ip_address,
-					city_geoname_id
+					ip_address
 				)
 				VALUES (
 					@node_id,
@@ -185,8 +126,7 @@ func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJ
 					now(),
 					@node_pubkey,
 					@node_record,
-					@ip_address,
-					@city_geoname_id
+					@ip_address
 				)
 				ON CONFLICT (node_id) DO NOTHING
 			), next_disc_crawl AS (
@@ -219,14 +159,13 @@ func (db *DB) UpdateNotEthNode(ctx context.Context, tx pgx.Tx, node common.NodeJ
 				@direction = 'dial'::crawler.direction
 		`,
 		pgx.NamedArgs{
-			"node_id":         node.ID(),
-			"node_pubkey":     common.PubkeyBytes(node.N.Pubkey()),
-			"node_type":       common.ENRNodeType(node.N.Record()).String(),
-			"node_record":     common.EncodeENR(node.N.Record()),
-			"ip_address":      ip.String(),
-			"direction":       node.Direction.String(),
-			"next_crawl":      time.Now().Add(db.nextCrawlNotEth + randomHourSeconds()),
-			"city_geoname_id": location.cityGeoNameID,
+			"node_id":     node.ID(),
+			"node_pubkey": common.PubkeyBytes(node.N.Pubkey()),
+			"node_type":   common.ENRNodeType(node.N.Record()).String(),
+			"node_record": common.EncodeENR(node.N.Record()),
+			"ip_address":  node.N.IP().String(),
+			"direction":   node.Direction.String(),
+			"next_crawl":  time.Now().Add(db.nextCrawlNotEth + randomHourSeconds()),
 		},
 	)
 	if err != nil {
@@ -242,12 +181,6 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 	defer metrics.ObserveDBQuery("update_crawled_node_success", time.Now(), err)
 
 	info := node.GetInfo()
-	ip := node.N.IP()
-
-	location, err := db.IPToLocation(ip)
-	if err != nil {
-		return fmt.Errorf("geolocation: %w", err)
-	}
 
 	if len(node.BlockHeaders) != 0 {
 		err = db.InsertBlocks(ctx, tx, node.Info.NetworkID, node.BlockHeaders)
@@ -262,11 +195,6 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 	}
 
 	client := clientPtr.Deref()
-
-	err = db.upsertCountryCity(ctx, tx, location)
-	if err != nil {
-		return fmt.Errorf("upsert country city: %w", err)
-	}
 
 	_, err = tx.Exec(
 		ctx,
@@ -289,8 +217,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 					first_found,
 					node_pubkey,
 					node_record,
-					ip_address,
-					city_geoname_id
+					ip_address
 				)
 				VALUES (
 					@node_id,
@@ -298,8 +225,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 					now(),
 					@node_pubkey,
 					@node_record,
-					@ip_address,
-					@city_geoname_id
+					@ip_address
 				)
 				ON CONFLICT (node_id) DO NOTHING
 			), next_disc_crawl AS (
@@ -401,7 +327,6 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 			"next_fork_id":      info.ForkID.Next,
 			"head_hash":         info.HeadHash[:],
 			"ip_address":        node.N.IP().String(),
-			"city_geoname_id":   location.cityGeoNameID,
 			"node_pubkey":       common.PubkeyBytes(node.N.Pubkey()),
 			"node_type":         common.ENRNodeType(node.N.Record()),
 			"node_record":       common.EncodeENR(node.N.Record()),
