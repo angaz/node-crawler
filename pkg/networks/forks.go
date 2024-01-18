@@ -104,47 +104,61 @@ func Forks(genesis *core.Genesis, networkName string) []Fork {
 	var previousBlock uint64
 
 	for i, block := range blocks {
-		// Deduplicate blocks in the same fork
-		if block != nil && previousBlock != *block {
-			thisForkID := checksumUpdate(previousForkID, *block)
-
-			pfid := previousForkID
-
-			out = append(out, Fork{
-				NetworkID:      genesis.Config.ChainID.Uint64(),
-				ForkID:         thisForkID,
-				BlockTime:      *block,
-				PreviousForkID: &pfid,
-				ForkName:       ethereumForkNames[i],
-				NetworkName:    networkName,
-			})
-
-			previousBlock = *block
-			previousForkID = thisForkID
+		if block == nil {
+			continue
 		}
+
+		if previousBlock == *block {
+			continue
+		}
+
+		thisForkID := checksumUpdate(previousForkID, *block)
+
+		pfid := previousForkID
+
+		out = append(out, Fork{
+			NetworkID:      genesis.Config.ChainID.Uint64(),
+			ForkID:         thisForkID,
+			BlockTime:      *block,
+			PreviousForkID: &pfid,
+			ForkName:       ethereumForkNames[i],
+			NetworkName:    networkName,
+		})
+
+		previousBlock = *block
+		previousForkID = thisForkID
 	}
 
 	var previousBlockTime uint64
 
 	for i, blockTime := range times {
-		// Deduplicate blocks in the same fork
-		if blockTime != nil && previousBlockTime != *blockTime {
-			thisForkID := checksumUpdate(previousForkID, *blockTime)
-
-			pfid := previousForkID
-
-			out = append(out, Fork{
-				NetworkID:      genesis.Config.ChainID.Uint64(),
-				ForkID:         thisForkID,
-				BlockTime:      *blockTime,
-				PreviousForkID: &pfid,
-				ForkName:       ethereumForkNames[i+len(blocks)],
-				NetworkName:    networkName,
-			})
-
-			previousBlockTime = *blockTime
-			previousForkID = thisForkID
+		if blockTime == nil {
+			continue
 		}
+
+		if *blockTime <= genesis.Timestamp {
+			continue
+		}
+
+		if previousBlockTime == *blockTime {
+			continue
+		}
+
+		thisForkID := checksumUpdate(previousForkID, *blockTime)
+
+		pfid := previousForkID
+
+		out = append(out, Fork{
+			NetworkID:      genesis.Config.ChainID.Uint64(),
+			ForkID:         thisForkID,
+			BlockTime:      *blockTime,
+			PreviousForkID: &pfid,
+			ForkName:       ethereumForkNames[i+len(blocks)],
+			NetworkName:    networkName,
+		})
+
+		previousBlockTime = *blockTime
+		previousForkID = thisForkID
 	}
 
 	return out
