@@ -12,10 +12,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func ptr[T any](value T) *T {
-	return &value
-}
-
 func (db *DB) UpsertPortalDiscNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
 	if db.portalRecentlyCrawled.ContainsOrPush(node.ID()) {
 		return nil
@@ -83,7 +79,7 @@ func (db *DB) UpsertPortalDiscNode(ctx context.Context, tx pgx.Tx, node *enode.N
 			SELECT 1
 		`,
 		pgx.NamedArgs{
-			"node_id":           node.ID(),
+			"node_id":           node.ID().Bytes(),
 			"node_pubkey":       common.PubkeyBytes(node.Pubkey()),
 			"node_record":       common.EncodeENR(node.Record()),
 			"ip_address":        node.IP().String(),
