@@ -28,8 +28,10 @@ import (
 
 	"log/slog"
 
+	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/execution/crawler"
 	"github.com/ethereum/node-crawler/pkg/execution/listener"
+	portallistener "github.com/ethereum/node-crawler/pkg/portal/listener"
 
 	"github.com/urfave/cli/v2"
 )
@@ -58,6 +60,8 @@ var (
 			&nodeKeysFileFlag,
 			&nodeURLFlag,
 			&nodedbFlag,
+			&portalKeys,
+			&portalListenStartPortFlag,
 			&postgresFlag,
 			&statsCopyFrequencyFlag,
 			&statsDBFlag,
@@ -94,16 +98,22 @@ func crawlerAction(cCtx *cli.Context) error {
 		return fmt.Errorf("database migration failed: %w", err)
 	}
 
-	go db.UpdateGeoIPDaemon(cCtx.Context, time.Hour, geoipdbFlag.Get(cCtx))
 	go db.CleanerDaemon(cCtx.Context, 3*time.Hour)
+	go db.CopyPortalStatsDaemon(cCtx.Context, statsCopyFrequencyFlag.Get(cCtx))
 	go db.CopyStatsDaemon(statsCopyFrequencyFlag.Get(cCtx))
 	go db.EphemeryInsertDaemon(cCtx.Context, time.Hour)
 	go db.MissingBlocksDaemon(cCtx.Context, 5*time.Minute)
 	go db.TableStatsMetricsDaemon(cCtx.Context, 5*time.Minute)
+	go db.UpdateGeoIPDaemon(cCtx.Context, time.Hour, geoipdbFlag.Get(cCtx))
 
 	nodeKeys, err := readNodeKeys(cCtx)
 	if err != nil {
 		return fmt.Errorf("node key: %w", err)
+	}
+
+	portalKeys, err := common.ReadNodeKeys(portalKeys.Get(cCtx))
+	if err != nil {
+		return fmt.Errorf("read portal keys: %w", err)
 	}
 
 	listener := listener.New(
@@ -132,6 +142,15 @@ func crawlerAction(cCtx *cli.Context) error {
 		return fmt.Errorf("start crawler: %w", err)
 	}
 
+	portalListener := portallistener.New(
+		db,
+		portalKeys,
+		listenAddrFlag.Get(cCtx),
+		uint16(portalListenStartPortFlag.Get(cCtx)),
+	)
+	portalListener.StartDaemon(cCtx.Context)
+	portalListener.StartDiscCrawlers(cCtx.Context, 1)
+
 	// Start metrics server
 	metricsAddr := metricsAddressFlag.Get(cCtx)
 	slog.Info("starting metrics server", "address", metricsAddr)
@@ -140,9 +159,11 @@ func crawlerAction(cCtx *cli.Context) error {
 
 	listener.Close()
 	crawler.Close()
+	portalListener.Close()
 
 	listener.Wait()
 	crawler.Wait()
+	portalListener.Wait()
 
 	return nil
 }

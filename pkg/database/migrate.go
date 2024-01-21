@@ -39,6 +39,7 @@ func (db *DB) Migrate(geoipdb string) error {
 			},
 			migrations.Migrate002StatsViews,
 			migrations.Migrate003GeoIP,
+			migrations.Migrate004Portal,
 		},
 		map[string]migrationFn{
 			"insert networks": func(ctx context.Context, tx pgx.Tx) error {
@@ -50,6 +51,7 @@ func (db *DB) Migrate(geoipdb string) error {
 				return migrations.UpdateGeoIPData(ctx, tx, geoipdb)
 			},
 			"execution.node_view": migrations.ExecutionNodeView,
+			"portal.nodes_view":   migrations.PortalNodesView,
 		},
 	)
 }

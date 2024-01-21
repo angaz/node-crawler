@@ -178,6 +178,21 @@ func (e *ETH2) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+type ClientName string
+
+func (c ClientName) ENRKey() string { return "c" }
+
+func ENRClientName(r *enr.Record) string {
+	var clientName ClientName
+
+	err := r.Load(&clientName)
+	if err != nil {
+		return Unknown
+	}
+
+	return string(clientName)
+}
+
 // Returns if this Record belongs to en EL (Execution Layer) Client, if it
 // contains the `eth` key, or CL (Consensus Layer) Client, if it contains the
 // `eth2` key, or Unknown, if it contains neither.
@@ -323,6 +338,7 @@ func decodeRecordBase64(b []byte) ([]byte, bool) {
 
 // attrFormatters contains formatting functions for well-known ENR keys.
 var attrFormatters = map[string]func(rlp.RawValue) (string, bool){
+	"c":    formatAttrString,
 	"id":   formatAttrString,
 	"ip":   formatAttrIP,
 	"ip6":  formatAttrIP,

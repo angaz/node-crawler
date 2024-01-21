@@ -57,6 +57,14 @@ var (
 			"disc_version",
 		},
 	)
+	PortalDiscCrawlCount = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: "portal",
+			Name:      "disc_crawl_total",
+			Help:      "Number of portal discovery crawled nodes",
+		},
+	)
 	nodeUpdateBacklog = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,

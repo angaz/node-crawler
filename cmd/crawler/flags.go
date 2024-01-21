@@ -74,6 +74,18 @@ var (
 		Usage: "Port to start listeners on",
 		Value: 30303,
 	}
+	portalListenStartPortFlag = cli.IntFlag{
+		Name:  "portal-listen-start-port",
+		Usage: "Port to start listeners on",
+		Value: 30320,
+	}
+	portalKeys = cli.StringFlag{
+		Name:        "portal-keys",
+		Category:    "portal",
+		DefaultText: "",
+		Value:       "portal.keys",
+		TakesFile:   true,
+	}
 	nodedbFlag = cli.StringFlag{
 		Name:  "nodedb",
 		Usage: "Nodes database location. Defaults to in memory database",

@@ -217,7 +217,7 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				network_id			BIGINT		NOT NULL,
 				fork_id				BIGINT		NOT NULL,
 				next_fork_id		BIGINT		NOT NULL,  -- 0 means no next fork
-				country_geoname_id	INTEGER		NOT NULL REFERENCES geoname.countries (country_geoname_id),
+				country_geoname_id	INTEGER		DEFAULT NULL REFERENCES geoname.countries (country_geoname_id),
 				synced				BOOLEAN		NOT NULL,
 				dial_success		BOOLEAN 	NOT NULL,
 				total				INTEGER 	NOT NULL

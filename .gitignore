@@ -24,7 +24,7 @@ npm-debug.log*
 /*.db-*
 node-crawler-backend
 node-crawler-backend.exe
-node.keys
+*.keys
 nodes
 nodetable
 public/*_templ.go

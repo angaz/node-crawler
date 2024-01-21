@@ -37,6 +37,11 @@ type DB struct {
 	discRecentlyCrawled   *fifomemory.FIFOMemory[enode.ID]
 
 	discUpdateCache *fifomemory.FIFOMemory[enode.ID]
+
+	portalDiscActiveCrawlers map[enode.ID]struct{}
+	portalDiscToCrawlCache   chan *NodeToCrawl
+	portalDiscToCrawlLock    *sync.Mutex
+	portalRecentlyCrawled    *fifomemory.FIFOMemory[enode.ID]
 }
 
 func NewAPIDB(ctx context.Context, db *sql.DB, pgConnString string) (*DB, error) {
@@ -75,6 +80,11 @@ func NewDB(
 		discRecentlyCrawled:   fifomemory.New[enode.ID](256),
 
 		discUpdateCache: fifomemory.New[enode.ID](1024),
+
+		portalDiscActiveCrawlers: map[enode.ID]struct{}{},
+		portalDiscToCrawlCache:   make(chan *NodeToCrawl, 2048),
+		portalDiscToCrawlLock:    new(sync.Mutex),
+		portalRecentlyCrawled:    fifomemory.New[enode.ID](128),
 	}, nil
 }
 
