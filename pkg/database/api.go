@@ -573,25 +573,18 @@ func statsInstant(
 	}
 	defer rows.Close()
 
-	stats := make([]StatsSeriesInstant, 0, 8)
-
-	for rows.Next() {
-		var row StatsSeriesInstant
+	stats, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (StatsSeriesInstant, error) {
+		var instant StatsSeriesInstant
 
 		err := rows.Scan(
-			&row.key,
-			&row.Total,
+			&instant.key,
+			&instant.Total,
 		)
-		if err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
-		}
 
-		stats = append(stats, row)
-	}
-
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows: %w", err)
+		return instant, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("collect: %w", err)
 	}
 
 	return stats, nil

@@ -1,0 +1,51 @@
+package public
+
+templ PortalStats(
+	reqURL URL,
+	clientName string,
+	charts []templ.Component,
+	stats []templ.Component,
+	isLoading bool,
+) {
+	<div style="display: flex; flex-direction: column; padding: 1em; gap: 1em;">
+		if clientName != "" {
+			<div style="display: flex; flex-direction: row; gap: 0.5em;">
+				<a
+					class={
+						pageButton(),
+						pageButtonActive(),
+					}
+					href={ reqURL.RemoveParam("client-name").SafeURL() }
+				>
+					Clear { clientName }
+				</a>
+			</div>
+		}
+
+		if isLoading {
+			<span>
+				One or more charts are empty.
+				This could be because the data is being cached, or your set of filters
+				resulted in empty data.
+				Please try again soon.
+			</span>
+		}
+
+		<div style="display: flex; flex-direction: row; gap: 1em; flex-wrap: wrap;">
+			for _, chart := range charts {
+				{! chart }
+			}
+		</div>
+
+		<div style="display: flex; flex-direction: row; gap: 1em; flex-wrap: wrap;">
+			for _, stat := range stats {
+				{! stat }
+			}
+		</div>
+
+		<div style="display: flex; flex-direction: column; align-items: flex-end; align-self: flex-end;">
+			<span>Only shows nodes which were last found via discovery in the last 24 hours</span>
+			<span>Updates every 30 minutes</span>
+		</div>
+	</div>
+}
