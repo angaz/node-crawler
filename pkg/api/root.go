@@ -212,7 +212,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	before := time.Now().Truncate(params.graphInterval).Add(-params.graphInterval)
+	before := time.Now().Add(-params.graphInterval)
 	after := before.Add(-3 * 24 * time.Hour)
 
 	switch params.graphInterval {
