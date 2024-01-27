@@ -511,6 +511,7 @@ templ NodeList(reqURL URL, nodes database.NodeList, ephemeryNetworks []database.
 			<div style="display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 0.5em;">
 				<a
  					href={ reqURL.WithParam("q", "").WithParam("page", "1").SafeURL() }
+					rel="nofollow"
  					class={
 						pageButton(),
 						templ.KV(pageButtonActive(), nodes.Query == ""),
@@ -522,6 +523,7 @@ templ NodeList(reqURL URL, nodes database.NodeList, ephemeryNetworks []database.
 				for _, c := range []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"} {
 					<a
  						href={ reqURL.WithParam("q", c).WithParam("page", "1").SafeURL() }
+						rel="nofollow"
  						class={
 							pageButton(),
 							templ.KV(pageButtonActive(), nodes.Query == c),
@@ -552,7 +554,7 @@ templ NodeList(reqURL URL, nodes database.NodeList, ephemeryNetworks []database.
 				<tbody>
 					for _, row := range nodes.List {
 						<tr>
-							<td><a href={ templ.URL("/nodes/" + row.NodeID()) }>{ row.NodeID()[:8] }</a></td>
+							<td><a href={ templ.URL("/nodes/" + row.NodeID()) } rel="nofollow">{ row.NodeID()[:8] }</a></td>
 							<td>{ row.NodePubKey()[:8] }</td>
 							<td>{ row.NodeType.String() }</td>
 							<td>{ database.StringOrEmpty(row.ClientName) }</td>
@@ -580,6 +582,7 @@ templ NodeList(reqURL URL, nodes database.NodeList, ephemeryNetworks []database.
 			<div style="display:flex; flex-direction:row; justify-content:flex-end; align-items:center; gap:2em;">
 				<a
  					href={ reqURL.WithIntParam("page", nodes.PageNumber-1).SafeURL() }
+					rel="nofollow"
  					class={ pageButton(), pageButtonActive(), templ.KV(disabled(), nodes.PageNumber == 1) }
 				>
 					Previous
@@ -587,6 +590,7 @@ templ NodeList(reqURL URL, nodes database.NodeList, ephemeryNetworks []database.
 				<span>{ strconv.Itoa(nodes.PageNumber) }</span>
 				<a
  					href={ reqURL.WithIntParam("page", nodes.PageNumber+1).SafeURL() }
+					rel="nofollow"
  					class={ pageButton(), pageButtonActive(), templ.KV(disabled(), !nodes.HasNextPage) }
 				>
 					Next
@@ -630,6 +634,7 @@ templ HistoryList(reqURL URL, history database.HistoryList, ephemeryNetworks []d
 						templ.KV(pageButtonInactive(), history.IsError != -1),
 					}
  					href={ reqURL.WithParam("error", "all").SafeURL() }
+					rel="nofollow"
 				>
 					All
 				</a>
@@ -640,6 +645,7 @@ templ HistoryList(reqURL URL, history database.HistoryList, ephemeryNetworks []d
 						templ.KV(pageButtonInactive(), history.IsError != 1),
 					}
  					href={ reqURL.WithParam("error", "yes").SafeURL() }
+					rel="nofollow"
 				>
 					Error
 				</a>
@@ -650,6 +656,7 @@ templ HistoryList(reqURL URL, history database.HistoryList, ephemeryNetworks []d
 						templ.KV(pageButtonInactive(), history.IsError != 0),
 					}
  					href={ reqURL.WithParam("error", "no").SafeURL() }
+					rel="nofollow"
 				>
 					Success
 				</a>
@@ -663,6 +670,7 @@ templ HistoryList(reqURL URL, history database.HistoryList, ephemeryNetworks []d
 				<a
  					class={ pageButton(), pageButtonActive() }
  					href={ reqURL.RemoveParam("before", "after").SafeURL() }
+					rel="nofollow"
  					title="We have to go back"
 				>
 					Go to now
@@ -682,7 +690,7 @@ templ HistoryList(reqURL URL, history database.HistoryList, ephemeryNetworks []d
 				<tbody>
 					for _, row := range history.Rows {
 						<tr>
-							<td><a href={ templ.URL("/nodes/" + row.NodeID) }>{ row.NodeID[:8] }</a></td>
+							<td><a href={ templ.URL("/nodes/" + row.NodeID) } rel="nofollow">{ row.NodeID[:8] }</a></td>
 							<td>{ database.StringOrEmpty(row.ClientIdentifier) }</td>
 							<td>{ row.NetworkIDStr() }</td>
 							<td title={ row.CrawledAt.UTC().Format(database.DateFormat) }>{ row.SinceCrawled() }</td>
@@ -692,19 +700,21 @@ templ HistoryList(reqURL URL, history database.HistoryList, ephemeryNetworks []d
 					}
 				</tbody>
 			</table>
-			<div style="display:flex;flex-direction:row;justify-content:space-between;align-items:center;gap:2em">
+			<div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap:2em">
 				<div></div>
-				<div style="display:flex;flex-direction:row;align-items:center">
+				<div style="display: flex; flex-direction: row; align-items: center;">
 					if history.FirstTime != nil && history.LastTime != nil {
 						<a
  							class={ pageButton(), pageButtonActive() }
  							href={ reqURL.RemoveParam("after").WithParam("before", history.FirstTimeStr()).SafeURL() }
+							rel="nofollow"
 						>
 							Previous
 						</a>
 						<a
  							class={ pageButton(), pageButtonActive() }
  							href={ reqURL.RemoveParam("before").WithParam("after", history.LastTimeStr()).SafeURL() }
+							rel="nofollow"
 						>
 							Next
 						</a>
@@ -831,6 +841,7 @@ templ NetworkFilterLinks(url URL, networkID int64, ephemeryNetworks []database.E
 								templ.KV(pageButtonInactive(), network.NetworkID != networkID),
 							}
 							href={ url.WithInt64Param("network", network.NetworkID).SafeURL() }
+							rel="nofollow"
 						>
 							{ network.Name }
 						</a>
@@ -850,6 +861,7 @@ templ SyncedFilterLinks(url URL, synced int) {
 				templ.KV(pageButtonInactive(), synced != -1),
 			}
  			href={ url.WithParam("synced", "all").SafeURL() }
+			rel="nofollow"
 		>
 			All
 		</a>
@@ -860,6 +872,7 @@ templ SyncedFilterLinks(url URL, synced int) {
 				templ.KV(pageButtonInactive(), synced != 1),
 			}
  			href={ url.WithParam("synced", "yes").SafeURL() }
+			rel="nofollow"
 		>
 			Synced
 		</a>
@@ -870,6 +883,7 @@ templ SyncedFilterLinks(url URL, synced int) {
 				templ.KV(pageButtonInactive(), synced != 0),
 			}
  			href={ url.WithParam("synced", "no").SafeURL() }
+			rel="nofollow"
 		>
 			Not Synced
 		</a>
@@ -889,6 +903,7 @@ templ supportsForkLinks(name string, key string, url URL, supportsForkName strin
 				templ.KV(pageButtonInactive(), supportsForkName != ""),
 			}
 			href={ url.WithParam("supports-fork-name", "").SafeURL() }
+			rel="nofollow"
 		>
 			All
 		</a>
@@ -900,6 +915,7 @@ templ supportsForkLinks(name string, key string, url URL, supportsForkName strin
 				templ.KV(buttonDisabled(), disabled),
 			}
 			href={ url.WithParam("supports-fork-name", key).SafeURL() }
+			rel="nofollow"
 		>
 			Supports { name }
 		</a>
@@ -942,6 +958,7 @@ templ Stats(
 						pageButtonActive(),
 					}
 					href={ reqURL.RemoveParam("client-name").SafeURL() }
+					rel="nofollow"
 				>
 					Clear { clientName }
 				</a>
@@ -1047,6 +1064,7 @@ templ StatsGraph(
 					templ.KV(pageButtonActive(), graphInterval == 3*time.Hour),
 				}
 				href={ hrefFn("interval", "3h") }
+				rel="nofollow"
 			>3h</a>
 			<a
 				class={
@@ -1055,6 +1073,7 @@ templ StatsGraph(
 					templ.KV(pageButtonActive(), graphInterval == 24*time.Hour),
 				}
 				href={ hrefFn("interval", "24h") }
+				rel="nofollow"
 			>24h</a>
 			<a
 				class={
@@ -1063,6 +1082,7 @@ templ StatsGraph(
 					templ.KV(pageButtonActive(), graphFormat == "number"),
 				}
 				href={ hrefFn("graph-format", "number") }
+				rel="nofollow"
 			>#</a>
 			<a
 				class={
@@ -1071,6 +1091,7 @@ templ StatsGraph(
 					templ.KV(pageButtonActive(), graphFormat == "percent"),
 				}
 				href={ hrefFn("graph-format", "percent") }
+				rel="nofollow"
 			>%</a>
 		</div>
 		<div style="height: 100%; width: 100%;" id={ id }></div>
@@ -1092,7 +1113,7 @@ templ StatsGroup(name string, instant database.StatsInstant, hrefFn func(string)
 						if hrefFn(stat.Key()) == "" {
 							{ stat.Key() } ({ strconv.FormatInt(stat.Total, 10) })
 						} else {
-							<a href={hrefFn(stat.Key())}>{ stat.Key() } ({ strconv.FormatInt(stat.Total, 10) })</a>
+							<a href={hrefFn(stat.Key())} rel="nofollow">{ stat.Key() } ({ strconv.FormatInt(stat.Total, 10) })</a>
 						}
 					</span>
 				</div>
@@ -1207,8 +1228,8 @@ templ Index(reqURL URL, main templ.Component, networkID int64, synced int) {
 			<nav>
 				<ul>
 					<li class={ templ.KV("active", reqURL.Path == "/") }><a href={ reqURL.WithPath("/").KeepParams("client-name", "network", "synced").SafeURL() }>Stats</a></li>
-					<li class={ templ.KV("active", reqURL.Path == "/nodes/") }><a href={ reqURL.WithPath("/nodes/").KeepParams("client-name", "network", "synced").WithParam("page", "1").SafeURL() }>Nodes</a></li>
-					<li class={ templ.KV("active", reqURL.Path == "/history/") }><a href={ reqURL.WithPath("/history/").KeepParams("network").SafeURL() }>Crawl History</a></li>
+					<li class={ templ.KV("active", reqURL.Path == "/nodes/") }><a rel="nofollow" href={ reqURL.WithPath("/nodes/").KeepParams("client-name", "network", "synced").WithParam("page", "1").SafeURL() }>Nodes</a></li>
+					<li class={ templ.KV("active", reqURL.Path == "/history/") }><a rel="nofollow" href={ reqURL.WithPath("/history/").KeepParams("network").SafeURL() }>Crawl History</a></li>
 					<li class={ templ.KV("active", reqURL.Path == "/help/") }><a href="/help/">Help</a></li>
 					<li class={ templ.KV("active", reqURL.Path == "/snapshots/") }><a href="/snapshots/">Snapshots</a></li>
 				</ul>
