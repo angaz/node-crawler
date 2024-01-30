@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/ethereum/node-crawler/pkg/metrics"
@@ -25,7 +24,6 @@ type Discovery struct {
 	listenAddr string
 
 	privateKey *ecdsa.PrivateKey
-	bootnodes  []*enode.Node
 
 	nodeDB    *enode.DB
 	localnode *enode.LocalNode
@@ -46,7 +44,6 @@ func New(
 		listenAddr: listenAddr,
 		privateKey: privateKey,
 
-		bootnodes: []*enode.Node{},
 		nodeDB:    &enode.DB{},
 		localnode: &enode.LocalNode{},
 		v4:        &discover.UDPv4{},
@@ -55,16 +52,6 @@ func New(
 	}
 
 	var err error
-
-	bootnodes := params.MainnetBootnodes
-	d.bootnodes = make([]*enode.Node, len(bootnodes))
-
-	for i, record := range bootnodes {
-		d.bootnodes[i], err = enode.ParseV4(record)
-		if err != nil {
-			return nil, fmt.Errorf("parsing bootnode failed: %w", err)
-		}
-	}
 
 	nodeDB, err := enode.OpenDB("") // In memory
 	if err != nil {
@@ -108,7 +95,7 @@ func (d *Discovery) setupDiscovery() error {
 	//nolint:exhaustruct
 	d.v4, err = discover.ListenV4(conn, d.localnode, discover.Config{
 		PrivateKey: d.privateKey,
-		Bootnodes:  d.bootnodes,
+		Bootnodes:  v4Bootnodes,
 		Unhandled:  unhandled,
 	})
 	if err != nil {
@@ -118,7 +105,7 @@ func (d *Discovery) setupDiscovery() error {
 	//nolint:exhaustruct
 	d.v5, err = discover.ListenV5(sharedConn, d.localnode, discover.Config{
 		PrivateKey: d.privateKey,
-		Bootnodes:  d.bootnodes,
+		Bootnodes:  v5Bootnodes,
 	})
 	if err != nil {
 		return fmt.Errorf("setting up discv5 failed: %w", err)

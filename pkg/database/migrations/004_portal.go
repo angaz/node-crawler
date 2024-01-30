@@ -38,8 +38,8 @@ func Migrate004Portal(ctx context.Context, tx pgx.Tx) error {
 				client_name_id		INTEGER		DEFAULT NULL REFERENCES client.names (client_name_id),
 				client_version_id	INTEGER		DEFAULT NULL REFERENCES client.versions (client_version_id),
 				country_geoname_id	INTEGER		DEFAULT NULL REFERENCES geoname.countries (country_geoname_id),
-				dial_success		BOOLEAN 	NOT NULL,
-				total				INTEGER 	NOT NULL
+				dial_success		BOOLEAN		NOT NULL,
+				total				INTEGER		NOT NULL
 			);
 
 			SELECT create_hypertable(

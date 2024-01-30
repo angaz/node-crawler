@@ -28,9 +28,13 @@ type DB struct {
 	nextCrawlNotEth time.Duration
 	githubToken     string
 
-	nodesToCrawlCache chan *NodeToCrawl
-	nodesToCrawlLock  *sync.Mutex
-	recentlyCrawled   *fifomemory.FIFOMemory[enode.ID]
+	executionNodesToCrawlCache chan *NodeToCrawl
+	executionNodesToCrawlLock  *sync.Mutex
+	executionRecentlyCrawled   *fifomemory.FIFOMemory[enode.ID]
+
+	consensusNodesToCrawlCache chan *NodeToCrawl
+	consensusNodesToCrawlLock  *sync.Mutex
+	consensusActiveCrawlers    map[enode.ID]struct{}
 
 	discNodesToCrawlCache chan *NodeToCrawl
 	discNodesToCrawlLock  *sync.Mutex
@@ -71,9 +75,13 @@ func NewDB(
 		nextCrawlNotEth: nextCrawlNotEth,
 		githubToken:     githubToken,
 
-		nodesToCrawlCache: make(chan *NodeToCrawl, 2048),
-		nodesToCrawlLock:  new(sync.Mutex),
-		recentlyCrawled:   fifomemory.New[enode.ID](256),
+		executionNodesToCrawlCache: make(chan *NodeToCrawl, 2048),
+		executionNodesToCrawlLock:  new(sync.Mutex),
+		executionRecentlyCrawled:   fifomemory.New[enode.ID](256),
+
+		consensusNodesToCrawlCache: make(chan *NodeToCrawl, 2048),
+		consensusNodesToCrawlLock:  new(sync.Mutex),
+		consensusActiveCrawlers:    map[enode.ID]struct{}{},
 
 		discNodesToCrawlCache: make(chan *NodeToCrawl, 2048),
 		discNodesToCrawlLock:  new(sync.Mutex),
@@ -108,13 +116,17 @@ func (db *DB) tableStats(ctx context.Context) {
 		`
 			SELECT
 				(
-					SELECT COUNT(*) FROM crawler.next_node_crawl
+					SELECT COUNT(*)
+					FROM crawler.next_node_crawl
+					LEFT JOIN crawler.next_disc_crawl USING (node_id)
 					WHERE
-						next_crawl < now()
+						next_node_crawl.next_crawl < now()
 						AND node_type IN ('Unknown', 'Execution')
+						AND last_found > now() - INTERVAL '48 hours'
 				),
 				(
-					SELECT COUNT(*) FROM crawler.next_disc_crawl
+					SELECT COUNT(*)
+					FROM crawler.next_disc_crawl
 					WHERE
 						next_crawl < now()
 				)

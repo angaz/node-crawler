@@ -209,23 +209,25 @@ func scanNodesToCrawl(rows pgx.Rows, ch chan<- *NodeToCrawl) error {
 	return nil
 }
 
-func (db *DB) fetchNodesToCrawl(ctx context.Context) error {
+func (db *DB) fetchExecutionNodesToCrawl(ctx context.Context) error {
 	var err error
 
 	start := time.Now()
-	defer metrics.ObserveDBQuery("select_disc_node", start, err)
+	defer metrics.ObserveDBQuery("select_execution_node", start, err)
 
 	rows, err := db.pg.Query(
 		ctx,
 		`
 			SELECT
-				next_crawl,
+				next_node_crawl.next_crawl,
 				node_record
 			FROM crawler.next_node_crawl
 			LEFT JOIN disc.nodes USING (node_id)
+			LEFT JOIN crawler.next_disc_crawl USING (node_id)
 			WHERE
 				next_node_crawl.node_type IN ('Unknown', 'Execution')
-			ORDER BY next_crawl
+				AND last_found > now() - INTERVAL '48 hours'
+			ORDER BY next_node_crawl.next_crawl
 			LIMIT 1024
 		`,
 	)
@@ -234,7 +236,7 @@ func (db *DB) fetchNodesToCrawl(ctx context.Context) error {
 	}
 	defer rows.Close()
 
-	err = scanNodesToCrawl(rows, db.nodesToCrawlCache)
+	err = scanNodesToCrawl(rows, db.executionNodesToCrawlCache)
 	if err != nil {
 		return fmt.Errorf("scan nodes: %w", err)
 	}
@@ -265,6 +267,38 @@ func (db *DB) fetchDiscNodesToCrawl(ctx context.Context) error {
 	defer rows.Close()
 
 	err = scanNodesToCrawl(rows, db.discNodesToCrawlCache)
+	if err != nil {
+		return fmt.Errorf("scan nodes: %w", err)
+	}
+
+	return nil
+}
+
+func (db *DB) fetchConsensusNodesToCrawl(ctx context.Context) error {
+	var err error
+
+	defer metrics.ObserveDBQuery("select_consensus_nodes", time.Now(), err)
+
+	rows, err := db.pg.Query(
+		ctx,
+		`
+			SELECT
+				next_crawl,
+				node_record
+			FROM crawler.next_node_crawl
+			LEFT JOIN disc.nodes USING (node_id)
+			WHERE
+				next_node_crawl.node_type = 'Consensus'
+			ORDER BY next_crawl
+			LIMIT 1024
+		`,
+	)
+	if err != nil {
+		return fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	err = scanNodesToCrawl(rows, db.consensusNodesToCrawlCache)
 	if err != nil {
 		return fmt.Errorf("scan nodes: %w", err)
 	}
@@ -321,10 +355,10 @@ func (db *DB) NodesToCrawl(ctx context.Context) (*enode.Node, error) {
 	return nodesToCrawl(
 		ctx,
 		true,
-		db.nodesToCrawlLock,
-		db.nodesToCrawlCache,
-		db.recentlyCrawled,
-		db.fetchNodesToCrawl,
+		db.executionNodesToCrawlLock,
+		db.executionNodesToCrawlCache,
+		db.executionRecentlyCrawled,
+		db.fetchExecutionNodesToCrawl,
 	)
 }
 
