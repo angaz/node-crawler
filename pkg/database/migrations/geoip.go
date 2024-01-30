@@ -238,5 +238,10 @@ func UpdateGeoIPData(ctx context.Context, tx pgx.Tx, geoipdb string) error {
 		return fmt.Errorf("replace execution node view: %w", err)
 	}
 
+	err = PortalNodesView(ctx, tx)
+	if err != nil {
+		return fmt.Errorf("replace portal nodes view: %w", err)
+	}
+
 	return nil
 }
