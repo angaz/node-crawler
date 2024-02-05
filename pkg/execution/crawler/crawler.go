@@ -102,7 +102,7 @@ func (c *Crawler) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) er
 }
 
 func (c *Crawler) crawlAndUpdateNode(ctx context.Context) error {
-	node, err := c.db.NodesToCrawl(ctx)
+	node, err := c.db.ExecutionNodesToCrawl(ctx)
 	if err != nil {
 		return fmt.Errorf("select node: %w", err)
 	}
@@ -133,7 +133,7 @@ func (c *Crawler) crawler(ctx context.Context) {
 		err := c.crawlAndUpdateNode(ctx)
 		if err != nil {
 			if !errors.Is(err, ErrNothingToCrawl) {
-				slog.Error("crawl failed", "err", err)
+				slog.Error("execution crawl failed", "err", err)
 			}
 
 			time.Sleep(time.Minute)

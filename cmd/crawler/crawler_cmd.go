@@ -29,7 +29,8 @@ import (
 	"log/slog"
 
 	"github.com/ethereum/node-crawler/pkg/common"
-	"github.com/ethereum/node-crawler/pkg/execution/crawler"
+	consensuscrawler "github.com/ethereum/node-crawler/pkg/consensus/crawler"
+	executioncrawler "github.com/ethereum/node-crawler/pkg/execution/crawler"
 	"github.com/ethereum/node-crawler/pkg/execution/listener"
 	portallistener "github.com/ethereum/node-crawler/pkg/portal/listener"
 
@@ -46,8 +47,12 @@ var (
 			&autovacuumFlag,
 			&bootnodesFlag,
 			&busyTimeoutFlag,
+			&consensusNodeKeysFileFlag,
+			&consensusWorkersFlag,
 			&crawlerDBFlag,
 			&discWorkersFlag,
+			&executionNodeKeysFileFlag,
+			&executionWorkersFlag,
 			&geoipdbFlag,
 			&githubTokenFileFlag,
 			&listenAddrFlag,
@@ -57,16 +62,14 @@ var (
 			&nextCrawlNotEthFlag,
 			&nextCrawlSuccessFlag,
 			&nodeFileFlag,
-			&nodeKeysFileFlag,
 			&nodeURLFlag,
 			&nodedbFlag,
-			&portalKeys,
 			&portalListenStartPortFlag,
+			&portalNodeKeysFileFlag,
 			&postgresFlag,
 			&statsCopyFrequencyFlag,
 			&statsDBFlag,
 			&timeoutFlag,
-			&workersFlag,
 		},
 	}
 )
@@ -106,19 +109,24 @@ func crawlerAction(cCtx *cli.Context) error {
 	go db.TableStatsMetricsDaemon(cCtx.Context, 5*time.Minute)
 	go db.UpdateGeoIPDaemon(cCtx.Context, time.Hour, geoipdbFlag.Get(cCtx))
 
-	nodeKeys, err := readNodeKeys(cCtx)
+	executionNodeKeys, err := common.ReadNodeKeys(executionNodeKeysFileFlag.Get(cCtx))
 	if err != nil {
-		return fmt.Errorf("node key: %w", err)
+		return fmt.Errorf("read execution node keys: %w", err)
 	}
 
-	portalKeys, err := common.ReadNodeKeys(portalKeys.Get(cCtx))
+	consensusNodeKeys, err := common.ReadNodeKeys(consensusNodeKeysFileFlag.Get(cCtx))
 	if err != nil {
-		return fmt.Errorf("read portal keys: %w", err)
+		return fmt.Errorf("read consensus node keys: %w", err)
+	}
+
+	portalKeys, err := common.ReadNodeKeys(portalNodeKeysFileFlag.Get(cCtx))
+	if err != nil {
+		return fmt.Errorf("read portal node keys: %w", err)
 	}
 
 	listener := listener.New(
 		db,
-		nodeKeys,
+		executionNodeKeys,
 		listenAddrFlag.Get(cCtx),
 		uint16(listenStartPortFlag.Get(cCtx)),
 	)
@@ -126,20 +134,36 @@ func crawlerAction(cCtx *cli.Context) error {
 
 	listener.StartDiscCrawlers(cCtx.Context, discWorkersFlag.Get(cCtx))
 
-	crawler, err := crawler.New(
+	execCrawler, err := executioncrawler.New(
 		db,
-		nodeKeys,
+		executionNodeKeys,
 	)
 	if err != nil {
-		return fmt.Errorf("create crawler: %w", err)
+		return fmt.Errorf("create execution crawler: %w", err)
 	}
 
-	err = crawler.StartDaemon(
+	err = execCrawler.StartDaemon(
 		cCtx.Context,
-		workersFlag.Get(cCtx),
+		executionWorkersFlag.Get(cCtx),
 	)
 	if err != nil {
-		return fmt.Errorf("start crawler: %w", err)
+		return fmt.Errorf("start execution crawler: %w", err)
+	}
+
+	consensusCrawler, err := consensuscrawler.New(
+		db,
+		consensusNodeKeys,
+	)
+	if err != nil {
+		return fmt.Errorf("create consensus crawler: %w", err)
+	}
+
+	err = consensusCrawler.StartDeamon(
+		cCtx.Context,
+		consensusWorkersFlag.Get(cCtx),
+	)
+	if err != nil {
+		return fmt.Errorf("start consensus crawler: %w", err)
 	}
 
 	portalListener := portallistener.New(
@@ -158,11 +182,13 @@ func crawlerAction(cCtx *cli.Context) error {
 	http.ListenAndServe(metricsAddr, nil)
 
 	listener.Close()
-	crawler.Close()
+	execCrawler.Close()
+	consensusCrawler.Close()
 	portalListener.Close()
 
 	listener.Wait()
-	crawler.Wait()
+	execCrawler.Wait()
+	consensusCrawler.Wait()
 	portalListener.Wait()
 
 	return nil

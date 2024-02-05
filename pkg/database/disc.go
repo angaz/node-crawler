@@ -351,7 +351,18 @@ func nodesToCrawl(
 	return nil, ctx.Err()
 }
 
-func (db *DB) NodesToCrawl(ctx context.Context) (*enode.Node, error) {
+func (db *DB) ConsensusNodesToCrawl(ctx context.Context) (*enode.Node, error) {
+	return nodesToCrawl(
+		ctx,
+		true,
+		db.consensusNodesToCrawlLock,
+		db.consensusNodesToCrawlCache,
+		db.consensusRecentlyCrawled,
+		db.fetchConsensusNodesToCrawl,
+	)
+}
+
+func (db *DB) ExecutionNodesToCrawl(ctx context.Context) (*enode.Node, error) {
 	return nodesToCrawl(
 		ctx,
 		true,

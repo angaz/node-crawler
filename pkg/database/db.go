@@ -34,7 +34,8 @@ type DB struct {
 
 	consensusNodesToCrawlCache chan *NodeToCrawl
 	consensusNodesToCrawlLock  *sync.Mutex
-	consensusActiveCrawlers    map[enode.ID]struct{}
+	consensusRecentlyCrawled   *fifomemory.FIFOMemory[enode.ID]
+	// consensusActiveCrawlers    map[enode.ID]struct{}
 
 	discNodesToCrawlCache chan *NodeToCrawl
 	discNodesToCrawlLock  *sync.Mutex
@@ -81,7 +82,8 @@ func NewDB(
 
 		consensusNodesToCrawlCache: make(chan *NodeToCrawl, 2048),
 		consensusNodesToCrawlLock:  new(sync.Mutex),
-		consensusActiveCrawlers:    map[enode.ID]struct{}{},
+		consensusRecentlyCrawled:   fifomemory.New[enode.ID](256),
+		// consensusActiveCrawlers:    map[enode.ID]struct{}{},
 
 		discNodesToCrawlCache: make(chan *NodeToCrawl, 2048),
 		discNodesToCrawlLock:  new(sync.Mutex),

@@ -27,7 +27,7 @@ var apiCommand = &cli.Command{
 		&enodeAddrFlag,
 		&listenStartPortFlag,
 		&metricsAddressFlag,
-		&nodeKeysFileFlag,
+		&executionNodeKeysFileFlag,
 		&postgresFlag,
 		&snapshotDirFlag,
 		&statsUpdateFrequencyFlag,
@@ -73,7 +73,7 @@ func runAPI(cCtx *cli.Context) error {
 }
 
 func readEnodes(cCtx *cli.Context) ([]string, error) {
-	keys, err := common.ReadNodeKeys(nodeKeysFileFlag.Get(cCtx))
+	keys, err := common.ReadNodeKeys(executionNodeKeysFileFlag.Get(cCtx))
 	if err != nil {
 		return nil, fmt.Errorf("read node keys: %w", err)
 	}

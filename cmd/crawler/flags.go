@@ -79,7 +79,7 @@ var (
 		Usage: "Port to start listeners on",
 		Value: 30320,
 	}
-	portalKeys = cli.StringFlag{
+	portalNodeKeysFileFlag = cli.StringFlag{
 		Name:        "portal-keys",
 		Category:    "portal",
 		DefaultText: "",
@@ -94,10 +94,17 @@ var (
 		Name:  "nodefile",
 		Usage: "Path to a node file containing nodes to be crawled",
 	}
-	nodeKeysFileFlag = cli.StringFlag{
-		Name:  "nodekeys",
-		Usage: "Filename of the P2P node keys",
-		Value: "node.keys",
+	executionNodeKeysFileFlag = cli.StringFlag{
+		Name:      "execution-nodekeys",
+		Usage:     "Filename of the execution node keys",
+		Value:     "execution.keys",
+		TakesFile: true,
+	}
+	consensusNodeKeysFileFlag = cli.StringFlag{
+		Name:      "consensus-nodekeys",
+		Usage:     "Filename of the consensus node keys",
+		Value:     "consensus.keys",
+		TakesFile: true,
 	}
 	nodeURLFlag = cli.StringFlag{
 		Name:  "nodeURL",
@@ -114,9 +121,14 @@ var (
 		Usage: "Timeout for the crawling in a round",
 		Value: 5 * time.Minute,
 	}
-	workersFlag = cli.IntFlag{
-		Name:  "workers",
+	executionWorkersFlag = cli.IntFlag{
+		Name:  "execution-workers",
 		Usage: "Number of workers to start for updating nodes",
+		Value: 16,
+	}
+	consensusWorkersFlag = cli.IntFlag{
+		Name:  "consensus-workers",
+		Usage: "Number of workers to start for crawling consensus nodes",
 		Value: 16,
 	}
 	discWorkersFlag = cli.IntFlag{

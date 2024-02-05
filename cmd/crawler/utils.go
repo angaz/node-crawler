@@ -115,9 +115,7 @@ func openDBReader(cCtx *cli.Context) (*database.DB, error) {
 	return db, nil
 }
 
-func readNodeKeys(cCtx *cli.Context) ([]*ecdsa.PrivateKey, error) {
-	nodeKeysFileName := nodeKeysFileFlag.Get(cCtx)
-
+func readNodeKeys(cCtx *cli.Context, nodeKeysFileName string) ([]*ecdsa.PrivateKey, error) {
 	_, err := os.Stat(nodeKeysFileName)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
