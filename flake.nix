@@ -277,7 +277,7 @@
                 description = "Opens the crawler ports.";
               };
 
-              workers = mkOption {
+              executionWorkers = mkOption {
                 type = types.int;
                 default = 16;
                 description = "Number of crawler workers to start.";
@@ -291,7 +291,7 @@
 
               maxPoolConns = mkOption {
                 type = types.int;
-                default = (cfg.crawler.workers) + (cfg.crawler.discWorkers) + (cfg.crawler.listenerCount * 8);
+                default = (cfg.crawler.executionWorkers) + (cfg.crawler.discWorkers) + (cfg.crawler.listenerCount * 8);
                 description = "Max number of open connections to the database.";
               };
 
@@ -382,7 +382,7 @@
                       "--next-crawl-success=${cfg.crawler.nextCrawlSuccess}"
                       "--postgres=\"host=/var/run/postgresql user=nodecrawler database=nodecrawler pool_max_conns=${toString cfg.crawler.maxPoolConns}\""
                       "--stats-db=${cfg.statsDatabaseName}"
-                      "--workers=${toString cfg.crawler.workers}"
+                      "--execution-workers=${toString cfg.crawler.executionWorkers}"
                       "--disc-workers=${toString cfg.crawler.discWorkers}"
                     ];
                   in

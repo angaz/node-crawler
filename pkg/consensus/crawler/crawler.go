@@ -205,8 +205,6 @@ func newHost(
 		return nil, err
 	}
 
-	host
-
 	return &consensusHost{
 		host: host,
 	}, nil

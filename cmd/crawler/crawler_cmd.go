@@ -29,7 +29,6 @@ import (
 	"log/slog"
 
 	"github.com/ethereum/node-crawler/pkg/common"
-	consensuscrawler "github.com/ethereum/node-crawler/pkg/consensus/crawler"
 	executioncrawler "github.com/ethereum/node-crawler/pkg/execution/crawler"
 	"github.com/ethereum/node-crawler/pkg/execution/listener"
 	portallistener "github.com/ethereum/node-crawler/pkg/portal/listener"
