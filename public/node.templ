@@ -924,12 +924,7 @@ templ supportsForkLinks(name string, key string, url URL, supportsForkName strin
 
 templ SupportsForkLinks(url URL, networkID int64, supportsForkName string) {
 	switch networkID {
-	case 1:
-		<div>
-			<span>Disabled, waiting for the fork time to be announced</span>
-			@supportsForkLinks("Cancun", "cancun", url, supportsForkName, true)
-		</div>
-	case -1, 5, 17000, 11155111:
+	case 1, 5, 17000, 11155111:
 		@supportsForkLinks("Cancun", "cancun", url, supportsForkName, false)
 	}
 }
