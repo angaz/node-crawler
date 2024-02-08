@@ -180,15 +180,16 @@
         "xc": "xc"
       },
       "locked": {
-        "lastModified": 1707395564,
-        "narHash": "sha256-HYoUV3eUBWTAPblFdtnTR5BUivWaWPFo+KPD9UV2Ttc=",
+        "lastModified": 1706214713,
+        "narHash": "sha256-A99GBzxmrAhjPzo5qj6V3YWkQJavs9j9beMtNYqGnqo=",
         "owner": "a-h",
         "repo": "templ",
-        "rev": "a5c60767ef03cfb52db78cb666df5a8df9f7a7a5",
+        "rev": "a52176dbbc60c2ad89d7b17095ea0c12232b974b",
         "type": "github"
       },
       "original": {
         "owner": "a-h",
+        "ref": "a52176dbbc60c2ad89d7b17095ea0c12232b974b",
         "repo": "templ",
         "type": "github"
       }
