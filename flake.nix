@@ -61,7 +61,7 @@
             src = gitignoreSource ./.;
             subPackages = [ "cmd/crawler" ];
 
-            vendorHash = "sha256-6M//SxxLh+NKMH45kUtPIEVSld37uFHTtLqgXHc4eeg=";
+            vendorHash = "sha256-Hr1VFA0gxr1aiI7/toB6oZmk+MpGV3qPW0rvCdtCoDU=";
 
             doCheck = false;
 
@@ -76,19 +76,6 @@
               "-w"
               "-extldflags -static"
             ];
-          };
-          nodeCrawlerFrontend = pkgs.buildNpmPackage {
-            pname = "frontend";
-            version = "0.0.0";
-
-            src = gitignoreSource ./frontend;
-
-            npmDepsHash = "sha256-1nLQVoNkiA4x97UcPe8rNMXa7bYCskazpJesWVLnDHk=";
-
-            installPhase = ''
-              mkdir -p $out/share
-              cp -r build/ $out/share/frontend
-            '';
           };
         };
 
