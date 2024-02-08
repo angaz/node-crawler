@@ -894,7 +894,7 @@ css buttonDisabled() {
 	pointer-events: none;
 }
 
-templ supportsForkLinks(name string, key string, url URL, supportsForkName string, disabled bool) {
+templ supportsForkLinks(name string, key string, title string, url URL, supportsForkName string, disabled bool) {
 	<div style="display: flex; flex-direction: row; gap: 0.5em;">
 		<a
 			class={
@@ -916,6 +916,7 @@ templ supportsForkLinks(name string, key string, url URL, supportsForkName strin
 			}
 			href={ url.WithParam("supports-fork-name", key).SafeURL() }
 			rel="nofollow"
+			title={ title }
 		>
 			Supports { name }
 		</a>
@@ -925,7 +926,7 @@ templ supportsForkLinks(name string, key string, url URL, supportsForkName strin
 templ SupportsForkLinks(url URL, networkID int64, supportsForkName string) {
 	switch networkID {
 	case 1, 5, 17000, 11155111:
-		@supportsForkLinks("Cancun", "cancun", url, supportsForkName, false)
+		@supportsForkLinks("Cancun", "cancun", "Blobs are coming", url, supportsForkName, false)
 	}
 }
 
