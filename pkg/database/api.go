@@ -869,7 +869,7 @@ func (db *DB) GetStatsAPI(
 				nodes.network_id,
 				nodes.fork_id,
 				nullif(nodes.next_fork_id, 0),
-				country_name,
+				coalesce(country_name, 'Unknown'),
 				synced,
 				dial_success,
 				avg(total)::INTEGER total
