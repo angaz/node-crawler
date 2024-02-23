@@ -45,6 +45,7 @@ func openSQLiteDB(cCtx *cli.Context, mode sqlu.Param) (*sql.DB, error) {
 	dsn := sqlu.ConnParams{
 		Filename: crawlerDBName,
 		Mode:     mode,
+		Pragma:   []sqlu.Pragma{},
 		// Pragma: []sqlu.Pragma{
 		// 	sqlu.PragmaBusyTimeout(int64(busyTimeoutFlag.Get(cCtx))),
 		// 	sqlu.PragmaJournalSizeLimit(128 * 1024 * 1024), // 128MiB
@@ -57,6 +58,7 @@ func openSQLiteDB(cCtx *cli.Context, mode sqlu.Param) (*sql.DB, error) {
 				Filename: statsDBFlag.Get(cCtx),
 				Database: "stats",
 				Mode:     mode,
+				Pragma:   []sqlu.Pragma{},
 				// Pragma: []sqlu.Pragma{
 				// 	sqlu.PragmaJournalSizeLimit(128 * 1024 * 1024), // 128MiB
 				// 	sqlu.PragmaAutoVacuumIncremental,
