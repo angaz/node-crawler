@@ -29,7 +29,20 @@ func TestParseClientID(t *testing.T) {
 		client *Client
 	}{
 		{
-			name: "nimbus",
+			name: "nimbus 6 parts",
+			ci:   "nimbus-eth1 v0.1.0 [linux: amd64, nimvm, c0d52b]",
+			client: &Client{
+				Name:     "nimbus-eth1",
+				UserData: Unknown,
+				Version:  "v0.1.0",
+				Build:    "c0d52b",
+				OS:       OSLinux,
+				Arch:     ArchAMD64,
+				Language: "nim",
+			},
+		},
+		{
+			name: "nimbus 7 parts",
 			ci:   "nimbus-eth1 v0.1.0 [linux: amd64, rocksdb, nimvm, c0d52b]",
 			client: &Client{
 				Name:     "nimbus-eth1",
@@ -104,6 +117,19 @@ func TestParseClientID(t *testing.T) {
 				OS:       OSLinux,
 				Arch:     ArchAMD64,
 				Language: "go1.21.4",
+			},
+		},
+		{
+			name: "geth with 2 user data parts",
+			ci:   "geth/nodes/node3/v1.13.1-stable-e9d041e7/linux-amd64/go1.21.5",
+			client: &Client{
+				Name:     "geth",
+				UserData: "nodes/nodes3",
+				Version:  "v1.13.1",
+				Build:    "stable-e9d041e7",
+				OS:       OSLinux,
+				Arch:     ArchAMD64,
+				Language: "go1.21.5",
 			},
 		},
 	}

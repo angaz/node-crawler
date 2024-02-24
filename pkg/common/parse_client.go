@@ -315,7 +315,8 @@ func handleNimbus(name string) (*Client, error) {
 
 	parts := strings.Split(string(newClientName), " ")
 
-	if len(parts) == 1 {
+	switch len(parts) {
+	case 1:
 		return &Client{
 			Name:     parts[0],
 			UserData: Unknown,
@@ -325,31 +326,29 @@ func handleNimbus(name string) (*Client, error) {
 			Arch:     ArchUnknown,
 			Language: Unknown,
 		}, nil
-	}
+	case 6, 7:
+		version, err := parseVersion(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf("parse version failed: %w", err)
+		}
 
-	if len(parts) != 7 {
+		os, arch, err := parseOSArch(parts[2] + "-" + parts[3])
+		if err != nil {
+			slog.Error("os/arch parse error", "err", err)
+		}
+
+		return &Client{
+			Name:     parts[0],
+			UserData: Unknown,
+			Version:  version.Version(),
+			Build:    parts[len(parts)-1],
+			OS:       os,
+			Arch:     arch,
+			Language: "nim",
+		}, nil
+	default:
 		return nil, fmt.Errorf("nimbus-eth1 not valid, name: %s", name)
 	}
-
-	version, err := parseVersion(parts[1])
-	if err != nil {
-		return nil, fmt.Errorf("parse version failed: %w", err)
-	}
-
-	os, arch, err := parseOSArch(parts[2] + "-" + parts[3])
-	if err != nil {
-		slog.Error("os/arch parse error", "err", err)
-	}
-
-	return &Client{
-		Name:     parts[0],
-		UserData: Unknown,
-		Version:  version.Version(),
-		Build:    parts[6],
-		OS:       os,
-		Arch:     arch,
-		Language: "nim",
-	}, nil
 }
 
 func handleLen1(parts []string) (*Client, error) {
