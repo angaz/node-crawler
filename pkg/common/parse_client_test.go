@@ -124,7 +124,7 @@ func TestParseClientID(t *testing.T) {
 			ci:   "geth/nodes/node3/v1.13.1-stable-e9d041e7/linux-amd64/go1.21.5",
 			client: &Client{
 				Name:     "geth",
-				UserData: "nodes/nodes3",
+				UserData: "nodes/node3",
 				Version:  "v1.13.1",
 				Build:    "stable-e9d041e7",
 				OS:       OSLinux,

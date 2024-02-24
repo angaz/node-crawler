@@ -498,26 +498,44 @@ func handleLen5(parts []string) (*Client, error) {
 }
 
 func handleLen6(parts []string) (*Client, error) {
-	if parts[0] != "q-client" {
+	switch parts[0] {
+	case "q-client":
+		os, arch, _ := parseOSArch(parts[4])
+
+		version, err := parseVersion(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf("parse version failed: %w", err)
+		}
+
+		return &Client{
+			Name:     parts[0],
+			UserData: Unknown,
+			Version:  version.Version(),
+			Build:    version.Build,
+			OS:       os,
+			Arch:     arch,
+			Language: parts[5],
+		}, nil
+	case "geth":
+		version, err := parseVersion(parts[3])
+		if err != nil {
+			return nil, fmt.Errorf("parse version failed: %w", err)
+		}
+
+		os, arch, _ := parseOSArch(parts[4])
+
+		return &Client{
+			Name:     parts[0],
+			UserData: parts[1] + "/" + parts[2],
+			Version:  version.Version(),
+			Build:    version.Build,
+			OS:       os,
+			Arch:     arch,
+			Language: parts[5],
+		}, nil
+	default:
 		return nil, ErrUnknownClient
 	}
-
-	os, arch, _ := parseOSArch(parts[4])
-
-	version, err := parseVersion(parts[1])
-	if err != nil {
-		return nil, fmt.Errorf("parse version failed: %w", err)
-	}
-
-	return &Client{
-		Name:     parts[0],
-		UserData: Unknown,
-		Version:  version.Version(),
-		Build:    version.Build,
-		OS:       os,
-		Arch:     arch,
-		Language: parts[5],
-	}, nil
 }
 
 func handleLen7(parts []string) (*Client, error) {
