@@ -158,6 +158,7 @@ func (conn *Conn) GetClientInfo(
 			goto loopExit
 
 		// NOOP conditions
+		case *GetPooledTransactions:
 		case *NewBlock:
 		case *NewBlockHashes:
 		case *NewPooledTransactionHashes:
