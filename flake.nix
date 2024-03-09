@@ -461,6 +461,8 @@
                     nodecrawler
 
                   mv "''${dump_name}.part" "''${dump_name}"
+
+                  find "${cfg.snapshotDirname}" -mtime +7 -name '*.pgdump' -delete
                 '';
               };
             };
