@@ -203,7 +203,25 @@ func (d *Discovery) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) 
 	return nil
 }
 
-func (d *Discovery) discCrawler(ctx context.Context) {
+func closestDisc(discs []*Discovery, nodeID enode.ID) *Discovery {
+	var lastDisc *Discovery = discs[0]
+	var lastDistance = enode.LogDist(lastDisc.localnode.ID(), nodeID)
+
+	for _, disc := range discs[1:] {
+		discID := disc.localnode.ID()
+
+		distance := enode.LogDist(discID, nodeID)
+
+		if distance < lastDistance {
+			lastDisc = disc
+			lastDistance = distance
+		}
+	}
+
+	return lastDisc
+}
+
+func (d *Discovery) discCrawler(ctx context.Context, discs []*Discovery) {
 	defer d.wg.Done()
 
 	for ctx.Err() == nil {
@@ -212,11 +230,13 @@ func (d *Discovery) discCrawler(ctx context.Context) {
 			slog.Error("disc crawl select node failed", "err", err)
 		}
 
+		disc := closestDisc(discs, node.ID())
+
 		err = d.db.WithTxAsync(
 			ctx,
 			database.TxOptionsDeferrable,
 			func(ctx context.Context, tx pgx.Tx) error {
-				return d.crawlNode(ctx, tx, node)
+				return disc.crawlNode(ctx, tx, node)
 			},
 		)
 		if err != nil {
@@ -246,10 +266,10 @@ func (d *Discovery) randomLoop(ctx context.Context, iter enode.Iterator, discVer
 	}
 }
 
-func (d *Discovery) StartDaemon(ctx context.Context) {
+func (d *Discovery) StartDaemon(ctx context.Context, discs []*Discovery) {
 	d.wg.Add(1)
 
-	go d.discCrawler(ctx)
+	go d.discCrawler(ctx, discs)
 }
 
 // Starts a random discovery crawler in a goroutine
