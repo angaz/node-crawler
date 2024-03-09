@@ -22,7 +22,6 @@ templ PortalStats(
 				</a>
 			</div>
 		}
-
 		if isLoading {
 			<span>
 				One or more charts are empty.
@@ -31,19 +30,16 @@ templ PortalStats(
 				Please try again soon.
 			</span>
 		}
-
 		<div style="display: flex; flex-direction: row; gap: 1em; flex-wrap: wrap;">
 			for _, chart := range charts {
-				{! chart }
+				@chart
 			}
 		</div>
-
 		<div style="display: flex; flex-direction: row; gap: 1em; flex-wrap: wrap;">
 			for _, stat := range stats {
-				{! stat }
+				@stat
 			}
 		</div>
-
 		<div style="display: flex; flex-direction: column; align-items: flex-end; align-self: flex-end;">
 			<span>Only shows nodes which were last found via discovery in the last 24 hours</span>
 			<span>Updates every 30 minutes</span>

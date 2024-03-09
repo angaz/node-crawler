@@ -12,7 +12,6 @@ import "github.com/ethereum/node-crawler/pkg/common"
 templ NotFound() {
 	<div style="margin: 1em;">
 		<h3>Node Not Found</h3>
-
 		<a href="/help/#add-your-node">How to your node</a>
 	</div>
 }
@@ -292,17 +291,13 @@ templ HelpPage(enodes []string, enode string) {
 					This is referring to the crawler dialing (connecting to) a node, or
 					accepting a connection from a node.
 				</p>
-
 				<p>
 					The "Dial Success" value used in a few places means that the crawler
 					was able to connect to the node in the last 14 days.
 				</p>
-
 				<h3 id="add-your-node">Add your node</h3>
 				<p>If your node is not found, it can be easily added.</p>
-
 				<p>The crawler runs multiple nodes. You can select one to use at random:</p>
-
 				<code>
 					<pre>
 						for _, e := range enodes {
@@ -310,44 +305,36 @@ templ HelpPage(enodes []string, enode string) {
 						}
 					</pre>
 				</code>
-
 				<h4 id="add-your-node-rpc">RPC (All Clients)</h4>
 				<p>
 					This is an admin method, to use it, you need to enable the admin API:
 				</p>
-
 				<div style="padding-inline-start: 1em;">
 					<h4>Besu</h4>
 					<p>
 						Add the startup flag: <code>--rpc-http-api</code>
 					</p>
-
 					<h4>Erigon</h4>
 					<p>
 						Add the startup flag: <code>--private.api.addr=localhost:8545</code>
 					</p>
-
 					<h4>Geth</h4>
 					<p>
 						Add the startup flags: <code>--http --http.api admin</code>
 					</p>
-
 					<h4>Nethermind</h4>
 					<p>
 						Add the startup flags: <code>--JsonRpc.Enabled true --JsonRpc.EnabledModules admin</code>
 					</p>
-
 					<h4>Reth</h4>
 					<p>
 						Add the startup flags: <code>--http --http.api admin</code>
 					</p>
 				</div>
-
 				<p>Then you can add the peer with a curl command</p>
 				<code>
 					curl -X POST --data '{ `{"jsonrpc":"2.0","method":"admin_addPeer","params":["` + enode + `"],"id":1}` }' http://127.0.0.1:8545
 				</code>
-
 				<h4 id="add-your-node-geth">Geth</h4>
 				<p>Run the following command in the JavaScript console:</p>
 				<code>
@@ -361,24 +348,20 @@ templ HelpPage(enodes []string, enode string) {
 				<code>
 					docker exec CONTAINER_NAME geth --exec "admin.addPeer('{ enode }')" attach /ethclient/geth/geth.ipc
 				</code>
-
 				<h3 id="find-node-id">Find your node ID / Pubkey</h3>
 				<p>Find your node ID so you can find your node on the website</p>
-
 				<h4 id="find-node-id-rpc">RPC (All Clients)</h4>
-
 				<p>
 					Follow the instructions <a href="#add-your-node-rpc">here</a> { `for` } your client
 				</p>
 				<p>Then get the data with a curl command</p>
 				<code>
-					{`curl -X POST --data '{"jsonrpc":"2.0","method":"admin_nodeInfo","params":[],"id":1}' http://127.0.0.1:8545`}
+					{ `curl -X POST --data '{"jsonrpc":"2.0","method":"admin_nodeInfo","params":[],"id":1}' http://127.0.0.1:8545` }
 				</code>
 				<p>
 					In the response, you should see your node's Enode, and ID. Both of
 					these start with your node's public key.
 				</p>
-
 				<h4 id="find-node-id-geth">Geth</h4>
 				<p>Run the following command in the JavaScript console:</p>
 				<code>
@@ -411,7 +394,7 @@ type URL struct {
 func URLFromReq(r *http.Request) URL {
 	return URL{
 		url.URL{
-			Path: r.URL.Path,
+			Path:     r.URL.Path,
 			RawQuery: r.URL.RawQuery,
 		},
 	}
@@ -477,14 +460,14 @@ func (u URL) SafeURL() templ.SafeURL {
 
 func intToAllYesNo(i int) string {
 	switch i {
-		case -1:
-			return "all"
-		case 0:
-			return "no"
-		case 1:
-			return "yes"
-		default:
-			panic("intToAllYesNo hit unreachable")
+	case -1:
+		return "all"
+	case 0:
+		return "no"
+	case 1:
+		return "yes"
+	default:
+		panic("intToAllYesNo hit unreachable")
 	}
 }
 
@@ -510,9 +493,9 @@ templ NodeList(reqURL URL, nodes database.NodeList, ephemeryNetworks []database.
 			</form>
 			<div style="display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 0.5em;">
 				<a
- 					href={ reqURL.WithParam("q", "").WithParam("page", "1").SafeURL() }
+					href={ reqURL.WithParam("q", "").WithParam("page", "1").SafeURL() }
 					rel="nofollow"
- 					class={
+					class={
 						pageButton(),
 						templ.KV(pageButtonActive(), nodes.Query == ""),
 						templ.KV(pageButtonInactive(), nodes.Query != ""),
@@ -522,9 +505,9 @@ templ NodeList(reqURL URL, nodes database.NodeList, ephemeryNetworks []database.
 				</a>
 				for _, c := range []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"} {
 					<a
- 						href={ reqURL.WithParam("q", c).WithParam("page", "1").SafeURL() }
+						href={ reqURL.WithParam("q", c).WithParam("page", "1").SafeURL() }
 						rel="nofollow"
- 						class={
+						class={
 							pageButton(),
 							templ.KV(pageButtonActive(), nodes.Query == c),
 							templ.KV(pageButtonInactive(), nodes.Query != c),
@@ -574,24 +557,22 @@ templ NodeList(reqURL URL, nodes database.NodeList, ephemeryNetworks []database.
 					}
 				</tbody>
 			</table>
-
 			if len(nodes.List) == 0 {
 				<span>The set of filters resulted in 0 rows. Try selecting "All" for the network and synced filters</span>
 			}
-
 			<div style="display:flex; flex-direction:row; justify-content:flex-end; align-items:center; gap:2em;">
 				<a
- 					href={ reqURL.WithIntParam("page", nodes.PageNumber-1).SafeURL() }
+					href={ reqURL.WithIntParam("page", nodes.PageNumber-1).SafeURL() }
 					rel="nofollow"
- 					class={ pageButton(), pageButtonActive(), templ.KV(disabled(), nodes.PageNumber == 1) }
+					class={ pageButton(), pageButtonActive(), templ.KV(disabled(), nodes.PageNumber == 1) }
 				>
 					Previous
 				</a>
 				<span>{ strconv.Itoa(nodes.PageNumber) }</span>
 				<a
- 					href={ reqURL.WithIntParam("page", nodes.PageNumber+1).SafeURL() }
+					href={ reqURL.WithIntParam("page", nodes.PageNumber+1).SafeURL() }
 					rel="nofollow"
- 					class={ pageButton(), pageButtonActive(), templ.KV(disabled(), !nodes.HasNextPage) }
+					class={ pageButton(), pageButtonActive(), templ.KV(disabled(), !nodes.HasNextPage) }
 				>
 					Next
 				</a>
@@ -628,34 +609,34 @@ templ HistoryList(reqURL URL, history database.HistoryList, ephemeryNetworks []d
 			@NetworkFilterLinks(reqURL, history.NetworkID, ephemeryNetworks)
 			<div style="display: flex; flex-direction: row; gap: 0.5em;">
 				<a
- 					class={
+					class={
 						pageButton(),
 						templ.KV(pageButtonActive(), history.IsError == -1),
 						templ.KV(pageButtonInactive(), history.IsError != -1),
 					}
- 					href={ reqURL.WithParam("error", "all").SafeURL() }
+					href={ reqURL.WithParam("error", "all").SafeURL() }
 					rel="nofollow"
 				>
 					All
 				</a>
 				<a
- 					class={
+					class={
 						pageButton(),
 						templ.KV(pageButtonActive(), history.IsError == 1),
 						templ.KV(pageButtonInactive(), history.IsError != 1),
 					}
- 					href={ reqURL.WithParam("error", "yes").SafeURL() }
+					href={ reqURL.WithParam("error", "yes").SafeURL() }
 					rel="nofollow"
 				>
 					Error
 				</a>
 				<a
- 					class={
+					class={
 						pageButton(),
 						templ.KV(pageButtonActive(), history.IsError == 0),
 						templ.KV(pageButtonInactive(), history.IsError != 0),
 					}
- 					href={ reqURL.WithParam("error", "no").SafeURL() }
+					href={ reqURL.WithParam("error", "no").SafeURL() }
 					rel="nofollow"
 				>
 					Success
@@ -668,10 +649,10 @@ templ HistoryList(reqURL URL, history database.HistoryList, ephemeryNetworks []d
 					<input class={ pageButton(), pageButtonActive() } title="Activate the flux capacitor" type="submit" value="Go to time"/>
 				</form>
 				<a
- 					class={ pageButton(), pageButtonActive() }
- 					href={ reqURL.RemoveParam("before", "after").SafeURL() }
+					class={ pageButton(), pageButtonActive() }
+					href={ reqURL.RemoveParam("before", "after").SafeURL() }
 					rel="nofollow"
- 					title="We have to go back"
+					title="We have to go back"
 				>
 					Go to now
 				</a>
@@ -705,15 +686,15 @@ templ HistoryList(reqURL URL, history database.HistoryList, ephemeryNetworks []d
 				<div style="display: flex; flex-direction: row; align-items: center;">
 					if history.FirstTime != nil && history.LastTime != nil {
 						<a
- 							class={ pageButton(), pageButtonActive() }
- 							href={ reqURL.RemoveParam("after").WithParam("before", history.FirstTimeStr()).SafeURL() }
+							class={ pageButton(), pageButtonActive() }
+							href={ reqURL.RemoveParam("after").WithParam("before", history.FirstTimeStr()).SafeURL() }
 							rel="nofollow"
 						>
 							Previous
 						</a>
 						<a
- 							class={ pageButton(), pageButtonActive() }
- 							href={ reqURL.RemoveParam("before").WithParam("after", history.LastTimeStr()).SafeURL() }
+							class={ pageButton(), pageButtonActive() }
+							href={ reqURL.RemoveParam("before").WithParam("after", history.LastTimeStr()).SafeURL() }
 							rel="nofollow"
 						>
 							Next
@@ -806,31 +787,31 @@ templ NetworkFilterLinks(url URL, networkID int64, ephemeryNetworks []database.E
 	<div style="display: flex; flex-direction: row; gap: 0.5em;">
 		for _, netID := range []int64{1, 5, 17000, 11155111} {
 			<a
- 				class={
+				class={
 					pageButton(),
 					templ.KV(pageButtonActive(), netID == networkID),
 					templ.KV(pageButtonInactive(), netID != networkID),
 				}
- 				href={ url.WithInt64Param("network", netID).SafeURL() }
+				href={ url.WithInt64Param("network", netID).SafeURL() }
 			>
 				{ networkName(netID) }
 			</a>
 		}
-		<div class={
-			"dropdown-anchor",
-			pageButton(),
-			func() string {
-				for _, en := range ephemeryNetworks {
-					if en.NetworkID == networkID {
-						return pageButtonActive().ClassName()
+		<div
+			class={
+				"dropdown-anchor",
+				pageButton(),
+				func() string {
+					for _, en := range ephemeryNetworks {
+						if en.NetworkID == networkID {
+							return pageButtonActive().ClassName()
+						}
 					}
-				}
-
-				return pageButtonInactive().ClassName()
-			}(),
-		}>
+					return pageButtonInactive().ClassName()
+				}(),
+			}
+		>
 			<span aria-haspopup="true">Ephemery</span>
-
 			<div class="dropdown" aria-label="submenu">
 				<div class="dropdown-content">
 					for _, network := range ephemeryNetworks {
@@ -855,34 +836,34 @@ templ NetworkFilterLinks(url URL, networkID int64, ephemeryNetworks []database.E
 templ SyncedFilterLinks(url URL, synced int) {
 	<div style="display: flex; flex-direction: row; gap: 0.5em;">
 		<a
- 			class={
+			class={
 				pageButton(),
 				templ.KV(pageButtonActive(), synced == -1),
 				templ.KV(pageButtonInactive(), synced != -1),
 			}
- 			href={ url.WithParam("synced", "all").SafeURL() }
+			href={ url.WithParam("synced", "all").SafeURL() }
 			rel="nofollow"
 		>
 			All
 		</a>
 		<a
- 			class={
+			class={
 				pageButton(),
 				templ.KV(pageButtonActive(), synced == 1),
 				templ.KV(pageButtonInactive(), synced != 1),
 			}
- 			href={ url.WithParam("synced", "yes").SafeURL() }
+			href={ url.WithParam("synced", "yes").SafeURL() }
 			rel="nofollow"
 		>
 			Synced
 		</a>
 		<a
- 			class={
+			class={
 				pageButton(),
 				templ.KV(pageButtonActive(), synced == 0),
 				templ.KV(pageButtonInactive(), synced != 0),
 			}
- 			href={ url.WithParam("synced", "no").SafeURL() }
+			href={ url.WithParam("synced", "no").SafeURL() }
 			rel="nofollow"
 		>
 			Not Synced
@@ -925,8 +906,8 @@ templ supportsForkLinks(name string, key string, title string, url URL, supports
 
 templ SupportsForkLinks(url URL, networkID int64, supportsForkName string) {
 	switch networkID {
-	case 1, 5, 17000, 11155111:
-		@supportsForkLinks("Cancun", "cancun", "Blobs are coming", url, supportsForkName, false)
+		case 1:
+			@supportsForkLinks("Cancun", "cancun", "Blobs are coming", url, supportsForkName, false)
 	}
 }
 
@@ -960,7 +941,6 @@ templ Stats(
 				</a>
 			</div>
 		}
-
 		if isLoading {
 			<span>
 				One or more charts are empty.
@@ -969,19 +949,16 @@ templ Stats(
 				Please try again soon.
 			</span>
 		}
-
 		<div style="display: flex; flex-direction: row; gap: 1em; flex-wrap: wrap;">
 			for _, chart := range charts {
-				{! chart }
+				@chart
 			}
 		</div>
-
 		<div style="display: flex; flex-direction: row; gap: 1em; flex-wrap: wrap;">
 			for _, stat := range stats {
-				{! stat }
+				@stat
 			}
 		</div>
-
 		<div style="display: flex; flex-direction: column; align-items: flex-end; align-self: flex-end;">
 			<span>Only shows nodes which were last found via discovery in the last 24 hours</span>
 			<span>Updates every 30 minutes</span>
@@ -1092,7 +1069,6 @@ templ StatsGraph(
 		</div>
 		<div style="height: 100%; width: 100%;" id={ id }></div>
 	</div>
-
 	@statsGraph(id, ts, graphFormat)
 }
 
@@ -1109,7 +1085,7 @@ templ StatsGroup(name string, instant database.StatsInstant, hrefFn func(string)
 						if hrefFn(stat.Key()) == "" {
 							{ stat.Key() } ({ strconv.FormatInt(stat.Total, 10) })
 						} else {
-							<a href={hrefFn(stat.Key())} rel="nofollow">{ stat.Key() } ({ strconv.FormatInt(stat.Total, 10) })</a>
+							<a href={ hrefFn(stat.Key()) } rel="nofollow">{ stat.Key() } ({ strconv.FormatInt(stat.Total, 10) })</a>
 						}
 					</span>
 				</div>
@@ -1123,13 +1099,10 @@ templ Index(reqURL URL, main templ.Component, networkID int64, synced int) {
 	<html lang="en-US">
 		<head>
 			<title>Ethernets - Node Crawler</title>
-
-			<meta property="og:title" content="Ethernets - Node Crawler" />
-			<meta property="og:description" content="Crawls all the Ethereum networks." />
-			<meta property="og:image" content="/eth-diamond-purple.png" />
-
+			<meta property="og:title" content="Ethernets - Node Crawler"/>
+			<meta property="og:description" content="Crawls all the Ethereum networks."/>
+			<meta property="og:image" content="/eth-diamond-purple.png"/>
 			<script src="https://unpkg.com/echarts@5.4.3/dist/echarts.min.js"></script>
-
 			<style type="text/css">
 				html, body {
 					margin: 0;
@@ -1231,7 +1204,7 @@ templ Index(reqURL URL, main templ.Component, networkID int64, synced int) {
 				</ul>
 			</nav>
 			<main>
-				{! main }
+				@main
 			</main>
 		</body>
 	</html>
