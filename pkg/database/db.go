@@ -41,8 +41,6 @@ type DB struct {
 	discNodesToCrawlLock  *sync.Mutex
 	discRecentlyCrawled   *fifomemory.FIFOMemory[enode.ID]
 
-	discUpdateCache *fifomemory.FIFOMemory[enode.ID]
-
 	portalDiscActiveCrawlers map[enode.ID]struct{}
 	portalDiscToCrawlCache   chan *NodeToCrawl
 	portalDiscToCrawlLock    *sync.Mutex
@@ -88,8 +86,6 @@ func NewDB(
 		discNodesToCrawlCache: make(chan *NodeToCrawl, 2048),
 		discNodesToCrawlLock:  new(sync.Mutex),
 		discRecentlyCrawled:   fifomemory.New[enode.ID](256),
-
-		discUpdateCache: fifomemory.New[enode.ID](1024),
 
 		portalDiscActiveCrawlers: map[enode.ID]struct{}{},
 		portalDiscToCrawlCache:   make(chan *NodeToCrawl, 2048),
