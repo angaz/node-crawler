@@ -1,8 +1,10 @@
 package networks
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -71,41 +73,69 @@ func ephemeryIterationName(release *github.RepositoryRelease) string {
 	return "Ephemery " + split[1]
 }
 
-func releaseNetwork(release *github.RepositoryRelease) (*EphemeryNetwork, error) {
-	for _, asset := range release.Assets {
-		if asset.Name == nil || *asset.Name != "genesis.json" {
-			continue
-		}
+func downloadAsset(asset *github.ReleaseAsset) ([]byte, error) {
+	resp, err := http.Get(*asset.BrowserDownloadURL)
+	if err != nil {
+		return nil, fmt.Errorf("http GET: %w", err)
+	}
+	defer resp.Body.Close()
 
-		resp, err := http.Get(*asset.BrowserDownloadURL)
-		if err != nil {
-			return nil, fmt.Errorf("download: %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("download: status not OK: %d", resp.StatusCode)
-		}
-
-		genesis, err := parseEthereumGenesisJSON(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("parse genesis json: %w", err)
-		}
-
-		name := ephemeryIterationName(release)
-
-		return &EphemeryNetwork{
-			Name:        name,
-			NetworkID:   genesis.Config.ChainID.Uint64(),
-			PublishedAt: release.PublishedAt.Time,
-			Forks: Forks(
-				genesis,
-				name,
-			),
-		}, nil
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status not OK: %d", resp.StatusCode)
 	}
 
-	return nil, fmt.Errorf("no genesis.json release found")
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
+	}
+
+	return body, nil
+}
+
+func releaseNetwork(release *github.RepositoryRelease) (*EphemeryNetwork, error) {
+	var genesis *github.ReleaseAsset
+	var config *github.ReleaseAsset
+
+	for _, asset := range release.Assets {
+		if asset.Name != nil && *asset.Name == "genesis.json" {
+			genesis = asset
+		}
+		if asset.Name != nil && *asset.Name == "config.yaml" {
+			config = asset
+		}
+
+	}
+
+	if genesis == nil || config == nil {
+		return nil, fmt.Errorf("genesis.json or config.yaml not found")
+	}
+
+	genesisBody, err := downloadAsset(genesis)
+
+	execution, err := parseExecutionGenesisJSON(bytes.NewBuffer(genesisBody))
+	if err != nil {
+		return nil, fmt.Errorf("parse genesis json: %w", err)
+	}
+
+	consensusBody, err := downloadAsset(config)
+
+	consensus, err := parseConsensusConfigYAML(consensusBody)
+	if err != nil {
+		return nil, fmt.Errorf("parse beacon yaml: %w", err)
+	}
+
+	name := ephemeryIterationName(release)
+
+	return &EphemeryNetwork{
+		Name:        name,
+		NetworkID:   execution.Config.ChainID.Uint64(),
+		PublishedAt: release.PublishedAt.Time,
+		Forks: Forks(
+			execution,
+			consensus,
+			name,
+		),
+	}, nil
 }
 
 func GetEphemeryNetworks(githubToken string, lastRelease time.Time) ([]EphemeryNetwork, error) {

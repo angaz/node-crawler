@@ -2,11 +2,13 @@ package networks
 
 import (
 	"encoding/binary"
+	"fmt"
 	"hash/crc32"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/params"
+	gethparams "github.com/ethereum/go-ethereum/params"
+	prysmparams "github.com/prysmaticlabs/prysm/v4/config/params"
 )
 
 type Fork struct {
@@ -49,33 +51,42 @@ func uint64ptr(i *big.Int) *uint64 {
 	return &ui64
 }
 
-func chainForks(config *params.ChainConfig) ([]*uint64, []*uint64) {
+func chainForks(executionConfig *gethparams.ChainConfig, beaconConfig *prysmparams.BeaconChainConfig) ([]*uint64, []*uint64, []*uint64) {
 	blocks := []*uint64{
-		uint64ptr(config.HomesteadBlock),
-		uint64ptr(config.DAOForkBlock),
-		uint64ptr(config.EIP150Block),
-		uint64ptr(config.EIP155Block),
-		uint64ptr(config.EIP158Block),
-		uint64ptr(config.ByzantiumBlock),
-		uint64ptr(config.ConstantinopleBlock),
-		uint64ptr(config.PetersburgBlock),
-		uint64ptr(config.IstanbulBlock),
-		uint64ptr(config.MuirGlacierBlock),
-		uint64ptr(config.BerlinBlock),
-		uint64ptr(config.LondonBlock),
-		uint64ptr(config.ArrowGlacierBlock),
-		uint64ptr(config.GrayGlacierBlock),
-		uint64ptr(config.MergeNetsplitBlock),
+		uint64ptr(executionConfig.HomesteadBlock),
+		uint64ptr(executionConfig.DAOForkBlock),
+		uint64ptr(executionConfig.EIP150Block),
+		uint64ptr(executionConfig.EIP155Block),
+		uint64ptr(executionConfig.EIP158Block),
+		uint64ptr(executionConfig.ByzantiumBlock),
+		uint64ptr(executionConfig.ConstantinopleBlock),
+		uint64ptr(executionConfig.PetersburgBlock),
+		uint64ptr(executionConfig.IstanbulBlock),
+		uint64ptr(executionConfig.MuirGlacierBlock),
+		uint64ptr(executionConfig.BerlinBlock),
+		uint64ptr(executionConfig.LondonBlock),
+		uint64ptr(executionConfig.ArrowGlacierBlock),
+		uint64ptr(executionConfig.GrayGlacierBlock),
+		uint64ptr(executionConfig.MergeNetsplitBlock),
 	}
 
 	times := []*uint64{
-		config.ShanghaiTime,
-		config.CancunTime,
-		config.PragueTime,
-		config.VerkleTime,
+		executionConfig.ShanghaiTime,
+		executionConfig.CancunTime,
+		executionConfig.PragueTime,
+		executionConfig.VerkleTime,
 	}
 
-	return blocks, times
+	epochs := []*uint64{
+		(*uint64)(&beaconConfig.AltairForkEpoch),
+		(*uint64)(&beaconConfig.BellatrixForkEpoch),
+		(*uint64)(&beaconConfig.CapellaForkEpoch),
+		(*uint64)(&beaconConfig.DenebForkEpoch),
+	}
+
+	fmt.Printf("%#v\n", epochs)
+
+	return blocks, times, epochs
 }
 
 func checksumUpdate(hash uint32, fork uint64) uint32 {
@@ -85,9 +96,9 @@ func checksumUpdate(hash uint32, fork uint64) uint32 {
 	return crc32.Update(hash, crc32.IEEETable, blob[:])
 }
 
-func Forks(genesis *core.Genesis, networkName string) []Fork {
-	networkID := genesis.Config.ChainID.Uint64()
-	previousForkID := crc32.ChecksumIEEE(genesis.ToBlock().Hash().Bytes())
+func Forks(execution *core.Genesis, consensus *prysmparams.BeaconChainConfig, networkName string) []Fork {
+	networkID := execution.Config.ChainID.Uint64()
+	previousForkID := crc32.ChecksumIEEE(execution.ToBlock().Hash().Bytes())
 
 	out := make([]Fork, 0, 32)
 	out = append(out, Fork{
@@ -99,7 +110,7 @@ func Forks(genesis *core.Genesis, networkName string) []Fork {
 		NetworkName:    networkName,
 	})
 
-	blocks, times := chainForks(genesis.Config)
+	blocks, times, _ := chainForks(execution.Config, consensus)
 
 	var previousBlock uint64
 
@@ -117,7 +128,7 @@ func Forks(genesis *core.Genesis, networkName string) []Fork {
 		pfid := previousForkID
 
 		out = append(out, Fork{
-			NetworkID:      genesis.Config.ChainID.Uint64(),
+			NetworkID:      execution.Config.ChainID.Uint64(),
 			ForkID:         thisForkID,
 			BlockTime:      *block,
 			PreviousForkID: &pfid,
@@ -136,7 +147,7 @@ func Forks(genesis *core.Genesis, networkName string) []Fork {
 			continue
 		}
 
-		if *blockTime <= genesis.Timestamp {
+		if *blockTime <= execution.Timestamp {
 			continue
 		}
 
@@ -149,7 +160,7 @@ func Forks(genesis *core.Genesis, networkName string) []Fork {
 		pfid := previousForkID
 
 		out = append(out, Fork{
-			NetworkID:      genesis.Config.ChainID.Uint64(),
+			NetworkID:      execution.Config.ChainID.Uint64(),
 			ForkID:         thisForkID,
 			BlockTime:      *blockTime,
 			PreviousForkID: &pfid,

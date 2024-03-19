@@ -103,6 +103,7 @@ require (
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/multiformats/go-base32 v0.1.0 // indirect
 	github.com/multiformats/go-base36 v0.2.0 // indirect
@@ -134,6 +135,7 @@ require (
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
+	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/supranational/blst v0.3.11 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect

@@ -29,7 +29,7 @@ import (
 	"log/slog"
 
 	"github.com/ethereum/node-crawler/pkg/common"
-	// consensuscrawler "github.com/ethereum/node-crawler/pkg/consensus/crawler"
+	consensuscrawler "github.com/ethereum/node-crawler/pkg/consensus/crawler"
 	executioncrawler "github.com/ethereum/node-crawler/pkg/execution/crawler"
 	"github.com/ethereum/node-crawler/pkg/execution/listener"
 	portallistener "github.com/ethereum/node-crawler/pkg/portal/listener"
@@ -114,10 +114,10 @@ func crawlerAction(cCtx *cli.Context) error {
 		return fmt.Errorf("read execution node keys: %w", err)
 	}
 
-	// consensusNodeKeys, err := common.ReadNodeKeys(consensusNodeKeysFileFlag.Get(cCtx))
-	// if err != nil {
-	// 	return fmt.Errorf("read consensus node keys: %w", err)
-	// }
+	consensusNodeKeys, err := common.ReadNodeKeys(consensusNodeKeysFileFlag.Get(cCtx))
+	if err != nil {
+		return fmt.Errorf("read consensus node keys: %w", err)
+	}
 
 	portalKeys, err := common.ReadNodeKeys(portalNodeKeysFileFlag.Get(cCtx))
 	if err != nil {
@@ -150,21 +150,21 @@ func crawlerAction(cCtx *cli.Context) error {
 		return fmt.Errorf("start execution crawler: %w", err)
 	}
 
-	// consensusCrawler, err := consensuscrawler.New(
-	// 	db,
-	// 	consensusNodeKeys,
-	// )
-	// if err != nil {
-	// 	return fmt.Errorf("create consensus crawler: %w", err)
-	// }
+	consensusCrawler, err := consensuscrawler.New(
+		db,
+		consensusNodeKeys,
+	)
+	if err != nil {
+		return fmt.Errorf("create consensus crawler: %w", err)
+	}
 
-	// err = consensusCrawler.StartDeamon(
-	// 	cCtx.Context,
-	// 	consensusWorkersFlag.Get(cCtx),
-	// )
-	// if err != nil {
-	// 	return fmt.Errorf("start consensus crawler: %w", err)
-	// }
+	err = consensusCrawler.StartDeamon(
+		cCtx.Context,
+		consensusWorkersFlag.Get(cCtx),
+	)
+	if err != nil {
+		return fmt.Errorf("start consensus crawler: %w", err)
+	}
 
 	portalListener := portallistener.New(
 		db,
@@ -183,12 +183,12 @@ func crawlerAction(cCtx *cli.Context) error {
 
 	listener.Close()
 	execCrawler.Close()
-	// consensusCrawler.Close()
+	consensusCrawler.Close()
 	portalListener.Close()
 
 	listener.Wait()
 	execCrawler.Wait()
-	// consensusCrawler.Wait()
+	consensusCrawler.Wait()
 	portalListener.Wait()
 
 	return nil

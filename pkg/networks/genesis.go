@@ -7,9 +7,10 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/prysmaticlabs/prysm/v4/config/params"
 )
 
-func parseEthereumGenesisJSON(genesisReader io.Reader) (*core.Genesis, error) {
+func parseExecutionGenesisJSON(genesisReader io.Reader) (*core.Genesis, error) {
 	var genesis core.Genesis
 
 	decoder := json.NewDecoder(genesisReader)
@@ -22,16 +23,25 @@ func parseEthereumGenesisJSON(genesisReader io.Reader) (*core.Genesis, error) {
 	return &genesis, nil
 }
 
-func ReadEthereumGenesisJSONFile(filename string) (*core.Genesis, error) {
+func ReadExecutionGenesisJSONFile(filename string) (*core.Genesis, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}
 
-	genesis, err := parseEthereumGenesisJSON(file)
+	genesis, err := parseExecutionGenesisJSON(file)
 	if err != nil {
 		return nil, fmt.Errorf("parse genesis json: %w", err)
 	}
 
 	return genesis, nil
+}
+
+func parseConsensusConfigYAML(config []byte) (*params.BeaconChainConfig, error) {
+	consensus, err := params.UnmarshalConfig(config, nil)
+	if err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
+	}
+
+	return consensus, nil
 }

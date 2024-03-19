@@ -100,8 +100,14 @@ func (c *Crawler) randomHost() *consensusHost {
 	return c.hosts[idx]
 }
 
+func (c *Crawler) closestHost(id enode.ID) *consensusHost {
+	closestHost := c.hosts[0]
+
+	return closestHost
+}
+
 func (c *Crawler) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
-	consensusNode, err := GetClientInfo(ctx, c.randomHost().host, node)
+	consensusNode, err := GetClientInfo(ctx, c.closestHost(node.ID()).host, node)
 	if err != nil {
 		return fmt.Errorf("get client info: %w", err)
 	}
@@ -136,7 +142,7 @@ func (c *Crawler) crawlAndUpdateNode(ctx context.Context) error {
 	// 	return fmt.Errorf("select node: %w", err)
 	// }
 
-	node := enode.MustParse("enr:-LS4QK9FHJBKZfrL3eSAcH_FOslKHBSaAm4SJPgeB1mXCE0VS-M-o2Nz4fS51lLqyX7mNAH8STW4Lyq2xKjBwg_BWnOCAS6HYXR0bmV0c4gAgAEAAAAAAIRldGgykGmuDpkFAXAA__________-CaWSCdjSCaXCErK4j-YlzZWNwMjU2azGhAugUbn6-41fo3j2-eRMFoDdmwEMXwHfQMapY4a1EbPnDg3RjcIIjKIN1ZHCCIyg")
+	node := enode.MustParse("enr:-KG4QC9Wm32mtzB5Fbj2ri2TEKglHmIWgvwTQCvNHBopuwpNAi1X6qOsBg_Z1-Bee-kfSrhzUQZSgDUyfH5outUprtoBgmlkgnY0gmlwhHEel3eDaXA2kP6AAAAAAAAAAlBW__4Srr-Jc2VjcDI1NmsxoQO7KE63Z4eSI55S1Yn7q9_xFkJ1Wt-a3LgiXuKGs19s0YN1ZHCCIyiEdWRwNoIjKA")
 
 	if node == nil {
 		return ErrNothingToCrawl
@@ -275,7 +281,11 @@ func GetClientInfo(
 
 	port := node.TCP()
 	if port == 0 {
-		port = 9001
+		port = node.UDP()
+
+		if port == 0 {
+			port = 9001
+		}
 	}
 
 	maddr, err := multiaddr.NewMultiaddr(
