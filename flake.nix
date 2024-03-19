@@ -488,7 +488,7 @@
               };
               postgresql = mkIf cfg.postgresql.enable {
                 enable = true;
-                enableJIT = true;
+                enableJIT = false;
                 package = pkgs.postgresql_16;
                 extraPlugins = psql: with psql; [
                   pg_repack
