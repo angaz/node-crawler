@@ -272,19 +272,20 @@ func parseVersion(s string) (Version, error) {
 	}
 
 	versionParts := strings.Split(version, ".")
-
-	if len(versionParts) != 3 {
-		return ErrVersion, fmt.Errorf("version not 3 parts: %s", s)
-	}
-
 	versionInts := make([]uint64, 0, 3)
-	for _, part := range versionParts {
-		i, err := strconv.ParseUint(part, 10, 64)
-		if err != nil {
-			return ErrVersion, fmt.Errorf("version part not int: %s: %w", s, err)
-		}
 
-		versionInts = append(versionInts, i)
+	switch len(versionParts) {
+	case 2, 3:
+		for _, part := range versionParts {
+			i, err := strconv.ParseUint(part, 10, 64)
+			if err != nil {
+				return ErrVersion, fmt.Errorf("version part not int: %s: %w", s, err)
+			}
+
+			versionInts = append(versionInts, i)
+		}
+	default:
+		return ErrVersion, fmt.Errorf("version not 2 or 3 parts: %s", s)
 	}
 
 	return Version{

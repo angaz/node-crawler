@@ -132,6 +132,19 @@ func TestParseClientID(t *testing.T) {
 				Language: "go1.21.5",
 			},
 		},
+		{
+			name: "besu version with 3 parts",
+			ci:   "besu/v24.3-develop-b269020a3e/linux-x86_64/openjdk-java-21",
+			client: &Client{
+				Name:     "besu",
+				UserData: Unknown,
+				Version:  "v24.3",
+				Build:    "develop-b269020a3e",
+				OS:       OSLinux,
+				Arch:     ArchAMD64,
+				Language: "openjdk-java-21",
+			},
+		},
 	}
 
 	for _, test := range tt {
