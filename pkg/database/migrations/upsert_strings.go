@@ -7,6 +7,23 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+func RandomSeconds(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(
+		ctx,
+		`
+			CREATE OR REPLACE FUNCTION random_seconds(max_seconds INTEGER) RETURNS INTERVAL
+			AS 'SELECT make_interval(secs => random() * max_seconds);'
+			IMMUTABLE
+			LANGUAGE SQL
+		`,
+	)
+	if err != nil {
+		return fmt.Errorf("exec: %w", err)
+	}
+
+	return nil
+}
+
 func ExecutionCapabilitiesUpsert(ctx context.Context, tx pgx.Tx) error {
 	_, err := tx.Exec(
 		ctx,

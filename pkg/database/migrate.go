@@ -48,6 +48,7 @@ func (db *DB) Migrate(geoipdb string) error {
 			},
 			"function client.upsert":                 migrations.ClientUpsertStrings,
 			"function execution.capabilities_upsert": migrations.ExecutionCapabilitiesUpsert,
+			"function random_seconds":                migrations.RandomSeconds,
 			"geoip": func(ctx context.Context, tx pgx.Tx) error {
 				return migrations.UpdateGeoIPData(ctx, tx, geoipdb)
 			},

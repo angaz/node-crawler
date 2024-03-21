@@ -139,7 +139,7 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 				) VALUES (
 					@node_id,
 					now(),
-					now()
+					now() + random_seconds(300)
 				) ON CONFLICT (node_id) DO UPDATE
 				SET
 					last_found = now(),
