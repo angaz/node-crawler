@@ -64,6 +64,7 @@ func (_ *DB) selectBestRecord(ctx context.Context, db rowQuerier, node *enode.No
 	return bestRecord, nil
 }
 
+// Exponentially back off trying to update a node when it's not found.
 func (db *DB) UpdateDiscNodeFailed(ctx context.Context, tx pgx.Tx, nodeID enode.ID) error {
 	var err error
 
@@ -74,13 +75,12 @@ func (db *DB) UpdateDiscNodeFailed(ctx context.Context, tx pgx.Tx, nodeID enode.
 		`
 			UPDATE crawler.next_disc_crawl
 			SET
-				next_crawl = @next_crawl
+				next_crawl = now() + (now() - last_found)
 			WHERE
 				node_id = @node_id
 		`,
 		pgx.NamedArgs{
-			"node_id":    nodeID.Bytes(),
-			"next_crawl": time.Now().Add(36 * time.Hour).Add(randomHourSeconds()),
+			"node_id": nodeID.Bytes(),
 		},
 	)
 	if err != nil {
@@ -165,7 +165,7 @@ func (db *DB) UpsertNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error
 			"node_pubkey": common.PubkeyBytes(node.Pubkey()),
 			"node_record": common.EncodeENR(bestRecord),
 			"ip_address":  node.IP().String(),
-			"next_crawl":  time.Now().Add(12 * time.Hour).Add(randomHourSeconds()),
+			"next_crawl":  time.Now().Add(18 * time.Hour).Add(randomHourSeconds()),
 		},
 	)
 	if err != nil {
@@ -257,6 +257,7 @@ func (db *DB) fetchDiscNodesToCrawl(ctx context.Context) error {
 				node_record
 			FROM crawler.next_disc_crawl
 			LEFT JOIN disc.nodes USING (node_id)
+			WHERE next_crawl < now() + INTERVAL '3 days'
 			ORDER BY next_crawl
 			LIMIT 1024
 		`,
