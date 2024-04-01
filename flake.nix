@@ -54,7 +54,7 @@
         };
 
         packages = {
-          nodeCrawler = pkgs.buildGo121Module {
+          nodeCrawler = pkgs.buildGo122Module {
             pname = "crawler";
             version = "0.0.0";
 
@@ -101,7 +101,7 @@
           ];
 
           packages = with pkgs; [
-            go_1_21
+            go_1_22
             golangci-lint
             graphviz
             nix-prefetch
