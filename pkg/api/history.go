@@ -3,7 +3,6 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"log/slog"
@@ -96,11 +95,5 @@ func (a *API) handleHistoryList(w http.ResponseWriter, r *http.Request) {
 		networkID,
 		1,
 	)
-
-	sb := new(strings.Builder)
-	_ = index.Render(r.Context(), sb)
-
-	out := strings.ReplaceAll(sb.String(), "STYLE_REPLACE", "style")
-
-	_, _ = w.Write([]byte(out))
+	_ = index.Render(r.Context(), w)
 }

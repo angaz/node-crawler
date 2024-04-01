@@ -16,7 +16,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     templ = {
-      url = "github:a-h/templ?ref=v0.2.598";
+      url = "github:a-h/templ?ref=v0.2.648";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -61,7 +61,7 @@
             src = gitignoreSource ./.;
             subPackages = [ "cmd/crawler" ];
 
-            vendorHash = "sha256-/yjzwyMh+rwjZjS37vpfN8DCwL9Ft/32GCcI7jBshZo=";
+            vendorHash = "sha256-voJL5K6vR95NX1eyNlJdOHCMgoQp0p+nROp9nE3lnBM=";
 
             doCheck = false;
 

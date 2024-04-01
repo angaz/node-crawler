@@ -42,8 +42,6 @@ func (a *API) nodesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sb := new(strings.Builder)
-
 	var page templ.Component
 
 	if nodes != nil {
@@ -53,15 +51,5 @@ func (a *API) nodesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	index := public.Index(public.URLFromReq(r), page, 1, -1)
-	_ = index.Render(r.Context(), sb)
-
-	// This is the worst, but templating the style attribute is
-	// not allowed for security concerns.
-	out := strings.ReplaceAll(
-		sb.String(),
-		"STYLE_REPLACE",
-		"style",
-	)
-
-	w.Write([]byte(out))
+	_ = index.Render(r.Context(), w)
 }

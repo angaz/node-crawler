@@ -372,12 +372,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 	sb := new(strings.Builder)
 	_ = index.Render(r.Context(), sb)
 
-	out := strings.ReplaceAll(
-		sb.String(),
-		"STYLE_REPLACE",
-		"style",
-	)
-
+	out := sb.String()
 	_, _ = w.Write([]byte(out))
 
 	// Cache the result until 5 minutes after the end timestamp.

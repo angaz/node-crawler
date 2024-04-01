@@ -138,12 +138,7 @@ templ NodeTable(nt database.NodeTable) {
 		<div style="position: relative; width: max-content; margin: 1em 0;">
 			<image width="800px" src="/static/blue-marble.png"></image>
 			<image
-				STYLE_REPLACE={ fmt.Sprintf(
-					`position: absolute; top: %d%%; left: %d%%; transform: translate(-50%%, -50%%)`,
-					nt.YOffsetPercent(),
-					nt.XOffsetPercent(),
-				) }
-				height="10%"
+				class={ nodeLocation(nt.XOffsetPercent(), nt.YOffsetPercent()) }
 				src="/static/eth-diamond-purple.png"
 			></image>
 		</div>
@@ -195,6 +190,14 @@ templ NodeTable(nt database.NodeTable) {
 			</div>
 		</div>
 	</div>
+}
+
+css nodeLocation(xOffset, yOffset int) {
+	position: absolute;
+	height: 10%;
+	top: { fmt.Sprintf("%d%%", yOffset) };
+	left: { fmt.Sprintf("%d%%", xOffset) };
+	transform: translate(-50%, -50%);
 }
 
 func ByteCountIEC(b int64) string {
@@ -1089,6 +1092,12 @@ templ StatsGraph(
 	@statsGraph(id, ts, graphFormat)
 }
 
+css statsBar(width int64) {
+	background-color: #333;
+	padding: 0.5em 0;
+	width: { fmt.Sprintf("%d%%", width) };
+}
+
 templ StatsGroup(name string, instant database.StatsInstant, hrefFn func(string) templ.SafeURL) {
 	<div style="display: flex; flex-direction: column; border: 1px solid orange; border-radius: 1em; padding: 1em; flex-grow: 1; min-width: 30%;">
 		<h2>{ name }</h2>
@@ -1097,7 +1106,7 @@ templ StatsGroup(name string, instant database.StatsInstant, hrefFn func(string)
 		</div>
 		<div style="display: flex; flex-direction: column; max-height: 20em; overflow-y: scroll;">
 			for _, stat := range instant.Series {
-				<div STYLE_REPLACE={ fmt.Sprintf("background-color: #333; padding: 0.5em 0; width: %d%%", stat.Total*100/instant.Total) }>
+				<div class={ statsBar(stat.Total*100/instant.Total) }>
 					<span style="padding-inline-start: 0.5em; white-space: nowrap;">
 						if hrefFn(stat.Key()) == "" {
 							{ stat.Key() } ({ strconv.FormatInt(stat.Total, 10) })

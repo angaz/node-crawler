@@ -1,9 +1,9 @@
 module github.com/ethereum/node-crawler
 
-go 1.22
+go 1.22.1
 
 require (
-	github.com/a-h/templ v0.2.598
+	github.com/a-h/templ v0.2.648
 	github.com/angaz/sqlu v0.0.1
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
 	github.com/ethereum/go-ethereum v1.13.5-0.20240401125356-8c5576b1ac89
