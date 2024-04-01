@@ -436,6 +436,12 @@ func (u URL) KeepParams(keys ...string) URL {
 	return u
 }
 
+func (u URL) GetParam(key string) string {
+	query := u.Query()
+
+	return query.Get(key)
+}
+
 func (u URL) WithIntParam(key string, value int) URL {
 	valueStr := strconv.Itoa(value)
 
@@ -883,7 +889,7 @@ templ supportsForkLinks(name string, key string, title string, url URL, supports
 				templ.KV(pageButtonActive(), supportsForkName == ""),
 				templ.KV(pageButtonInactive(), supportsForkName != ""),
 			}
-			href={ url.WithParam("supports-fork-name", "").SafeURL() }
+			href={ url.RemoveParam("supports-fork-name").SafeURL() }
 			rel="nofollow"
 		>
 			All
@@ -906,8 +912,18 @@ templ supportsForkLinks(name string, key string, title string, url URL, supports
 
 templ SupportsForkLinks(url URL, networkID int64, supportsForkName string) {
 	switch networkID {
-		case 1:
-			@supportsForkLinks("Cancun", "cancun", "Blobs are coming", url, supportsForkName, false)
+		default:
+			if url.GetParam("supports-fork-name") != "" {
+				<div style="display: flex; flex-direction: row; gap: 0.5em;">
+					<a
+						class={ pageButton(), pageButtonActive() }
+						href={ url.RemoveParam("supports-fork-name").SafeURL() }
+						rel="nofollow"
+					>
+						Clear Fork Name Filter
+					</a>
+				</div>
+			}
 	}
 }
 
@@ -927,6 +943,7 @@ templ Stats(
 		@NetworkFilterLinks(reqURL.WithPath("/"), networkID, ephemeryNetworks)
 		@SyncedFilterLinks(reqURL, synced)
 		@SupportsForkLinks(reqURL, networkID, supportsForkName)
+
 		if clientName != "" {
 			<div style="display: flex; flex-direction: row; gap: 0.5em;">
 				<a
