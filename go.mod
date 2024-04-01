@@ -6,7 +6,7 @@ require (
 	github.com/a-h/templ v0.2.598
 	github.com/angaz/sqlu v0.0.1
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
-	github.com/ethereum/go-ethereum v1.13.5-0.20240308111552-e31709db6570
+	github.com/ethereum/go-ethereum v1.13.5-0.20240401125356-8c5576b1ac89
 	github.com/ferranbt/fastssz v0.1.3
 	github.com/fjl/memsize v0.0.2
 	github.com/gogo/protobuf v1.3.2
@@ -46,14 +46,14 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.3 // indirect
 	github.com/crate-crypto/go-ipa v0.0.0-20231025140028-3c0104f4b233 // indirect
-	github.com/crate-crypto/go-kzg-4844 v0.7.0 // indirect
+	github.com/crate-crypto/go-kzg-4844 v1.0.0 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
-	github.com/ethereum/c-kzg-4844 v0.4.3 // indirect
+	github.com/ethereum/c-kzg-4844 v1.0.1 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/gballet/go-verkle v0.1.1-0.20231031103413-a67434b50f46 // indirect
