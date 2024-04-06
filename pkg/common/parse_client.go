@@ -241,7 +241,23 @@ func (v Version) String() string {
 }
 
 func (v Version) Version() string {
+	if isHex(v.version) {
+		return v.version
+	}
+
 	return "v" + v.version
+}
+
+func isHex(str string) bool {
+	for _, c := range str {
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') {
+			continue
+		}
+
+		return false
+	}
+
+	return true
 }
 
 func parseVersion(s string) (Version, error) {
@@ -275,6 +291,11 @@ func parseVersion(s string) (Version, error) {
 	versionInts := make([]uint64, 0, 3)
 
 	switch len(versionParts) {
+	case 1:
+		// Entire string is the build hash. Validate it's a valid hex string.
+		if !isHex(version) {
+			return ErrVersion, fmt.Errorf("build-only string is not git hash")
+		}
 	case 2, 3:
 		for _, part := range versionParts {
 			i, err := strconv.ParseUint(part, 10, 64)
