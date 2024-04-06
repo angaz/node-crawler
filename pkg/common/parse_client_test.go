@@ -145,6 +145,19 @@ func TestParseClientID(t *testing.T) {
 				Language: "openjdk-java-21",
 			},
 		},
+		{
+			name: "reth with user data",
+			ci:   "reth/shemnon/v0.2.0-beta.4-c04dbe6e9/x86_64-apple-darwin",
+			client: &Client{
+				Name:     "reth",
+				UserData: "shemnon",
+				Version:  "v0.2.0-beta.4",
+				Build:    "beta.4-c04dbe6e9",
+				OS:       OSMacOS,
+				Arch:     ArchAMD64,
+				Language: "rust",
+			},
+		},
 	}
 
 	for _, test := range tt {

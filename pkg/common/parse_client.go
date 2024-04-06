@@ -467,6 +467,25 @@ func handleLen3(parts []string) (*Client, error) {
 }
 
 func handleLen4(parts []string) (*Client, error) {
+	if parts[0] == "reth" {
+		version, err := parseVersion(parts[2])
+		if err != nil {
+			return nil, fmt.Errorf("parsing version failed: %w", err)
+		}
+
+		os, arch, _ := parseOSArch(parts[3])
+
+		return &Client{
+			Name:     parts[0],
+			UserData: parts[1],
+			Version:  version.Version(),
+			Build:    version.Build,
+			OS:       os,
+			Arch:     arch,
+			Language: "rust",
+		}, nil
+	}
+
 	os, arch, _ := parseOSArch(parts[2])
 
 	version, err := parseVersion(parts[1])
