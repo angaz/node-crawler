@@ -29,7 +29,7 @@ func ParsePortalClientID(clientName *string) *Client {
 	case 2:
 		version, err := parseVersion(parts[1])
 		if err != nil {
-			slog.Error("parse portal client id", "err", err)
+			slog.Error("parse portal client id", "err", err, "id", *clientName)
 
 			return nil
 		}
