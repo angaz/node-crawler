@@ -23,6 +23,19 @@ func TestParsePortalClientID(t *testing.T) {
 				Language: Unknown,
 			},
 		},
+		{
+			name: "unknown version",
+			ci:   "t unknown",
+			client: &Client{
+				Name:     "t",
+				UserData: Unknown,
+				Version:  Unknown,
+				Build:    Unknown,
+				OS:       OSUnknown,
+				Arch:     ArchUnknown,
+				Language: Unknown,
+			},
+		},
 	}
 
 	for _, test := range tt {

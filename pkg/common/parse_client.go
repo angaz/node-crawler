@@ -269,6 +269,14 @@ func parseVersion(s string) (Version, error) {
 		return ErrVersion, ErrVersionEmpty
 	}
 
+	if s == "unknown" {
+		return Version{
+			version:    Unknown,
+			versionNum: []uint64{},
+			Build:      Unknown,
+		}, nil
+	}
+
 	if s == "vnull" || s == "vunspecified" || s == "custom" {
 		return Version{
 			version:    "null",
