@@ -241,6 +241,10 @@ func (v Version) String() string {
 }
 
 func (v Version) Version() string {
+	if v.version == Unknown {
+		return Unknown
+	}
+
 	if isHex(v.version) {
 		return v.version
 	}
@@ -270,6 +274,14 @@ func parseVersion(s string) (Version, error) {
 			version:    "null",
 			versionNum: []uint64{0},
 			Build:      Unknown,
+		}, nil
+	}
+
+	if strings.HasPrefix(s, "vuntagged") {
+		return Version{
+			version:    Unknown,
+			versionNum: []uint64{},
+			Build:      s,
 		}, nil
 	}
 
