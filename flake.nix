@@ -198,6 +198,12 @@
               '';
             };
 
+            dailyBackupRetention = mkOption {
+              type = types.int;
+              default = 7;
+              description = "Number of days to keep backups for.";
+            };
+
             api = {
               enable = mkOption {
                 default = true;
@@ -462,7 +468,7 @@
 
                   mv "''${dump_name}.part" "''${dump_name}"
 
-                  find "${cfg.snapshotDirname}" -mtime +7 -name '*.pgdump' -delete
+                  find "${cfg.snapshotDirname}" -mtime +${toString cfg.dailyBackupRetention} -name '*.pgdump' -delete
                 '';
               };
             };
