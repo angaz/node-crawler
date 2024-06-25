@@ -16,7 +16,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     templ = {
-      url = "github:a-h/templ?ref=v0.2.648";
+      url = "github:a-h/templ?ref=v0.2.707";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
