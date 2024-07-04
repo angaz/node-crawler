@@ -458,6 +458,8 @@
 
                   mkdir -p "${cfg.snapshotDirname}"
 
+                  find "${cfg.snapshotDirname}" -mtime +${toString cfg.dailyBackupRetention} -name '*.pgdump' -delete
+
                   dump_name="${cfg.snapshotDirname}/nodecrawler_$(date --utc +%Y%m%dT%H%M%S).pgdump"
 
                   pg_dump \
@@ -467,8 +469,6 @@
                     nodecrawler
 
                   mv "''${dump_name}.part" "''${dump_name}"
-
-                  find "${cfg.snapshotDirname}" -mtime +${toString cfg.dailyBackupRetention} -name '*.pgdump' -delete
                 '';
               };
             };
