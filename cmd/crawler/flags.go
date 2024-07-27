@@ -149,7 +149,7 @@ var (
 	statsCopyFrequencyFlag = cli.DurationFlag{
 		Name:  "stats-copy-frequency",
 		Usage: "Frequency at which the stats should be copied to the stats DB",
-		Value: 30 * time.Minute,
+		Value: 1 * time.Hour,
 	}
 	nextCrawlSuccessFlag = cli.DurationFlag{
 		Name:  "next-crawl-success",
