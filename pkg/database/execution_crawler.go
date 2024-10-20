@@ -196,6 +196,13 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 
 	client := clientPtr.Deref()
 
+	nextForkID := info.ForkID.Next
+
+	// Some clients have a value that is in microseconds, convert to seconds
+	if nextForkID > 9223372036854775807 {
+		nextForkID /= 1e9
+	}
+
 	_, err = tx.Exec(
 		ctx,
 		`
@@ -324,7 +331,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 			"capabilities":      node.CapsString(),
 			"network_id":        info.NetworkID,
 			"fork_id":           BytesToUnit32(info.ForkID.Hash[:]),
-			"next_fork_id":      info.ForkID.Next,
+			"next_fork_id":      nextForkID,
 			"head_hash":         info.HeadHash[:],
 			"ip_address":        node.N.IP().String(),
 			"node_pubkey":       common.PubkeyBytes(node.N.Pubkey()),
@@ -335,7 +342,7 @@ func (db *DB) UpdateCrawledNodeSuccess(ctx context.Context, tx pgx.Tx, node comm
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("exec failed: %w", err)
+		return fmt.Errorf("exec failed: %w, %#v, %#v %#v", err, node, client, info)
 	}
 
 	return nil
