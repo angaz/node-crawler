@@ -530,6 +530,11 @@ func handleLen5(parts []string) (*Client, error) {
 	var arch Arch
 	userData := Unknown
 
+	if parts[0] == "nimbus-eth1" {
+		versionStr = parts[1]
+		os, arch, _ = parseOSArch(parts[2])
+		lang = "nim"
+	} else
 	// handle geth/v1.2.11-e3acd735-20231031/linux-amd64/go1.20.5/{d+}
 	if strings.TrimFunc(parts[4], unicode.IsDigit) == "" {
 		versionStr = parts[1]
@@ -650,7 +655,7 @@ func ParseClientID(clientName *string) *Client {
 		return nil
 	}
 
-	if strings.HasPrefix(name, "nimbus-eth1") {
+	if strings.HasPrefix(name, "nimbus-eth1") && !strings.Contains(name, "/") {
 		client, err := handleNimbus(name)
 		if err != nil {
 			slog.Error("parse nimbus failed", "err", err, "name", name)

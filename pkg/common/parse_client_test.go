@@ -29,6 +29,19 @@ func TestParseClientID(t *testing.T) {
 		client *Client
 	}{
 		{
+			name: "numbus slash 5 parts",
+			ci:   "nimbus-eth1/v0.1.0-94198bcf/linux-amd64/Nim-2.0.10/nimvm",
+			client: &Client{
+				Name:     "nimbus-eth1",
+				UserData: Unknown,
+				Version:  "v0.1.0",
+				Build:    "94198bcf",
+				OS:       OSLinux,
+				Arch:     ArchAMD64,
+				Language: "nim",
+			},
+		},
+		{
 			name: "nimbus 6 parts",
 			ci:   "nimbus-eth1 v0.1.0 [linux: amd64, nimvm, c0d52b]",
 			client: &Client{
