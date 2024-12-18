@@ -50,15 +50,44 @@
           inherit system;
           overlays = [
             (final: prev: {
-              # postgresql_16 = prev.postgresql_16.overrideAttrs(old: {
-              #   src = prev.fetchFromGitHub {
-              #     owner = "orioledb";
-              #     repo = "postgres";
-              #     rev = "patches16_32";
-              #     sha256 = "sha256-lDvALs9HH4nn2GOVFNn4QRHE/je8SmMnmQ35k8CKGjc=";
-              #   };
-              # });
-              orioledb = final.buildPostgresqlExtension rec {
+              postgresql_17 = prev.postgresql_17.overrideAttrs(old: with prev; {
+                version = "17.4";
+
+                src = fetchFromGitHub {
+                  owner = "orioledb";
+                  repo = "postgres";
+                  rev = "patches17_4";
+                  sha256 = "sha256-7atkxd2ixQa3Sxcaet1XQ27I07VotYKdtWrcTke7PE8=";
+                };
+
+                nativeBuildInputs = old.nativeBuildInputs ++ [
+                  bison
+                  docbook-xsl-nons
+                  docbook_xml_dtd_45
+                  flex
+                  libxslt
+                  perl
+                ];
+
+                patches = old.patches ++ [
+                  # https://github.com/orioledb/postgres/pull/11
+                  # fix pg_rewind docs
+                  (fetchpatch {
+                    url = "https://github.com/orioledb/postgres/commit/142e73479eccf7cbf9d471c9942a3a98e8bce5a3.patch";
+                    hash = "sha256-uyQTHtL89NZYIsYSLwzWVGPyXlJHpxcZ2RzjJhm8ZLs=";
+                  })
+                ];
+
+                postInstall = old.postInstall + ''
+                  remove-references-to \
+                    -t "$dev" \
+                    -t "$doc" \
+                    -t "$man" \
+                    "$out/bin/pg_rewind" \
+                    "$out/bin/postgres"
+                '';
+              });
+              orioledb = postgresql: prev.stdenv.mkDerivation rec {
                 pname = "orioledb";
                 version = "beta8";
 
@@ -66,10 +95,31 @@
                   owner = "orioledb";
                   repo = "orioledb";
                   rev = version;
-                  sha256 = "";
+                  sha256 = "sha256-niyTQr1FQYEsKdxl/uVrKSiIR0DCnnT+DDkW47lsc80=";
                 };
 
-                makeFlags = [ "USE_PGXS=1" ];
+                makeFlags = [
+                  "USE_PGXS=1"
+                  "ORIOLEDB_PATCHSET_VERSION=5"
+                ];
+
+                buildInputs = with prev; [
+                  curl
+                  libkrb5
+                  python3
+                  openssl
+                ] ++ [ postgresql ];
+
+                installPhase = ''
+                  runHook preInstall
+                  mkdir -p $out/{lib,share/postgresql/extension}
+
+                  cp *${postgresql.dlSuffix}      $out/lib
+                  cp *.sql     $out/share/postgresql/extension
+                  cp *.control $out/share/postgresql/extension
+        
+                  runHook postInstall
+                '';
               };
             })
           ];
@@ -134,10 +184,10 @@
             graphviz
             nix-prefetch
             nodejs
-            postgresql_16
+            postgresql_17
             sqlite-interactive
             templ
-            # orioledb
+            (orioledb postgresql_17)
           ];
         };
       };
@@ -524,10 +574,11 @@
               postgresql = mkIf cfg.postgresql.enable {
                 enable = true;
                 enableJIT = false;
-                package = pkgs.postgresql_16;
-                extensions = psql: with psql; [
+                package = pkgs.postgresql_17;
+                extraPlugins = psql: with psql; [
                   pg_repack
                   timescaledb
+                  (orioledb psql)
                 ];
                 settings = {
                   max_connections = (cfg.crawler.maxPoolConns + cfg.api.maxPoolConns) * 1.15;
@@ -535,6 +586,7 @@
                     "pg_repack"
                     "pg_stat_statements"
                     "timescaledb"
+                    "orioledb"
                   ];
 
                   # Performance tuning.
