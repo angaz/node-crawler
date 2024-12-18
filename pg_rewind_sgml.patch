@@ -1,0 +1,14 @@
+--- a/doc/src/sgml/ref/pg_rewind.sgml
++++ b/doc/src/sgml/ref/pg_rewind.sgml
+@@ -302,6 +302,11 @@ PostgreSQL documentation
+        </para>
+        <para>
+         This option has no effect when <option>--no-sync</option> is used.
++       </para>
++      </listitem>
++     </varlistentry>
++
++     <varlistentry>
+       <term><option>-e <replaceable class="parameter">path</replaceable></option></term>
+       <term><option>--extension=<replaceable class="parameter">path</replaceable></option></term>
+       <listitem>

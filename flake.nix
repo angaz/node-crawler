@@ -17,7 +17,7 @@
     };
     templ = {
       url = "github:a-h/templ?ref=v0.2.793";
-      inputs.nixpkgs.follows = "nixpkgs";
+      # inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
@@ -50,13 +50,69 @@
           inherit system;
           overlays = [
             (final: prev: {
-              postgresql_16 = prev.postgresql_16.overrideAttrs(old: {
-                src = prev.fetchFromGitHub {
+              postgresql_17 = prev.postgresql_17.overrideAttrs(old: let
+                pg_config = prev.writeShellScriptBin "pg_config" (builtins.readFile ./pg_config.sh);
+              in with prev; {
+                version = "17.4";
+
+                src = fetchFromGitHub {
                   owner = "orioledb";
                   repo = "postgres";
-                  rev = "patches16_32";
-                  sha256 = "sha256-lDvALs9HH4nn2GOVFNn4QRHE/je8SmMnmQ35k8CKGjc=";
+                  rev = "patches17_4";
+                  sha256 = "sha256-7atkxd2ixQa3Sxcaet1XQ27I07VotYKdtWrcTke7PE8=";
                 };
+
+                nativeBuildInputs = old.nativeBuildInputs ++ [ bison flex perl docbook_xml_dtd_45 docbook-xsl-nons libxslt ];
+
+                patches = old.patches ++ [
+                  ./pg_rewind_sgml.patch
+                ];
+
+                postPatch = ''
+                  substituteInPlace "src/Makefile.global.in" --subst-var out
+                  # Hardcode the path to pgxs so pg_config returns the path in $dev
+                  substituteInPlace "src/common/config_info.c" --subst-var dev
+                '';
+
+                postInstall =
+                  ''
+                    moveToOutput "bin/ecpg" "$dev"
+                    moveToOutput "lib/pgxs" "$dev"
+
+                    # Pretend pg_config is located in $out/bin to return correct paths, but
+                    # actually have it in -dev to avoid pulling in all other outputs. See the
+                    # pg_config.sh script's comments for details.
+                    moveToOutput "bin/pg_config" "$dev"
+                    install -c -m 755 "${pg_config}"/bin/pg_config "$out/bin/pg_config"
+                    wrapProgram "$dev/bin/pg_config" --argv0 "$out/bin/pg_config"
+
+                    # postgres exposes external symbols get_pkginclude_path and similar. Those
+                    # can't be stripped away by --gc-sections/LTO, because they could theoretically
+                    # be used by dynamically loaded modules / extensions. To avoid circular dependencies,
+                    # references to -dev, -doc and -man are removed here. References to -lib must be kept,
+                    # because there is a realistic use-case for extensions to locate the /lib directory to
+                    # load other shared modules.
+                    remove-references-to -t "$dev" -t "$doc" -t "$man" "$out/bin/postgres"
+
+                    if [ -z "''${dontDisableStatic:-}" ]; then
+                      # Remove static libraries in case dynamic are available.
+                      for i in $lib/lib/*.a; do
+                        name="$(basename "$i")"
+                        ext="${stdenv.hostPlatform.extensions.sharedLibrary}"
+                        if [ -e "$lib/lib/''${name%.a}$ext" ] || [ -e "''${i%.a}$ext" ]; then
+                          rm "$i"
+                        fi
+                      done
+                    fi
+                    # The remaining static libraries are libpgcommon.a, libpgport.a and related.
+                    # Those are only used when building e.g. extensions, so go to $dev.
+                    moveToOutput "lib/*.a" "$dev"
+                  '';
+
+                postFixup = lib.optionalString stdenv.hostPlatform.isGnu ''
+                  # initdb needs access to "locale" command from glibc.
+                  wrapProgram $out/bin/initdb --prefix PATH ":" ${glibc.bin}/bin
+                '';
               });
               orioledb = final.buildPostgresqlExtension rec {
                 pname = "orioledb";
@@ -83,6 +139,7 @@
         };
 
         packages = {
+          postgresql_17 = pkgs.postgresql_17;
           nodeCrawler = pkgs.buildGo122Module {
             pname = "crawler";
             version = "0.0.0";
@@ -135,7 +192,7 @@
             graphviz
             nix-prefetch
             nodejs
-            postgresql_16
+            postgresql_17
             sqlite-interactive
             templ
             # orioledb
