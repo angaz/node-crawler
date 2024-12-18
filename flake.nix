@@ -16,7 +16,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     templ = {
-      url = "github:a-h/templ?ref=v0.2.707";
+      url = "github:a-h/templ?ref=v0.2.793";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -46,6 +46,35 @@
         inherit (gitignore.lib) gitignoreSource;
         templ = inputs.templ.packages.${system}.templ;
       in {
+        _module.args.pkgs = import inputs.nixpkgs {
+          inherit system;
+          overlays = [
+            (final: prev: {
+              postgresql_16 = prev.postgresql_16.overrideAttrs(old: {
+                src = prev.fetchFromGitHub {
+                  owner = "orioledb";
+                  repo = "postgres";
+                  rev = "patches16_32";
+                  sha256 = "sha256-lDvALs9HH4nn2GOVFNn4QRHE/je8SmMnmQ35k8CKGjc=";
+                };
+              });
+              orioledb = final.buildPostgresqlExtension rec {
+                pname = "orioledb";
+                version = "beta8";
+
+                src = prev.fetchFromGitHub {
+                  owner = "orioledb";
+                  repo = "orioledb";
+                  rev = version;
+                  sha256 = "";
+                };
+
+                makeFlags = [ "USE_PGXS=1" ];
+              };
+            })
+          ];
+        };
+
         # Attrs for easyOverlay
         overlayAttrs = {
           inherit (config.packages)
@@ -109,6 +138,7 @@
             postgresql_16
             sqlite-interactive
             templ
+            # orioledb
           ];
         };
       };
