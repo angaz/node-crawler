@@ -238,8 +238,6 @@ func NetworkName(networkID *int64) string {
 		return "Holešky"
 	case params.SepoliaChainConfig.ChainID.Int64():
 		return "Sepolia"
-	case params.GoerliChainConfig.ChainID.Int64():
-		return "Goerli"
 	case 56:
 		return "BNB Smart Chain Mainnet"
 	default:
