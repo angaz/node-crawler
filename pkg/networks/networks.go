@@ -84,18 +84,6 @@ var (
 			{1710338135, "Cancun"},
 		},
 	)
-	goerliForks = makeForks(
-		"Goerli",
-		5,
-		common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a"),
-		[]partialFork{
-			{1561651, "Istanbul"},
-			{4460644, "Berlin"},
-			{5062605, "London"},
-			{1678832736, "Shanghai"},
-			{1705473120, "Cancun"},
-		},
-	)
 	sepoliaForks = makeForks(
 		"Sepolia",
 		11155111,
@@ -120,7 +108,6 @@ var (
 func EthereumNetworks() []Fork {
 	return concatSlices(
 		mainnetForks,
-		goerliForks,
 		sepoliaForks,
 		holeskyForks,
 	)
