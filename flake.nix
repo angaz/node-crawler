@@ -16,7 +16,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     templ = {
-      url = "github:a-h/templ?ref=v0.2.793";
+      url = "github:a-h/templ?ref=v0.3.833";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -50,14 +50,14 @@
           inherit system;
           overlays = [
             (final: prev: {
-              postgresql_16 = prev.postgresql_16.overrideAttrs(old: {
-                src = prev.fetchFromGitHub {
-                  owner = "orioledb";
-                  repo = "postgres";
-                  rev = "patches16_32";
-                  sha256 = "sha256-lDvALs9HH4nn2GOVFNn4QRHE/je8SmMnmQ35k8CKGjc=";
-                };
-              });
+              # postgresql_16 = prev.postgresql_16.overrideAttrs(old: {
+              #   src = prev.fetchFromGitHub {
+              #     owner = "orioledb";
+              #     repo = "postgres";
+              #     rev = "patches16_32";
+              #     sha256 = "sha256-lDvALs9HH4nn2GOVFNn4QRHE/je8SmMnmQ35k8CKGjc=";
+              #   };
+              # });
               orioledb = final.buildPostgresqlExtension rec {
                 pname = "orioledb";
                 version = "beta8";
@@ -79,22 +79,20 @@
         overlayAttrs = {
           inherit (config.packages)
             nodeCrawler
-            nodeCrawlerFrontend;
+            ;
         };
 
         packages = {
-          nodeCrawler = pkgs.buildGo122Module {
+          nodeCrawler = pkgs.buildGo123Module {
             pname = "crawler";
             version = "0.0.0";
 
             src = gitignoreSource ./.;
             subPackages = [ "cmd/crawler" ];
 
-            vendorHash = "sha256-voJL5K6vR95NX1eyNlJdOHCMgoQp0p+nROp9nE3lnBM=";
+            vendorHash = "sha256-BGzz6ApnV588cjNUd0RvOxasmKTQ3UC4bNvbJ3E2pEo=";
 
             doCheck = false;
-
-            CGO_ENABLED = 0;
 
             preBuild = ''
               ${templ}/bin/templ generate
@@ -130,7 +128,7 @@
           ];
 
           packages = with pkgs; [
-            go_1_22
+            go_1_23
             golangci-lint
             graphviz
             nix-prefetch
