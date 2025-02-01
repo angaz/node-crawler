@@ -524,7 +524,7 @@
                 enable = true;
                 enableJIT = false;
                 package = pkgs.postgresql_16;
-                extraPlugins = psql: with psql; [
+                extensions = psql: with psql; [
                   pg_repack
                   timescaledb
                 ];
