@@ -101,7 +101,6 @@
             ldflags = [
               "-s"
               "-w"
-              "-extldflags -static"
             ];
           };
         };
