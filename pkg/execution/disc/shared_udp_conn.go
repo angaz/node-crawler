@@ -3,6 +3,7 @@ package disc
 import (
 	"errors"
 	"net"
+	"net/netip"
 
 	"github.com/ethereum/go-ethereum/p2p/discover"
 )
@@ -17,10 +18,10 @@ type sharedUDPConn struct {
 }
 
 // ReadFromUDP implements discover.UDPConn
-func (s *sharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error) {
+func (s *sharedUDPConn) ReadFromUDP(b []byte) (n int, addr netip.AddrPort, err error) {
 	packet, ok := <-s.unhandled
 	if !ok {
-		return 0, nil, errors.New("connection was closed")
+		return 0, netip.AddrPort{}, errors.New("connection was closed")
 	}
 
 	l := len(packet.Data)
