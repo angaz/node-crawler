@@ -111,6 +111,6 @@ func TranslateError(err error) (bool, string) {
 		return true, "broken pipe"
 	default:
 		slog.Info("Unknown error", "err", errStr)
-		return false, "unknown error"
+		return false, "unknown"
 	}
 }
