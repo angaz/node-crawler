@@ -60,7 +60,7 @@ func Dial(pk *ecdsa.PrivateKey, n *enode.Node, timeout time.Duration) (*Conn, er
 
 	_, err = conn.Handshake(pk)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("handshake failed: %w", err)
 	}
 
 	return &conn, nil
