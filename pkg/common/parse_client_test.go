@@ -184,6 +184,32 @@ func TestParseClientID(t *testing.T) {
 				Language: "go1.22.2",
 			},
 		},
+		{
+			name: "abc/xyz",
+			ci:   "abc/xyz/v0.1.0-800ca6d8/x86_64-unknown-linux-gnu",
+			client: &Client{
+				Name:     "abc",
+				UserData: "xyz",
+				Version:  "v0.1.0",
+				Build:    "abc/xyz/v0.1.0-800ca6d8/x86_64-unknown-linux-gnu",
+				OS:       OSLinux,
+				Arch:     ArchAMD64,
+				Language: Unknown,
+			},
+		},
+		{
+			name: "EthereumJS",
+			ci:   "EthereumJS/undefined/linux/node20.18.1",
+			client: &Client{
+				Name:     "ethereumjs",
+				UserData: Unknown,
+				Version:  Unknown,
+				Build:    Unknown,
+				OS:       OSLinux,
+				Arch:     ArchUnknown,
+				Language: "javascript",
+			},
+		},
 	}
 
 	for _, test := range tt {

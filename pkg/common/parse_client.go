@@ -277,7 +277,7 @@ func parseVersion(s string) (Version, error) {
 		}, nil
 	}
 
-	if s == "vnull" || s == "vunspecified" || s == "custom" {
+	if slices.Contains([]string{"vnull", "vunspecified", "custom", "undefined"}, s) {
 		return Version{
 			version:    "null",
 			versionNum: []uint64{0},
@@ -506,21 +506,32 @@ func handleLen4(parts []string) (*Client, error) {
 		}, nil
 	}
 
-	os, arch, _ := parseOSArch(parts[2])
+	userData := Unknown
+	language := Unknown
+	var version Version
+	var os OS
+	var arch Arch
 
-	version, err := parseVersion(parts[1])
-	if err != nil {
-		return nil, fmt.Errorf("parse version failed: %w", err)
+	if isVersion(parts[1]) {
+		version, _ = parseVersion(parts[1])
+		os, arch, _ = parseOSArch(parts[2])
+		language = parts[3]
+	} else if isVersion(parts[2]) {
+		userData = parts[1]
+		version, _ = parseVersion(parts[2])
+		os, arch, _ = parseOSArch(parts[3])
+	} else {
+		return nil, fmt.Errorf("could not parse version")
 	}
 
 	return &Client{
 		Name:     parts[0],
-		UserData: Unknown,
+		UserData: userData,
 		Version:  version.Version(),
 		Build:    version.Build,
 		OS:       os,
 		Arch:     arch,
-		Language: parts[3],
+		Language: language,
 	}, nil
 }
 
