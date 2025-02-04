@@ -89,13 +89,13 @@
               });
               orioledb = postgresql: prev.stdenv.mkDerivation rec {
                 pname = "orioledb";
-                version = "beta8";
+                version = "beta9";
 
                 src = prev.fetchFromGitHub {
                   owner = "orioledb";
                   repo = "orioledb";
                   rev = version;
-                  sha256 = "sha256-niyTQr1FQYEsKdxl/uVrKSiIR0DCnnT+DDkW47lsc80=";
+                  sha256 = "sha256-z2EHWsY+hhtnYzAxOl2PWjqfyJ+wp9SCau5LKPT2ec0=";
                 };
 
                 makeFlags = [
@@ -115,8 +115,8 @@
                   mkdir -p $out/{lib,share/postgresql/extension}
 
                   cp *${postgresql.dlSuffix}      $out/lib
-                  cp *.sql     $out/share/postgresql/extension
-                  cp *.control $out/share/postgresql/extension
+                  cp sql/*.sql         $out/share/postgresql/extension
+                  cp orioledb.control  $out/share/postgresql/extension
         
                   runHook postInstall
                 '';
