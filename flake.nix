@@ -83,14 +83,14 @@
         };
 
         packages = {
-          nodeCrawler = pkgs.buildGo123Module {
+          nodeCrawler = pkgs.buildGo123Module rec {
             pname = "crawler";
             version = "0.0.0";
 
             src = gitignoreSource ./.;
             subPackages = [ "cmd/crawler" ];
 
-            vendorHash = "sha256-BGzz6ApnV588cjNUd0RvOxasmKTQ3UC4bNvbJ3E2pEo=";
+            vendorHash = "sha256-GNyoXNLCWxueboh6aSnn9p1T/B0E5qe5zlDR6Ks/YCM=";
 
             doCheck = false;
 
@@ -101,6 +101,8 @@
             ldflags = [
               "-s"
               "-w"
+              "-X github.com/ethereum/node-crawler/pkg/version.version=${version}"
+              "-X github.com/ethereum/node-crawler/pkg/version.gitCommit=${self.rev or self.dirtyRev}"
             ];
           };
         };

@@ -20,6 +20,10 @@ var (
 	clientName = version.ClientName("NodeCrawler")
 )
 
+func init() {
+	fmt.Println("client name", clientName)
+}
+
 func Accept(pk *ecdsa.PrivateKey, fd net.Conn) (*ecdsa.PublicKey, *Conn, error) {
 	conn := new(Conn)
 	conn.ourKey = pk
