@@ -69,7 +69,7 @@ func (c *Crawler) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) er
 	if err != nil {
 		known, errStr := p2p.TranslateError(err)
 		if !known {
-			slog.Error("dial failed", "err", err)
+			slog.Error("dial failed", "err", err, "node_id", node.ID())
 		}
 
 		//nolint:exhaustruct  // Missing values because of error.

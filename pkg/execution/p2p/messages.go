@@ -18,10 +18,8 @@
 package p2p
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"log/slog"
 
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -247,8 +245,6 @@ func (c *Conn) Read() Message {
 
 // Write writes a eth packet to the connection.
 func (c *Conn) Write(msg Message) error {
-	slog.Log(context.Background(), slog.LevelInfo, "write message", msg)
-
 	payload, err := rlp.EncodeToBytes(msg)
 	if err != nil {
 		return err
