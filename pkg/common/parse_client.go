@@ -640,6 +640,11 @@ var funcs = []func([]string) (*Client, error){
 	handleLen7,
 }
 
+var ignoredClients = []string{
+	"ethereumjs/undefined",
+	"abc/xyz",
+}
+
 func ParseClientID(clientName *string) *Client {
 	if clientName == nil {
 		return nil
@@ -653,6 +658,20 @@ func ParseClientID(clientName *string) *Client {
 
 	if name == "server" {
 		return nil
+	}
+
+	for _, ignoredClient := range ignoredClients {
+		if strings.HasPrefix(name, ignoredClient) {
+			return &Client{
+				Name:     Unknown,
+				UserData: Unknown,
+				Version:  Unknown,
+				Build:    Unknown,
+				OS:       OSUnknown,
+				Arch:     ArchUnknown,
+				Language: Unknown,
+			}
+		}
 	}
 
 	if strings.HasPrefix(name, "nimbus-eth1") && !strings.Contains(name, "/") {
