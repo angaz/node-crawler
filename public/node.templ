@@ -915,6 +915,8 @@ templ supportsForkLinks(name string, key string, title string, url URL, supports
 
 templ SupportsForkLinks(url URL, networkID int64, supportsForkName string) {
 	switch networkID {
+		case 17000, 11155111:
+			@supportsForkLinks("Prague", "prague", "", url, supportsForkName, false)
 		default:
 			if url.GetParam("supports-fork-name") != "" {
 				<div style="display: flex; flex-direction: row; gap: 0.5em;">

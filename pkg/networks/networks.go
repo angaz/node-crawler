@@ -92,6 +92,7 @@ var (
 			{1735371, "Merge"},
 			{1677557088, "Shanghai"},
 			{1706655072, "Cancun"},
+			{1741159776, "Prague"},
 		},
 	)
 	holeskyForks = makeForks(
@@ -101,6 +102,7 @@ var (
 		[]partialFork{
 			{1696000704, "Shanghai"},
 			{1707305664, "Cancun"},
+			{1740434112, "Prague"},
 		},
 	)
 )
