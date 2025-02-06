@@ -113,6 +113,8 @@ func TranslateError(err error) (bool, string) {
 		return true, "rlp decode"
 	case strings.Contains(errStr, "broken pipe"):
 		return true, "broken pipe"
+	case strings.Contains(errStr, "message too big"):
+		return true, "message too big"
 	default:
 		slog.Info("Unknown error", "err", errStr)
 		return false, "unknown"
