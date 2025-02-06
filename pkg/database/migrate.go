@@ -41,6 +41,7 @@ func (db *DB) Migrate(geoipdb string) error {
 			migrations.Migrate003GeoIP,
 			migrations.Migrate004Portal,
 			migrations.Migrate005PortalStatsViews,
+			migrations.Migrate006MessageTooBigError,
 		},
 		map[string]migrationFn{
 			"insert networks": func(ctx context.Context, tx pgx.Tx) error {

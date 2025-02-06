@@ -60,7 +60,7 @@ func Dial(pk *ecdsa.PrivateKey, n *enode.Node, timeout time.Duration) (*Conn, er
 
 	_, err = conn.Handshake(pk)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("handshake failed: %w", err)
 	}
 
 	return &conn, nil
@@ -113,6 +113,8 @@ func TranslateError(err error) (bool, string) {
 		return true, "rlp decode"
 	case strings.Contains(errStr, "broken pipe"):
 		return true, "broken pipe"
+	case strings.Contains(errStr, "message too big"):
+		return true, "message too big"
 	default:
 		slog.Info("Unknown error", "err", errStr)
 		return false, "unknown"

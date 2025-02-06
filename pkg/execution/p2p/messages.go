@@ -239,6 +239,7 @@ func (c *Conn) Read() Message {
 		}
 		return msg
 	}
+
 	return errorf("invalid message: %s", string(rawData))
 }
 

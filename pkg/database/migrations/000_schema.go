@@ -89,6 +89,7 @@ func Migrate000Schema(ctx context.Context, tx pgx.Tx) error {
 				'protocol not available',
 				'rlp decode',
 				'broken pipe'
+				-- 'message too big'
 			);
 
 			CREATE TYPE client.node_type AS ENUM (
