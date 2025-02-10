@@ -578,7 +578,7 @@
                 extraPlugins = psql: with psql; [
                   pg_repack
                   timescaledb
-                  (orioledb psql)
+                  (pkgs.orioledb psql)
                 ];
                 settings = {
                   max_connections = (cfg.crawler.maxPoolConns + cfg.api.maxPoolConns) * 1.15;
