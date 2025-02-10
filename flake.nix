@@ -51,13 +51,13 @@
           overlays = [
             (final: prev: {
               postgresql_17 = prev.postgresql_17.overrideAttrs(old: with prev; {
-                version = "17.4";
+                version = "17.5";
 
                 src = fetchFromGitHub {
                   owner = "orioledb";
                   repo = "postgres";
-                  rev = "patches17_4";
-                  sha256 = "sha256-7atkxd2ixQa3Sxcaet1XQ27I07VotYKdtWrcTke7PE8=";
+                  rev = "patches17_5";
+                  sha256 = "sha256-DxfCXN/W7K7QGPZJjLs4LrRlcvmVW/7DYmrP6+xRhuk=";
                 };
 
                 nativeBuildInputs = old.nativeBuildInputs ++ [
