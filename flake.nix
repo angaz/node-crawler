@@ -45,13 +45,11 @@
       perSystem = { config, pkgs, system, ... }: let
         inherit (gitignore.lib) gitignoreSource;
         templ = inputs.templ.packages.${system}.templ;
-      in rec {
+      in {
         # Attrs for easyOverlay
         overlayAttrs = {
           inherit (config.packages)
             nodeCrawler
-            orioledb
-            postgresql_17
               ;
         };
 
@@ -77,77 +75,6 @@
               "-X github.com/ethereum/node-crawler/pkg/version.version=${version}"
               "-X github.com/ethereum/node-crawler/pkg/version.gitCommit=${self.rev or self.dirtyRev}"
             ];
-          };
-          postgresql_17 = pkgs.postgresql_17.overrideAttrs(old: with pkgs; {
-            version = "17.5";
-
-            src = fetchFromGitHub {
-              owner = "orioledb";
-              repo = "postgres";
-              rev = "patches17_5";
-              sha256 = "sha256-DxfCXN/W7K7QGPZJjLs4LrRlcvmVW/7DYmrP6+xRhuk=";
-            };
-
-            nativeBuildInputs = old.nativeBuildInputs ++ [
-              bison
-              docbook-xsl-nons
-              docbook_xml_dtd_45
-              flex
-              libxslt
-              perl
-            ];
-
-            patches = old.patches ++ [
-              # https://github.com/orioledb/postgres/pull/11
-              # fix pg_rewind docs
-              (fetchpatch {
-                url = "https://github.com/orioledb/postgres/commit/142e73479eccf7cbf9d471c9942a3a98e8bce5a3.patch";
-                hash = "sha256-uyQTHtL89NZYIsYSLwzWVGPyXlJHpxcZ2RzjJhm8ZLs=";
-              })
-            ];
-
-            postInstall = old.postInstall + ''
-              remove-references-to \
-                -t "$dev" \
-                -t "$doc" \
-                -t "$man" \
-                "$out/bin/pg_rewind" \
-                "$out/bin/postgres"
-            '';
-          });
-          orioledb = pkgs.stdenv.mkDerivation rec {
-            pname = "orioledb";
-            version = "beta9";
-
-            src = pkgs.fetchFromGitHub {
-              owner = "orioledb";
-              repo = "orioledb";
-              rev = version;
-              sha256 = "sha256-z2EHWsY+hhtnYzAxOl2PWjqfyJ+wp9SCau5LKPT2ec0=";
-            };
-
-            makeFlags = [
-              "USE_PGXS=1"
-              "ORIOLEDB_PATCHSET_VERSION=5"
-            ];
-
-            buildInputs = with pkgs; [
-              curl
-              libkrb5
-              python3
-              openssl
-            ] ++ [ packages.postgresql_17 ];
-
-            installPhase = ''
-              runHook preInstall
-              mkdir -p $out/{lib,share/postgresql/extension}
-
-              cp *${packages.postgresql_17.dlSuffix}      $out/lib
-              cp sql/*.sql         $out/share/postgresql/extension
-              cp orioledb.control  $out/share/postgresql/extension
-    
-              runHook postInstall
-            '';
           };
         };
 
@@ -178,7 +105,7 @@
             graphviz
             nix-prefetch
             nodejs
-            packages.postgresql_17
+            postgresql_17
             sqlite-interactive
             templ
           ];
@@ -186,6 +113,85 @@
       };
 
       flake = rec {
+        overlays = {
+          orioledb = final: prev: {
+            orioledb_postgresql_17 = prev.postgresql_17.overrideAttrs(old: {
+              version = "17.5";
+
+              src = prev.fetchFromGitHub {
+                owner = "orioledb";
+                repo = "postgres";
+                rev = "patches17_5";
+                sha256 = "sha256-DxfCXN/W7K7QGPZJjLs4LrRlcvmVW/7DYmrP6+xRhuk=";
+              };
+
+              nativeBuildInputs = old.nativeBuildInputs ++ (with prev; [
+                bison
+                docbook_xml_dtd_45
+                docbook_xsl
+                docbook_xsl_ns
+                flex
+                libxslt
+                perl
+              ]);
+
+              patches = old.patches ++ [
+                # https://github.com/orioledb/postgres/pull/11
+                # fix pg_rewind docs
+                (prev.fetchpatch {
+                  url = "https://github.com/orioledb/postgres/commit/142e73479eccf7cbf9d471c9942a3a98e8bce5a3.patch";
+                  hash = "sha256-uyQTHtL89NZYIsYSLwzWVGPyXlJHpxcZ2RzjJhm8ZLs=";
+                })
+              ];
+
+              postInstall = old.postInstall + ''
+                remove-references-to \
+                  -t "$dev" \
+                  -t "$doc" \
+                  -t "$man" \
+                  "$out/bin/pg_rewind" \
+                  "$out/bin/postgres"
+              '';
+            });
+            # orioledb_timescaledb = prev.postgresql17Packages.timescaledb.overrideAttrs(old: {
+              
+            # });
+            orioledb = prev.stdenv.mkDerivation rec {
+              pname = "orioledb";
+              version = "beta9";
+
+              src = prev.fetchFromGitHub {
+                owner = "orioledb";
+                repo = "orioledb";
+                rev = version;
+                sha256 = "sha256-z2EHWsY+hhtnYzAxOl2PWjqfyJ+wp9SCau5LKPT2ec0=";
+              };
+
+              makeFlags = [
+                "USE_PGXS=1"
+                "ORIOLEDB_PATCHSET_VERSION=5"
+              ];
+
+              buildInputs = with prev; [
+                curl
+                libkrb5
+                python3
+                openssl
+              ] ++ [ final.orioledb_postgresql_17 ];
+
+              installPhase = ''
+                runHook preInstall
+                mkdir -p $out/{lib,share/postgresql/extension}
+
+                cp *${final.orioledb_postgresql_17.dlSuffix}      $out/lib
+                cp sql/*.sql         $out/share/postgresql/extension
+                cp orioledb.control  $out/share/postgresql/extension
+
+                runHook postInstall
+              '';
+            };
+          };
+        };
         nixosModules.default = nixosModules.nodeCrawler;
         nixosModules.nodeCrawler = { config, lib, pkgs, ... }:
         with lib;
@@ -567,16 +573,14 @@
               postgresql = mkIf cfg.postgresql.enable {
                 enable = true;
                 enableJIT = false;
-                package = pkgs.postgresql_17;
+                package = pkgs.orioledb_postgresql_17;
                 extensions = [
-                  pkgs.postgresql17Packages.pg_repack
                   pkgs.postgresql17Packages.timescaledb
                   pkgs.orioledb
                 ];
                 settings = {
                   max_connections = (cfg.crawler.maxPoolConns + cfg.api.maxPoolConns) * 1.15;
                   shared_preload_libraries = concatStringsSep "," [
-                    "pg_repack"
                     "pg_stat_statements"
                     "timescaledb"
                     "orioledb"
