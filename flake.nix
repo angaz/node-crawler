@@ -116,16 +116,16 @@
         overlays = {
           orioledb = final: prev: {
             orioledb_postgresql_17 = prev.postgresql_17.overrideAttrs(old: {
-              version = "17.5";
+              version = "17.6";
 
               src = prev.fetchFromGitHub {
                 owner = "orioledb";
                 repo = "postgres";
-                rev = "patches17_5";
-                sha256 = "sha256-DxfCXN/W7K7QGPZJjLs4LrRlcvmVW/7DYmrP6+xRhuk=";
+                rev = "patches17_6";
+                sha256 = "sha256-TPoQ5N0OXwGfjwCvsWoDFcu8hKtvMZhZ8dcJE5/B8oE=";
               };
 
-              nativeBuildInputs = old.nativeBuildInputs ++ (with prev; [
+              buildInputs = old.buildInputs ++ (with prev; [
                 bison
                 docbook_xml_dtd_45
                 docbook_xsl
@@ -153,9 +153,6 @@
                   "$out/bin/postgres"
               '';
             });
-            # orioledb_timescaledb = prev.postgresql17Packages.timescaledb.overrideAttrs(old: {
-              
-            # });
             orioledb = prev.stdenv.mkDerivation rec {
               pname = "orioledb";
               version = "beta9";
@@ -163,13 +160,13 @@
               src = prev.fetchFromGitHub {
                 owner = "orioledb";
                 repo = "orioledb";
-                rev = version;
-                sha256 = "sha256-z2EHWsY+hhtnYzAxOl2PWjqfyJ+wp9SCau5LKPT2ec0=";
+                rev = "f7b89be67dc303751324e2cdc1811833e5c9a7b6";
+                sha256 = "sha256-D6aZGKlvQpBm6jzDUoZhLmT70GTEcYVGsby9v3N0X0c=";
               };
 
               makeFlags = [
                 "USE_PGXS=1"
-                "ORIOLEDB_PATCHSET_VERSION=5"
+                "ORIOLEDB_PATCHSET_VERSION=6"
               ];
 
               buildInputs = with prev; [
@@ -177,7 +174,9 @@
                 libkrb5
                 python3
                 openssl
-              ] ++ [ final.orioledb_postgresql_17 ];
+                final.orioledb_postgresql_17
+                final.orioledb_postgresql_17.lib
+              ];
 
               installPhase = ''
                 runHook preInstall
@@ -575,15 +574,17 @@
                 enableJIT = false;
                 package = pkgs.orioledb_postgresql_17;
                 extensions = [
+                  pkgs.postgresql17Packages.pg_repack
                   pkgs.postgresql17Packages.timescaledb
                   pkgs.orioledb
                 ];
                 settings = {
                   max_connections = (cfg.crawler.maxPoolConns + cfg.api.maxPoolConns) * 1.15;
                   shared_preload_libraries = concatStringsSep "," [
+                    "pg_repack"
                     "pg_stat_statements"
                     "timescaledb"
-                    "orioledb"
+                    # "orioledb"
                   ];
 
                   # Performance tuning.
