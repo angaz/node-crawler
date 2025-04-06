@@ -47,14 +47,6 @@
           inherit system;
           overlays = [
             (final: prev: {
-              # postgresql_16 = prev.postgresql_16.overrideAttrs(old: {
-              #   src = prev.fetchFromGitHub {
-              #     owner = "orioledb";
-              #     repo = "postgres";
-              #     rev = "patches16_32";
-              #     sha256 = "sha256-lDvALs9HH4nn2GOVFNn4QRHE/je8SmMnmQ35k8CKGjc=";
-              #   };
-              # });
               orioledb = final.buildPostgresqlExtension rec {
                 pname = "orioledb";
                 version = "beta8";
@@ -131,7 +123,7 @@
             graphviz
             nix-prefetch
             nodejs
-            postgresql_16
+            postgresql_17
             sqlite-interactive
             templ
             # orioledb
@@ -521,7 +513,7 @@
               postgresql = mkIf cfg.postgresql.enable {
                 enable = true;
                 enableJIT = false;
-                package = pkgs.postgresql_16;
+                package = pkgs.postgresql_17;
                 extensions = psql: with psql; [
                   pg_repack
                   timescaledb
