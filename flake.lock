@@ -154,20 +154,42 @@
           "nixpkgs"
         ],
         "nixpkgs-unstable": "nixpkgs-unstable",
+        "version": "version",
         "xc": "xc"
       },
       "locked": {
-        "lastModified": 1738260980,
-        "narHash": "sha256-4K1MpsM3OuamXRYOllDsxxgpMRseFGviC4RJzNA7Cu8=",
+        "lastModified": 1742906618,
+        "narHash": "sha256-c3x7v5PeMJFADRfImMyEasvlC9WSjqHQxNDg1sgPBfQ=",
         "owner": "a-h",
         "repo": "templ",
-        "rev": "fea7372cecdedafc58b400f3f07da28110f73d25",
+        "rev": "f9ca69bfa9090edd5351e7f2bb9919aff6226c08",
         "type": "github"
       },
       "original": {
         "owner": "a-h",
-        "ref": "v0.3.833",
+        "ref": "v0.3.857",
         "repo": "templ",
+        "type": "github"
+      }
+    },
+    "version": {
+      "inputs": {
+        "nixpkgs": [
+          "templ",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1739526350,
+        "narHash": "sha256-rQ55O8rNY6oRfgynV/PRujaRMRDOEvEAeB/dWHt4OI4=",
+        "owner": "a-h",
+        "repo": "version",
+        "rev": "5208f8efe9ba85b1cfd2b590630b976c33c4a47e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "a-h",
+        "repo": "version",
         "type": "github"
       }
     },

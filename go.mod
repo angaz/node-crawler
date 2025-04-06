@@ -1,11 +1,11 @@
 module github.com/ethereum/node-crawler
 
-go 1.23
+go 1.23.0
 
 toolchain go1.23.4
 
 require (
-	github.com/a-h/templ v0.3.833
+	github.com/a-h/templ v0.3.857
 	github.com/angaz/sqlu v0.0.1
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2
 	github.com/ethereum/go-ethereum v1.14.13
@@ -25,7 +25,7 @@ require (
 	github.com/prysmaticlabs/prysm/v4 v4.2.1
 	github.com/urfave/cli/v2 v2.27.1
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
-	golang.org/x/text v0.21.0
+	golang.org/x/text v0.23.0
 	modernc.org/sqlite v1.29.3
 )
 
@@ -140,11 +140,11 @@ require (
 	go.uber.org/mock v0.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/crypto v0.32.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/mod v0.20.0 // indirect
-	golang.org/x/net v0.33.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/net v0.37.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240308144416-29370a3891b7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240308144416-29370a3891b7 // indirect
