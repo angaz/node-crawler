@@ -15,10 +15,7 @@
       url = "github:hercules-ci/gitignore.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    templ = {
-      url = "github:a-h/templ?ref=v0.3.857";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    templ.url = "github:a-h/templ?ref=v0.3.857";
   };
 
   outputs = inputs@{
