@@ -63,6 +63,7 @@ func makeForks(
 	return out
 }
 
+// Upgrade schedules are posted here: https://github.com/ethereum/pm
 var (
 	mainnetForks = makeForks(
 		"Mainnet",
@@ -83,6 +84,7 @@ var (
 			{15050000, "Gray Glacier"},
 			{1681338455, "Shanghai"},
 			{1710338135, "Cancun"},
+			{1746612311, "Prague"},
 		},
 	)
 	sepoliaForks = makeForks(
