@@ -35,22 +35,27 @@ func ExecutionCapabilitiesUpsert(ctx context.Context, tx pgx.Tx) error {
 
 				DECLARE
 					local_capabilities	TEXT := capabilities;
+					out_capabilities_id	INTEGER;
 				BEGIN
-					IF local_capabilities IS NULL THEN
-						RETURN NULL;
+					IF local_capabilities IS NOT NULL THEN
+						SELECT capabilities_id
+						INTO out_capabilities_id
+						FROM execution.capabilities
+						WHERE capabilities = local_capabilities;
+
+						IF out_capabilities_id IS NULL THEN
+							INSERT INTO execution.capabilities (
+								capabilities
+							)
+							VALUES (
+								local_capabilities
+							)
+							RETURNING
+								capabilities_id INTO out_capabilities_id;
+						END IF;
 					END IF;
 
-					INSERT INTO execution.capabilities (
-						capabilities
-					)
-					VALUES (
-						local_capabilities
-					)
-					ON CONFLICT (capabilities) DO NOTHING;
-
-					RETURN capabilities_id
-					FROM execution.capabilities
-					WHERE capabilities = local_capabilities;
+					RETURN out_capabilities_id;
 				END
 			$$ LANGUAGE plpgsql
 		`,
