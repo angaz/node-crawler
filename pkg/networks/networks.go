@@ -4,6 +4,7 @@ import (
 	"hash/crc32"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type partialFork struct {
@@ -66,7 +67,7 @@ var (
 	mainnetForks = makeForks(
 		"Mainnet",
 		1,
-		common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3"),
+		params.MainnetGenesisHash,
 		[]partialFork{
 			{1150000, "Homestead"},
 			{1920000, "DAO Fork"},
@@ -87,7 +88,7 @@ var (
 	sepoliaForks = makeForks(
 		"Sepolia",
 		11155111,
-		common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9"),
+		params.SepoliaGenesisHash,
 		[]partialFork{
 			{1735371, "Merge"},
 			{1677557088, "Shanghai"},
@@ -98,11 +99,19 @@ var (
 	holeskyForks = makeForks(
 		"Holešky",
 		17000,
-		common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4"),
+		params.HoleskyGenesisHash,
 		[]partialFork{
 			{1696000704, "Shanghai"},
 			{1707305664, "Cancun"},
 			{1740434112, "Prague"},
+		},
+	)
+	hoodiForks = makeForks(
+		"Hoodi",
+		560048,
+		params.HoodiGenesisHash,
+		[]partialFork{
+			{1742999832, "Prague"},
 		},
 	)
 )

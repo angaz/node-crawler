@@ -80,14 +80,14 @@
         };
 
         packages = {
-          nodeCrawler = pkgs.buildGo123Module rec {
+          nodeCrawler = pkgs.buildGo124Module rec {
             pname = "crawler";
             version = "0.0.0";
 
             src = gitignoreSource ./.;
             subPackages = [ "cmd/crawler" ];
 
-            vendorHash = "sha256-GNyoXNLCWxueboh6aSnn9p1T/B0E5qe5zlDR6Ks/YCM=";
+            vendorHash = "sha256-59EljOeuSzFBVh9bGq6GsH4s168lfxQCMJXwtM4NcYI=";
 
             doCheck = false;
 
@@ -126,7 +126,7 @@
           ];
 
           packages = with pkgs; [
-            go_1_23
+            go_1_24
             golangci-lint
             graphviz
             nix-prefetch
