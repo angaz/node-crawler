@@ -236,6 +236,8 @@ func NetworkName(networkID *int64) string {
 		return "Mainnet"
 	case params.HoleskyChainConfig.ChainID.Int64():
 		return "Holešky"
+	case params.HoodiChainConfig.ChainID.Int64():
+		return "Hoodi"
 	case params.SepoliaChainConfig.ChainID.Int64():
 		return "Sepolia"
 	case 56:
