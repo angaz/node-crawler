@@ -402,6 +402,11 @@ func (db *DB) InsertBlocks(
 func (db *DB) UpsertCrawledNode(ctx context.Context, tx pgx.Tx, node common.NodeJSON) error {
 	defer metrics.NodeUpdateInc(node.Direction.String(), node.Error)
 
+	// Sometimes the same node connects many times and we should just ignore it.
+	if node.Error == "already connected" {
+		return nil
+	}
+
 	if !node.EthNode {
 		err := db.UpdateNotEthNode(ctx, tx, node)
 		if err != nil {
