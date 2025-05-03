@@ -323,7 +323,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 			func(_ string) templ.SafeURL { return "" },
 		),
 		public.StatsGroup(
-			"OS / Archetectures",
+			"OS / Architectures",
 			database.ToInstant(allStats.OSArchInstant),
 			func(_ string) templ.SafeURL { return "" },
 		),
