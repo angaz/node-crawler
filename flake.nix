@@ -15,7 +15,7 @@
       url = "github:hercules-ci/gitignore.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    templ.url = "github:a-h/templ?ref=v0.3.857";
+    templ.url = "github:a-h/templ?ref=v0.3.960";
   };
 
   outputs = inputs@{
@@ -79,7 +79,7 @@
             src = gitignoreSource ./.;
             subPackages = [ "cmd/crawler" ];
 
-            vendorHash = "sha256-59EljOeuSzFBVh9bGq6GsH4s168lfxQCMJXwtM4NcYI=";
+            vendorHash = "sha256-EY1kSsjuUbUpSaX3QktMKLoHh2T2HQUOuUe6V2MZE2g=";
 
             doCheck = false;
 

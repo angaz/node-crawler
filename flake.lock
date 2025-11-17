@@ -127,11 +127,11 @@
     },
     "nixpkgs-unstable": {
       "locked": {
-        "lastModified": 1741851582,
-        "narHash": "sha256-cPfs8qMccim2RBgtKGF+x9IBCduRvd/N5F4nYpU0TVE=",
+        "lastModified": 1755027561,
+        "narHash": "sha256-IVft239Bc8p8Dtvf7UAACMG5P3ZV+3/aO28gXpGtMXI=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "6607cf789e541e7873d40d3a8f7815ea92204f32",
+        "rev": "005433b926e16227259a1843015b5b2b7f7d1fc3",
         "type": "github"
       },
       "original": {
@@ -143,16 +143,16 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1741862977,
-        "narHash": "sha256-prZ0M8vE/ghRGGZcflvxCu40ObKaB+ikn74/xQoNrGQ=",
+        "lastModified": 1754937576,
+        "narHash": "sha256-3sWA5WJybUE16kIMZ3+uxcxKZY/JRR4DFBqLdSLBo7w=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "cdd2ef009676ac92b715ff26630164bb88fec4e0",
+        "rev": "ddae11e58c0c345bf66efbddbf2192ed0e58f896",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixos-24.11",
+        "ref": "nixos-25.05",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -175,16 +175,16 @@
         "xc": "xc"
       },
       "locked": {
-        "lastModified": 1742906618,
-        "narHash": "sha256-c3x7v5PeMJFADRfImMyEasvlC9WSjqHQxNDg1sgPBfQ=",
+        "lastModified": 1760530558,
+        "narHash": "sha256-GCbqaRC9KipGdGfgnGjJu04/rJlg+2lgi2vluP05EV4=",
         "owner": "a-h",
         "repo": "templ",
-        "rev": "f9ca69bfa9090edd5351e7f2bb9919aff6226c08",
+        "rev": "7a751041c05e72268102632b66e371968c8100bf",
         "type": "github"
       },
       "original": {
         "owner": "a-h",
-        "ref": "v0.3.857",
+        "ref": "v0.3.960",
         "repo": "templ",
         "type": "github"
       }
@@ -197,15 +197,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1739526350,
-        "narHash": "sha256-rQ55O8rNY6oRfgynV/PRujaRMRDOEvEAeB/dWHt4OI4=",
+        "lastModified": 1749991223,
+        "narHash": "sha256-K6OM2m+Bdkbq7MvTIwI1t0aPIwmkLUDeUfev5VHpiwg=",
         "owner": "a-h",
         "repo": "version",
-        "rev": "5208f8efe9ba85b1cfd2b590630b976c33c4a47e",
+        "rev": "da721166410c6e7e2bea37cf3dee3948b5d0c83f",
         "type": "github"
       },
       "original": {
         "owner": "a-h",
+        "ref": "0.0.10",
         "repo": "version",
         "type": "github"
       }
