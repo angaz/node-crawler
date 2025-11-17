@@ -513,7 +513,7 @@
               postgresql = mkIf cfg.postgresql.enable {
                 enable = true;
                 enableJIT = false;
-                package = pkgs.postgresql_17;
+                package = pkgs.postgresql_18;
                 extensions = psql: with psql; [
                   pg_repack
                   timescaledb
