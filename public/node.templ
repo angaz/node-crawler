@@ -8,7 +8,6 @@ import "time"
 import "net/url"
 import "net/http"
 import "github.com/ethereum/node-crawler/pkg/common"
-import "math/rand"
 
 templ NotFound() {
 	<div style="margin: 1em;">
@@ -885,24 +884,7 @@ css buttonDisabled() {
 	pointer-events: none;
 }
 
-func randomPragueFact() string {
-	pragueFacts := []string{
-		"Prague Castle: Founded in 880 AD, Prague Castle is recognized by the Guinness Book of World Records as the largest ancient castle complex globally, covering approximately 70,000 square meters.",
-		"Astronomical Clock: Installed in 1410, the Prague Astronomical Clock, or \"Orloj,\" is the world's oldest operational astronomical clock. Located in the Old Town Square, it features intricate dials representing the sun, moon, and zodiac signs.",
-		"Charles Bridge: Commissioned by King Charles IV in 1357, Charles Bridge is adorned with 30 baroque statues and offers picturesque views of the Vltava River and the city's skyline.",
-		"Beer Consumption: The Czech Republic, with Prague as its capital, leads the world in beer consumption per capita. The city boasts numerous historic pubs and breweries, reflecting its rich beer culture.",
-		"Architectural Diversity: Prague's skyline showcases a blend of Gothic, Baroque, Renaissance, and Art Nouveau architecture, earning it the nickname \"The City of a Hundred Spires.\"",
-		"John Lennon Wall: Since the 1980s, the John Lennon Wall has been a symbol of peace and freedom, continuously covered with Beatles-inspired graffiti and messages of love.",
-		"Kafka's Birthplace: Renowned writer Franz Kafka was born in Prague in 1883. The city honors his legacy with a dedicated museum and various statues.",
-		"UNESCO Heritage: Prague's historic center was designated a UNESCO World Heritage site in 1992, recognized for its well-preserved medieval architecture and cultural significance.",
-		"Defenestrations of Prague: The city is known for two historical defenestrations (the act of throwing someone out of a window) in 1419 and 1618, events that significantly influenced European history.",
-		"Prague Zoo: Ranked among the top zoos worldwide, Prague Zoo is home to over 5,000 animals across 676 species, contributing significantly to wildlife conservation efforts.",
-	}
-
-	return pragueFacts[rand.Intn(10)]
-}
-
-templ supportsForkLinks(name string, key string, title string, url URL, supportsForkName string, disabled bool) {
+templ supportsForkLinks(name string, key string, url URL, supportsForkName string, disabled bool) {
 	<div style="display: flex; flex-direction: row; gap: 0.5em;">
 		<a
 			class={
@@ -924,7 +906,6 @@ templ supportsForkLinks(name string, key string, title string, url URL, supports
 			}
 			href={ url.WithParam("supports-fork-name", key).SafeURL() }
 			rel="nofollow"
-			title={ title }
 		>
 			Supports { name }
 		</a>
@@ -934,7 +915,7 @@ templ supportsForkLinks(name string, key string, title string, url URL, supports
 templ SupportsForkLinks(url URL, networkID int64, supportsForkName string) {
 	switch networkID {
 	case 1:
-		@supportsForkLinks("Prague", "prague", randomPragueFact(), url, supportsForkName, false)
+		@supportsForkLinks("Osaka", "osaka", url, supportsForkName, false)
 	default:
 		if url.GetParam("supports-fork-name") != "" {
 			<div style="display: flex; flex-direction: row; gap: 0.5em;">
