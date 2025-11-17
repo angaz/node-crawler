@@ -85,6 +85,9 @@ var (
 			{1681338455, "Shanghai"},
 			{1710338135, "Cancun"},
 			{1746612311, "Prague"},
+			{1764798551, "Osaka"},
+			{1765290071, "BPO1"},
+			{1767747671, "BPO2"},
 		},
 	)
 	sepoliaForks = makeForks(
@@ -96,6 +99,9 @@ var (
 			{1677557088, "Shanghai"},
 			{1706655072, "Cancun"},
 			{1741159776, "Prague"},
+			{1760427360, "Osaka"},
+			{1761017184, "BPO1"},
+			{1761607008, "BPO2"},
 		},
 	)
 	holeskyForks = makeForks(
@@ -106,6 +112,9 @@ var (
 			{1696000704, "Shanghai"},
 			{1707305664, "Cancun"},
 			{1740434112, "Prague"},
+			{1759308480, "Osaka"},
+			{1759800000, "BPO1"},
+			{1760389824, "BPO2"},
 		},
 	)
 	hoodiForks = makeForks(
@@ -114,6 +123,9 @@ var (
 		params.HoodiGenesisHash,
 		[]partialFork{
 			{1742999832, "Prague"},
+			{1761677592, "Osaka"},
+			{1762365720, "BPO1"},
+			{1762955544, "BPO2"},
 		},
 	)
 )
@@ -123,5 +135,6 @@ func EthereumNetworks() []Fork {
 		mainnetForks,
 		sepoliaForks,
 		holeskyForks,
+		hoodiForks,
 	)
 }
