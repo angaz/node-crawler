@@ -399,11 +399,67 @@ func (db *DB) InsertBlocks(
 	return nil
 }
 
+type UpdateLimiter struct {
+	m    map[string]time.Time
+	ttl  time.Duration
+	lock sync.Mutex
+}
+
+func NewUpdateLimiter(ttl time.Duration) *UpdateLimiter {
+	limiter := &UpdateLimiter{
+		m:    map[string]time.Time{},
+		ttl:  ttl,
+		lock: sync.Mutex{},
+	}
+
+	go limiter.runCleaner()
+
+	return limiter
+}
+
+func (l *UpdateLimiter) runCleaner() {
+	for {
+		time.Sleep(time.Minute)
+
+		l.lock.Lock()
+
+		for key, ts := range l.m {
+			if time.Since(ts) > l.ttl {
+				delete(l.m, key)
+			}
+		}
+
+		l.lock.Unlock()
+	}
+}
+
+func (l *UpdateLimiter) IsLimited(node common.NodeJSON) bool {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	id := node.IDString()
+
+	t, found := l.m[id]
+	if found && time.Since(t) < l.ttl {
+		return true
+	}
+
+	l.m[id] = time.Now()
+
+	return false
+}
+
+var limiter = NewUpdateLimiter(3 * time.Hour)
+
 func (db *DB) UpsertCrawledNode(ctx context.Context, tx pgx.Tx, node common.NodeJSON) error {
 	defer metrics.NodeUpdateInc(node.Direction.String(), node.Error)
 
 	// Sometimes the same node connects many times and we should just ignore it.
 	if node.Error == "already connected" {
+		return nil
+	}
+
+	if limiter.IsLimited(node) {
 		return nil
 	}
 

@@ -74,6 +74,10 @@ func (n *NodeJSON) ID() []byte {
 	return n.N.ID().Bytes()
 }
 
+func (n *NodeJSON) IDString() string {
+	return n.N.ID().String()
+}
+
 func (n *NodeJSON) TerminalString() string {
 	return n.N.ID().TerminalString()
 }
