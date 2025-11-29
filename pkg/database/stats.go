@@ -367,7 +367,7 @@ func (ts Timeseries) Percentage() Timeseries {
 	}
 
 	for i := 0; i < len(ts.Series[0].Data); i++ {
-		var total float64 = 0.0
+		var total = 0.0
 
 		for _, series := range ts.Series {
 			value := series.Data[i]

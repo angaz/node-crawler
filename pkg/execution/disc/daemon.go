@@ -204,7 +204,7 @@ func (d *Discovery) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) 
 }
 
 func closestDisc(discs []*Discovery, nodeID enode.ID) *Discovery {
-	var lastDisc *Discovery = discs[0]
+	var lastDisc = discs[0]
 	var lastDistance = enode.LogDist(lastDisc.localnode.ID(), nodeID)
 
 	for _, disc := range discs[1:] {

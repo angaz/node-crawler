@@ -31,12 +31,12 @@ func printEnodesAction(cCtx *cli.Context) error {
 
 	startPort, err := strconv.Atoi(args.Get(2))
 	if err != nil {
-		return fmt.Errorf("Parsing start port failed: %w", err)
+		return fmt.Errorf("parsing start port failed: %w", err)
 	}
 
 	nodeKeys, err := common.ReadNodeKeys(nodeFile)
 	if err != nil {
-		return fmt.Errorf("Reading node keys file failed: %w", err)
+		return fmt.Errorf("reading node keys file failed: %w", err)
 	}
 
 	for i, nodeKey := range nodeKeys {

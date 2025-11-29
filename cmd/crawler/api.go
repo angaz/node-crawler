@@ -46,7 +46,7 @@ func runAPI(cCtx *cli.Context) error {
 
 	enodes, err := readEnodes(cCtx)
 	if err != nil {
-		return fmt.Errorf("Read enodes failed: %w", err)
+		return fmt.Errorf("read enodes failed: %w", err)
 	}
 
 	// Start the API deamon

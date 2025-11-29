@@ -266,7 +266,7 @@ func (db *DB) EphemeryNetworks(ctx context.Context) ([]EphemeryNetwork, error) {
 		return nil, fmt.Errorf("query: %w", err)
 	}
 
-	networks, err := pgx.CollectRows[EphemeryNetwork](rows, func(row pgx.CollectableRow) (EphemeryNetwork, error) {
+	networks, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (EphemeryNetwork, error) {
 		var network EphemeryNetwork
 
 		err := row.Scan(
@@ -788,18 +788,6 @@ func statsTempTable(tempTableName string, fromTableName string, instant bool) st
 	}
 
 	return builder.String()
-}
-
-func mergeNamedArgs(namedArgs ...pgx.NamedArgs) pgx.NamedArgs {
-	outNamedArgs := make(pgx.NamedArgs)
-
-	for _, args := range namedArgs {
-		for key, value := range args {
-			outNamedArgs[key] = value
-		}
-	}
-
-	return outNamedArgs
 }
 
 //	{

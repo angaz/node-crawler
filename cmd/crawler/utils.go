@@ -1,16 +1,13 @@
 package main
 
 import (
-	"crypto/ecdsa"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
 	"github.com/angaz/sqlu"
-	"github.com/ethereum/node-crawler/pkg/common"
 	"github.com/ethereum/node-crawler/pkg/database"
 	"github.com/urfave/cli/v2"
 )
@@ -115,27 +112,4 @@ func openDBReader(cCtx *cli.Context) (*database.DB, error) {
 	}
 
 	return db, nil
-}
-
-func readNodeKeys(cCtx *cli.Context, nodeKeysFileName string) ([]*ecdsa.PrivateKey, error) {
-	_, err := os.Stat(nodeKeysFileName)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			keys, err := common.WriteNodeKeys(16, nodeKeysFileName)
-			if err != nil {
-				return nil, fmt.Errorf("Writing node keys file failed: %w", err)
-			}
-
-			return keys, nil
-		}
-
-		return nil, fmt.Errorf("Reading node keys file failed: %w", err)
-	}
-
-	keys, err := common.ReadNodeKeys(nodeKeysFileName)
-	if err != nil {
-		return nil, fmt.Errorf("Read node keys file failed: %w", err)
-	}
-
-	return keys, nil
 }

@@ -22,6 +22,8 @@ var (
 			"status",
 		},
 	)
+	//nolint:promlinter
+	// we're using a gauge to make a fake histogram.
 	LastFound = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,

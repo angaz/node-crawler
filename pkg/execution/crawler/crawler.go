@@ -50,7 +50,7 @@ func (c *Crawler) Wait() {
 func (c *Crawler) Close() {}
 
 func (c *Crawler) StartDaemon(ctx context.Context, workers int) error {
-	for i := 0; i < workers; i++ {
+	for range workers {
 		c.wg.Add(1)
 		go c.crawler(ctx)
 	}

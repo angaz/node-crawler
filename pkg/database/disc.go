@@ -30,7 +30,7 @@ type rowQuerier interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-func (_ *DB) selectBestRecord(ctx context.Context, db rowQuerier, node *enode.Node) (*enr.Record, error) {
+func (*DB) selectBestRecord(ctx context.Context, db rowQuerier, node *enode.Node) (*enr.Record, error) {
 	var savedRecordBytes []byte
 	var savedRecord *enr.Record
 

@@ -83,10 +83,10 @@ func (c *Crawler) Wait() {
 	c.wg.Wait()
 }
 
-func (_ *Crawler) Close() {}
+func (*Crawler) Close() {}
 
 func (c *Crawler) StartDeamon(ctx context.Context, workers int) error {
-	for i := 0; i < workers; i++ {
+	for range workers {
 		c.wg.Add(1)
 		c.crawler(ctx)
 	}
@@ -100,7 +100,7 @@ func (c *Crawler) randomHost() *consensusHost {
 	return c.hosts[idx]
 }
 
-func (c *Crawler) crawlNode(ctx context.Context, tx pgx.Tx, node *enode.Node) error {
+func (c *Crawler) crawlNode(ctx context.Context, _ pgx.Tx, node *enode.Node) error {
 	consensusNode, err := GetClientInfo(ctx, c.randomHost().host, node)
 	if err != nil {
 		return fmt.Errorf("get client info: %w", err)
@@ -397,7 +397,7 @@ var errExcessMaxLength = errors.Errorf("provided header exceeds the max varint l
 func readVarint(r io.Reader) (uint64, error) {
 	varintBuf := make([]byte, 0, maxVarintLength)
 
-	for i := 0; i < maxVarintLength; i++ {
+	for range maxVarintLength {
 		oneByte := [1]byte{0}
 
 		n, err := r.Read(oneByte[:])
