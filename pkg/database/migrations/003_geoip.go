@@ -25,7 +25,7 @@ func Migrate003GeoIP(ctx context.Context, tx pgx.Tx) error {
 			CREATE INDEX network_city_geoname_id
 				ON geoip.networks USING GIST (network inet_ops) INCLUDE (city_geoname_id);
 
-			DROP VIEW execution.node_view;
+			DROP VIEW IF EXISTS execution.node_view;
 			ALTER TABLE disc.nodes DROP COLUMN city_geoname_id;
 
 			ALTER TABLE stats.execution_nodes ALTER country_geoname_id DROP NOT NULL;
