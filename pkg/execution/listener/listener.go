@@ -3,6 +3,7 @@ package listener
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	"log/slog"
 
+	ethp2p "github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/ethereum/node-crawler/pkg/common"
@@ -138,6 +140,58 @@ func (l *Listener) startListener(ctx context.Context, nodeKey *ecdsa.PrivateKey,
 	}()
 }
 
+type UpdateLimiter struct {
+	m    map[string]time.Time
+	ttl  time.Duration
+	lock sync.Mutex
+}
+
+func NewUpdateLimiter(ttl time.Duration) *UpdateLimiter {
+	limiter := &UpdateLimiter{
+		m:    map[string]time.Time{},
+		ttl:  ttl,
+		lock: sync.Mutex{},
+	}
+
+	go limiter.runCleaner()
+
+	return limiter
+}
+
+func (l *UpdateLimiter) runCleaner() {
+	for {
+		time.Sleep(time.Minute)
+
+		l.lock.Lock()
+
+		for key, ts := range l.m {
+			if time.Since(ts) > l.ttl {
+				delete(l.m, key)
+			}
+		}
+
+		l.lock.Unlock()
+	}
+}
+
+func (l *UpdateLimiter) IsLimited(pubkey *ecdsa.PublicKey) bool {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	id := hex.EncodeToString(common.PubkeyBytes(pubkey))
+
+	t, found := l.m[id]
+	if found && time.Since(t) < l.ttl {
+		return true
+	}
+
+	l.m[id] = time.Now()
+
+	return false
+}
+
+var limiter = NewUpdateLimiter(3 * time.Hour)
+
 func (l *Listener) crawlPeer(ctx context.Context, nodeKey *ecdsa.PrivateKey, fd net.Conn) {
 	pubKey, conn, err := p2p.Accept(nodeKey, fd)
 	if err != nil {
@@ -149,6 +203,12 @@ func (l *Listener) crawlPeer(ctx context.Context, nodeKey *ecdsa.PrivateKey, fd 
 		return
 	}
 	defer conn.Close()
+
+	if limiter.IsLimited(pubKey) {
+		_ = conn.Write(p2p.Disconnect{Reason: ethp2p.DiscTooManyPeers})
+
+		return
+	}
 
 	err = l.db.WithTxAsync(
 		ctx,
