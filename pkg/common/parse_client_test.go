@@ -185,7 +185,7 @@ func TestParseClientID(t *testing.T) {
 			},
 		},
 		{
-			name: "reth",
+			name: "reth base",
 			ci:   "reth/v1.9.2-74351d9/x86_64-unknown-linux-gnu/base/v0.2.1",
 			client: &Client{
 				Name:     "reth",
@@ -194,6 +194,19 @@ func TestParseClientID(t *testing.T) {
 				Build:    "74351d9",
 				OS:       OSLinux,
 				Arch:     ArchAMD64,
+				Language: "rust",
+			},
+		},
+		{
+			name: "reth with git hash",
+			ci:   "reth-97c0e691d2f03d030756d1f4",
+			client: &Client{
+				Name:     "reth",
+				UserData: Unknown,
+				Version:  Unknown,
+				Build:    "97c0e691d2f03d030756d1f4",
+				OS:       OSUnknown,
+				Arch:     ArchUnknown,
 				Language: "rust",
 			},
 		},

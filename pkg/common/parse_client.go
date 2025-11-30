@@ -402,6 +402,20 @@ func handleNimbus(name string) (*Client, error) {
 }
 
 func handleLen1(parts []string) (*Client, error) {
+	split := strings.Split(parts[0], "-")
+
+	if len(split) == 2 && split[0] == "reth" {
+		return &Client{
+			Name:     split[0],
+			UserData: Unknown,
+			Version:  Unknown,
+			Build:    split[1],
+			OS:       OSUnknown,
+			Arch:     ArchUnknown,
+			Language: "rust",
+		}, nil
+	}
+
 	return &Client{
 		Name:     parts[0],
 		UserData: Unknown,
