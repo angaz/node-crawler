@@ -184,6 +184,19 @@ func TestParseClientID(t *testing.T) {
 				Language: "go1.22.2",
 			},
 		},
+		{
+			name: "reth",
+			ci:   "reth/v1.9.2-74351d9/x86_64-unknown-linux-gnu/base/v0.2.1",
+			client: &Client{
+				Name:     "reth",
+				UserData: "base/v0.2.1",
+				Version:  "v1.9.2",
+				Build:    "74351d9",
+				OS:       OSLinux,
+				Arch:     ArchAMD64,
+				Language: "rust",
+			},
+		},
 	}
 
 	for _, test := range tt {

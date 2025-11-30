@@ -543,6 +543,13 @@ func handleLen5(parts []string) (*Client, error) {
 		os, arch, _ = parseOSArch(parts[2])
 		lang = "nim"
 	} else
+	// handle reth/v1.9.2-74351d9/x86_64-unknown-linux-gnu/base/v0.2.1
+	if parts[0] == "reth" {
+		userData = parts[3] + "/" + parts[4]
+		versionStr = parts[1]
+		os, arch, _ = parseOSArch(parts[2])
+		lang = "rust"
+	} else
 	// handle geth/v1.2.11-e3acd735-20231031/linux-amd64/go1.20.5/{d+}
 	if strings.TrimFunc(parts[4], unicode.IsDigit) == "" {
 		versionStr = parts[1]
