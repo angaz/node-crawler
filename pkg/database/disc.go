@@ -218,15 +218,19 @@ func (db *DB) fetchExecutionNodesToCrawl(ctx context.Context) error {
 	rows, err := db.pg.Query(
 		ctx,
 		`
+			WITH last_crawled AS (
+				SELECT node_id
+				FROM crawler.next_disc_crawl
+				WHERE last_found > now() - INTERVAL '48 hours'
+			)
 			SELECT
 				next_node_crawl.next_crawl,
 				node_record
 			FROM crawler.next_node_crawl
-			LEFT JOIN disc.nodes USING (node_id)
-			LEFT JOIN crawler.next_disc_crawl USING (node_id)
+			INNER JOIN crawler.next_disc_crawl USING (node_id)
+			INNER JOIN disc.nodes USING (node_id)
 			WHERE
 				next_node_crawl.node_type IN ('Unknown', 'Execution')
-				AND last_found > now() - INTERVAL '48 hours'
 			ORDER BY next_node_crawl.next_crawl
 			LIMIT 1024
 		`,
