@@ -76,18 +76,18 @@ func NewDB(
 		nextCrawlNotEth: nextCrawlNotEth,
 		githubToken:     githubToken,
 
-		executionNodesToCrawlCache: make(chan *NodeToCrawl, 16392),
+		executionNodesToCrawlCache: make(chan *NodeToCrawl, 16384),
 		executionNodesToCrawlLock:  new(sync.Mutex),
-		executionRecentlyCrawled:   fifomemory.New[enode.ID](16392),
+		executionRecentlyCrawled:   fifomemory.New[enode.ID](16384),
 
 		consensusNodesToCrawlCache: make(chan *NodeToCrawl, 2048),
 		consensusNodesToCrawlLock:  new(sync.Mutex),
 		consensusRecentlyCrawled:   fifomemory.New[enode.ID](256),
 		// consensusActiveCrawlers:    map[enode.ID]struct{}{},
 
-		discNodesToCrawlCache: make(chan *NodeToCrawl, 16392),
+		discNodesToCrawlCache: make(chan *NodeToCrawl, 16384),
 		discNodesToCrawlLock:  new(sync.Mutex),
-		discRecentlyCrawled:   fifomemory.New[enode.ID](16392),
+		discRecentlyCrawled:   fifomemory.New[enode.ID](16384),
 
 		discUpdateCache: fifomemory.New[enode.ID](1024),
 

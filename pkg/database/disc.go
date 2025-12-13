@@ -232,7 +232,7 @@ func (db *DB) fetchExecutionNodesToCrawl(ctx context.Context) error {
 			WHERE
 				next_node_crawl.node_type IN ('Unknown', 'Execution')
 			ORDER BY next_node_crawl.next_crawl
-			LIMIT 4096
+			LIMIT 8192
 		`,
 	)
 	if err != nil {
@@ -261,9 +261,8 @@ func (db *DB) fetchDiscNodesToCrawl(ctx context.Context) error {
 				node_record
 			FROM crawler.next_disc_crawl
 			LEFT JOIN disc.nodes USING (node_id)
-			WHERE next_crawl < now() + INTERVAL '3 days'
 			ORDER BY next_crawl
-			LIMIT 1024
+			LIMIT 8192
 		`,
 	)
 	if err != nil {
@@ -381,7 +380,7 @@ func (db *DB) ExecutionNodesToCrawl(ctx context.Context) (*enode.Node, error) {
 func (db *DB) DiscNodesToCrawl(ctx context.Context) (*enode.Node, error) {
 	return nodesToCrawl(
 		ctx,
-		false,
+		true,
 		db.discNodesToCrawlLock,
 		db.discNodesToCrawlCache,
 		db.discRecentlyCrawled,
