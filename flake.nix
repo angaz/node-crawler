@@ -15,7 +15,7 @@
       url = "github:hercules-ci/gitignore.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    templ.url = "github:a-h/templ?ref=v0.3.960";
+    templ.url = "github:a-h/templ?ref=v0.3.1020";
   };
 
   outputs = inputs@{
@@ -72,14 +72,14 @@
         };
 
         packages = {
-          nodeCrawler = pkgs.buildGo124Module rec {
+          nodeCrawler = pkgs.buildGo126Module rec {
             pname = "crawler";
             version = "0.0.0";
 
             src = gitignoreSource ./.;
             subPackages = [ "cmd/crawler" ];
 
-            vendorHash = "sha256-EY1kSsjuUbUpSaX3QktMKLoHh2T2HQUOuUe6V2MZE2g=";
+            vendorHash = "sha256-lPt2cTgXIPrEYKNMWnJh5p9o8Z3c95xN7Sa9ZqNpVzA=";
 
             doCheck = false;
 
@@ -118,13 +118,14 @@
           ];
 
           packages = with pkgs; [
-            go_1_24
+            go_1_26
             golangci-lint
             graphviz
             nix-prefetch
             nodejs
             postgresql_17
             sqlite-interactive
+            stdenv.cc
             templ
             # orioledb
           ];
